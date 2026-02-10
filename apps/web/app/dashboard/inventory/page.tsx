@@ -1,0 +1,315 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { 
+  Package, Search, Plus, RefreshCw, X, Save, 
+  Pencil, Trash2, AlertTriangle 
+} from 'lucide-react'; // ✏️ Agregamos iconos de Lápiz y Basura
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export default function InventoryPage() {
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Estados del Modal y Edición
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null); // ✏️ ID del producto que estamos editando (null = creando)
+  
+  // Formulario
+  const [formData, setFormData] = useState({
+    code: '',
+    name: '',
+    priceBase: '',
+    currentStock: ''
+  });
+
+  // --- 1. CARGAR PRODUCTOS ---
+  const fetchProducts = async () => {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    try {
+      const res = await fetch('http://localhost:3001/products', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchProducts(); }, []);
+
+  // --- 2. PREPARAR EDICIÓN (✏️ Nuevo) ---
+  const handleEdit = (product: any) => {
+    setEditingId(product.id); // Guardamos el ID para saber que vamos a actualizar
+    setFormData({
+      code: product.code,
+      name: product.name,
+      priceBase: product.priceBase.toString(), // Convertimos a texto para el input
+      currentStock: product.currentStock.toString()
+    });
+    setIsModalOpen(true); // Abrimos el modal
+  };
+
+  // --- 3. ABRIR PARA CREAR (Limpiar formulario) ---
+  const handleOpenCreate = () => {
+    setEditingId(null); // Null significa "Nuevo Producto"
+    setFormData({ code: '', name: '', priceBase: '', currentStock: '' });
+    setIsModalOpen(true);
+  };
+
+  // --- 4. GUARDAR (CREAR O EDITAR) ---
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    try {
+      // Limpieza de datos (Coma a Punto)
+      let cleanPrice = formData.priceBase.toString().replace(',', '.');
+      const priceNumber = parseFloat(cleanPrice);
+      const stockNumber = parseInt(formData.currentStock);
+
+      if (isNaN(priceNumber)) throw new Error("Precio inválido");
+
+      const payload = {
+        code: formData.code,
+        name: formData.name,
+        priceBase: priceNumber,
+        currentStock: stockNumber,
+      };
+
+      // 🧠 Lógica Inteligente: ¿Creamos o Editamos?
+      let url = 'http://localhost:3001/products';
+      let method = 'POST';
+
+      if (editingId) {
+        // Si hay ID, estamos EDITANDO
+        url = `http://localhost:3001/products/${editingId}`;
+        method = 'PATCH'; // PATCH sirve para actualizar
+      }
+
+      const res = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error('Error en la operación');
+
+      // Éxito
+      setIsModalOpen(false);
+      fetchProducts(); // Recargar tabla
+      alert(editingId ? '✅ Producto actualizado' : '✅ Producto creado');
+
+    } catch (error: any) {
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // --- 5. BORRAR PRODUCTO (🗑️ Nuevo) ---
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Estás seguro de eliminar este producto? Esta acción no se puede deshacer.')) return;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    try {
+      const res = await fetch(`http://localhost:3001/products/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (res.ok) {
+        fetchProducts(); // Recargar tabla visualmente
+      } else {
+        alert('❌ No se pudo eliminar');
+      }
+    } catch (error) {
+      alert('❌ Error de conexión');
+    }
+  };
+
+  return (
+    <div className="space-y-6 relative">
+      {/* HEADER */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <Package className="text-blue-600" /> Inventario
+          </h1>
+          <p className="text-gray-500 text-sm">Gestiona tus productos y existencias</p>
+        </div>
+        <button 
+          onClick={handleOpenCreate} 
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+        >
+          <Plus size={18} /> Nuevo Producto
+        </button>
+      </div>
+
+      {/* BARRA DE BÚSQUEDA */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input 
+            type="text" 
+            placeholder="Buscar por nombre o código..." 
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <button onClick={fetchProducts} className="p-2 text-gray-500 hover:text-blue-600 transition-colors">
+          <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+        </button>
+      </div>
+
+      {/* TABLA DE PRODUCTOS */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {products.length === 0 && !loading ? (
+          <div className="p-10 text-center text-gray-500">No hay productos registrados.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-gray-600">
+              <thead className="bg-gray-50 text-gray-900 font-semibold uppercase text-xs border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-4">Código</th>
+                  <th className="px-6 py-4">Producto</th>
+                  <th className="px-6 py-4 text-right">Precio Base</th>
+                  <th className="px-6 py-4 text-center">Stock</th>
+                  <th className="px-6 py-4 text-center">Estado</th>
+                  <th className="px-6 py-4 text-right">Acciones</th> {/* Columna Nueva */}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {products.map((product) => (
+                  <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 font-mono text-blue-600 font-medium">{product.code}</td>
+                    <td className="px-6 py-4 font-medium text-gray-900">{product.name}</td>
+                    <td className="px-6 py-4 text-right">${Number(product.priceBase).toFixed(2)}</td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        product.currentStock > 10 ? 'bg-green-100 text-green-700' : 
+                        product.currentStock > 0 ? 'bg-yellow-100 text-yellow-700' : 
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {product.currentStock}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center text-green-600 text-xs">● Activo</td>
+                    
+                    {/* BOTONES DE ACCIÓN (Lápiz y Basura) */}
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => handleEdit(product)}
+                          className="p-2 text-gray-500 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(product.id)}
+                          className="p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* MODAL (Reutilizable para Crear y Editar) */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              {/* Título dinámico */}
+              <h3 className="text-lg font-bold text-gray-800">
+                {editingId ? '✏️ Editar Producto' : '✨ Nuevo Producto'}
+              </h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-red-500">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSave} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Código</label>
+                <input 
+                  autoFocus required type="text" 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={formData.code}
+                  onChange={e => setFormData({...formData, code: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                <input 
+                  required type="text" 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={formData.name}
+                  onChange={e => setFormData({...formData, name: e.target.value})}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Precio ($)</label>
+                  <input 
+                    required type="text" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={formData.priceBase}
+                    onChange={e => setFormData({...formData, priceBase: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+                  <input 
+                    required type="number" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={formData.currentStock}
+                    onChange={e => setFormData({...formData, currentStock: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium">Cancelar</button>
+                <button 
+                  type="submit" disabled={isSaving}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSaving ? 'Guardando...' : <><Save size={18} /> {editingId ? 'Actualizar' : 'Guardar'}</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
