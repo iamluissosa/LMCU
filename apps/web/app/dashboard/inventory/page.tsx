@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Package, Search, Plus, RefreshCw, X, Save, 
-  Pencil, Trash2, AlertTriangle 
-} from 'lucide-react'; // ✏️ Agregamos iconos de Lápiz y Basura
+  Pencil, Trash2 
+} from 'lucide-react';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,7 +18,7 @@ export default function InventoryPage() {
   // Estados del Modal y Edición
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null); // ✏️ ID del producto que estamos editando (null = creando)
+  const [editingId, setEditingId] = useState<string | null>(null);
   
   // Formulario
   const [formData, setFormData] = useState({
@@ -51,21 +51,21 @@ export default function InventoryPage() {
 
   useEffect(() => { fetchProducts(); }, []);
 
-  // --- 2. PREPARAR EDICIÓN (✏️ Nuevo) ---
+  // --- 2. PREPARAR EDICIÓN ---
   const handleEdit = (product: any) => {
-    setEditingId(product.id); // Guardamos el ID para saber que vamos a actualizar
+    setEditingId(product.id);
     setFormData({
       code: product.code,
       name: product.name,
-      priceBase: product.priceBase.toString(), // Convertimos a texto para el input
+      priceBase: product.priceBase.toString(),
       currentStock: product.currentStock.toString()
     });
-    setIsModalOpen(true); // Abrimos el modal
+    setIsModalOpen(true);
   };
 
-  // --- 3. ABRIR PARA CREAR (Limpiar formulario) ---
+  // --- 3. ABRIR PARA CREAR ---
   const handleOpenCreate = () => {
-    setEditingId(null); // Null significa "Nuevo Producto"
+    setEditingId(null);
     setFormData({ code: '', name: '', priceBase: '', currentStock: '' });
     setIsModalOpen(true);
   };
@@ -93,14 +93,12 @@ export default function InventoryPage() {
         currentStock: stockNumber,
       };
 
-      // 🧠 Lógica Inteligente: ¿Creamos o Editamos?
       let url = 'http://localhost:3001/products';
       let method = 'POST';
 
       if (editingId) {
-        // Si hay ID, estamos EDITANDO
         url = `http://localhost:3001/products/${editingId}`;
-        method = 'PATCH'; // PATCH sirve para actualizar
+        method = 'PATCH';
       }
 
       const res = await fetch(url, {
@@ -114,9 +112,8 @@ export default function InventoryPage() {
 
       if (!res.ok) throw new Error('Error en la operación');
 
-      // Éxito
       setIsModalOpen(false);
-      fetchProducts(); // Recargar tabla
+      fetchProducts();
       alert(editingId ? '✅ Producto actualizado' : '✅ Producto creado');
 
     } catch (error: any) {
@@ -126,7 +123,7 @@ export default function InventoryPage() {
     }
   };
 
-  // --- 5. BORRAR PRODUCTO (🗑️ Nuevo) ---
+  // --- 5. BORRAR PRODUCTO ---
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este producto? Esta acción no se puede deshacer.')) return;
 
@@ -140,7 +137,7 @@ export default function InventoryPage() {
       });
 
       if (res.ok) {
-        fetchProducts(); // Recargar tabla visualmente
+        fetchProducts();
       } else {
         alert('❌ No se pudo eliminar');
       }
@@ -182,7 +179,7 @@ export default function InventoryPage() {
         </button>
       </div>
 
-      {/* TABLA DE PRODUCTOS */}
+      {/* TABLA DE PRODUCTOS (CORREGIDA) */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {products.length === 0 && !loading ? (
           <div className="p-10 text-center text-gray-500">No hay productos registrados.</div>
@@ -196,7 +193,7 @@ export default function InventoryPage() {
                   <th className="px-6 py-4 text-right">Precio Base</th>
                   <th className="px-6 py-4 text-center">Stock</th>
                   <th className="px-6 py-4 text-center">Estado</th>
-                  <th className="px-6 py-4 text-right">Acciones</th> {/* Columna Nueva */}
+                  <th className="px-6 py-4 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -215,8 +212,6 @@ export default function InventoryPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center text-green-600 text-xs">● Activo</td>
-                    
-                    {/* BOTONES DE ACCIÓN (Lápiz y Basura) */}
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
                         <button 
@@ -243,12 +238,11 @@ export default function InventoryPage() {
         )}
       </div>
 
-      {/* MODAL (Reutilizable para Crear y Editar) */}
+      {/* MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              {/* Título dinámico */}
               <h3 className="text-lg font-bold text-gray-800">
                 {editingId ? '✏️ Editar Producto' : '✨ Nuevo Producto'}
               </h3>
