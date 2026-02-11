@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import * as bcrypt from 'bcrypt'; // Asegúrate de tener: pnpm add bcrypt @types/bcrypt
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  // 1. Crear Usuario (Opcional, si quieres crearlos manual)
+  // 1. Crear Usuario
   async create(data: any) {
     const hashedPassword = await bcrypt.hash(data.password, 10);
     return this.prisma.user.create({
@@ -15,16 +15,22 @@ export class UsersService {
         password: hashedPassword,
         name: data.name,
         role: data.role || 'USER',
-        companyId: data.companyId, // Vinculamos a la empresa aquí
+        companyId: data.companyId,
       },
     });
   }
 
-  // 2. Listar Usuarios (Incluyendo datos de la empresa)
-  async findAll() {
+  // 2. Listar Usuarios (FILTRADO POR EMPRESA)
+  async findAll(companyId: string) {
+    // Si el usuario no tiene empresa (ej. Super Admin global), quizás quiera ver todos.
+    // Pero por seguridad estricta, si companyId viene, filtramos.
+    
+    const whereCondition = companyId ? { companyId } : {};
+
     return this.prisma.user.findMany({
+      where: whereCondition, // 👈 Aquí aplicamos el filtro
       include: {
-        company: true, // ¡Truco! Trae el nombre de la empresa, no solo el ID
+        company: true,
       },
       orderBy: { name: 'asc' },
     });
@@ -38,9 +44,8 @@ export class UsersService {
     });
   }
 
-  // 4. Actualizar (Para asignar empresa o cambiar rol)
+  // 4. Actualizar
   async update(id: string, data: any) {
-    // Si envían password, hay que encriptarlo de nuevo
     if (data.password) {
       data.password = await bcrypt.hash(data.password, 10);
     }

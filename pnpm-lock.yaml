@@ -51,6 +51,9 @@ importers:
       '@repo/database':
         specifier: workspace:^
         version: link:../../packages/database
+      '@supabase/supabase-js':
+        specifier: ^2.95.3
+        version: 2.95.3
       '@types/passport-jwt':
         specifier: ^4.0.1
         version: 4.0.1

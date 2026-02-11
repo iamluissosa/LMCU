@@ -1,58 +1,60 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
-  // 1. CREAR PRODUCTO (INTELIGENTE)
-  async create(data: any) {
-    // PASO A: Buscar la primera empresa disponible en la BD
-    const company = await this.prisma.company.findFirst();
+  // 1. CREAR PRODUCTO (Vinculado a la compañía del usuario)
+  async create(data: any, companyId: string) {
+    if (!companyId) throw new ForbiddenException('Usuario no tiene empresa asignada');
 
-    if (!company) {
-      // Si no hay empresa, lanzamos una alerta clara
-      throw new NotFoundException(
-        '❌ NO SE PUEDE GUARDAR: No existe ninguna empresa registrada en la Base de Datos. Ejecuta el seed o crea una empresa en Supabase.',
-      );
-    }
-
-    // PASO B: Crear el producto vinculándolo a esa empresa real
     return this.prisma.product.create({
       data: {
         code: data.code,
         name: data.name,
-        priceBase: data.priceBase,     // Ya viene como número desde el frontend
-        currentStock: data.currentStock, // Ya viene como número
-        companyId: company.id,         // ✅ USAMOS EL ID REAL
+        priceBase: data.priceBase,
+        currentStock: data.currentStock,
+        companyId: companyId, // ✅ Usamos el ID del usuario
       },
     });
   }
 
-  // 2. LISTAR TODOS
-  async findAll() {
+  // 2. LISTAR (Solo de mi empresa)
+  async findAll(companyId: string) {
+    if (!companyId) return []; // O lanzar error, depende de la lógica de negocio
+
     return this.prisma.product.findMany({
-      orderBy: { name: 'asc' }, // Orden alfabético (A-Z)
+      where: { companyId }, // 🔍 Filtro clave
+      orderBy: { name: 'asc' },
     });
   }
 
-  // 3. BUSCAR UNO
-  async findOne(id: string) {
-    return this.prisma.product.findUnique({
-      where: { id },
+  // 3. BUSCAR UNO (Validando que sea de mi empresa)
+  async findOne(id: string, companyId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id, companyId }
     });
+
+    if (!product) throw new NotFoundException('Producto no encontrado o no pertenece a tu empresa');
+    return product;
   }
 
-  // 4. ACTUALIZAR
-  async update(id: string, data: any) {
+  // 4. ACTUALIZAR (Validando propiedad)
+  async update(id: string, data: any, companyId: string) {
+    // Primero verificamos que el producto exista y sea de la empresa
+    await this.findOne(id, companyId); 
+
     return this.prisma.product.update({
       where: { id },
       data,
     });
   }
 
-  // 5. BORRAR
-  async remove(id: string) {
+  // 5. BORRAR (Validando propiedad)
+  async remove(id: string, companyId: string) {
+    await this.findOne(id, companyId);
+
     return this.prisma.product.delete({
       where: { id },
     });

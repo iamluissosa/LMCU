@@ -28,3 +28,16 @@ Status: Stable Base Version.
 - **Frontend**:
   - Dashboard Settings pages for Companies and Users.
   - Modal-based forms for creating and editing records.
+
+## v3.0.0 - [2026-02-10]
+### Multi-Tenancy & Security Hardening
+- **Data Isolation**: 
+  - Implemented strict `companyId` filtering across all modules (Products, Users).
+  - Users can now ONLY see data belonging to their assigned company.
+- **User Management Refactor**:
+  - Simplified User creation flow (decoupled direct Supabase Admin dependency for stability).
+  - Enforced company assignment: New users are automatically linked to the creator's company.
+- **Products Module**:
+  - `create`, `update`, `delete` operations now validate ownership against the user's company to prevent unauthorized access.
+- **Frontend Integration**:
+  - Validated JWT Token payload to extract `companyId` and `role` for client-side logic.

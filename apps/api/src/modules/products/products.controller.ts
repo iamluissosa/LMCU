@@ -7,37 +7,43 @@ import {
   Param,
   Delete,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { AuthGuard } from '@nestjs/passport';
 
 @Controller('products')
-@UseGuards(AuthGuard('jwt')) // 🔒 ¡Protegemos toda la ruta! Solo usuarios logueados
+@UseGuards(AuthGuard('jwt')) 
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
-  create(@Body() createProductDto: any) {
-    return this.productsService.create(createProductDto);
+  create(@Body() createProductDto: any, @Request() req) {
+    const companyId = req.user.companyId;
+    return this.productsService.create(createProductDto, companyId);
   }
 
   @Get()
-  findAll() {
-    return this.productsService.findAll();
+  findAll(@Request() req) {
+    const companyId = req.user.companyId;
+    return this.productsService.findAll(companyId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req) {
+    const companyId = req.user.companyId;
+    return this.productsService.findOne(id, companyId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateProductDto: any) {
-    return this.productsService.update(id, updateProductDto);
+  update(@Param('id') id: string, @Body() updateProductDto: any, @Request() req) {
+    const companyId = req.user.companyId;
+    return this.productsService.update(id, updateProductDto, companyId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.productsService.remove(id);
+  remove(@Param('id') id: string, @Request() req) {
+    const companyId = req.user.companyId;
+    return this.productsService.remove(id, companyId);
   }
 }
