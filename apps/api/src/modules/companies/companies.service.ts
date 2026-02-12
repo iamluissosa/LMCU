@@ -22,8 +22,15 @@ export class CompaniesService {
     });
   }
 
-  // 2. Listar todas
-  async findAll() {
+  // 2. Listar todas (Filtradas por Empresa)
+  async findAll(companyId?: string) {
+    if (companyId) {
+      return this.prisma.company.findMany({
+        where: { id: companyId },
+      });
+    }
+    // Si no hay companyId (ej. Admin global o debug), retornamos todas o vacío.
+    // Por seguridad, si es un usuario normal sin companyId, no debería ver nada.
     return this.prisma.company.findMany();
   }
 

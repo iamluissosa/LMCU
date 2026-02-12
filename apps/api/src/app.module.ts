@@ -8,6 +8,10 @@ import { ProductsModule } from './modules/products/products.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { UsersModule } from './modules/users/users.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
+import { GoodsReceiptsModule } from './modules/goods-receipts/goods-receipts.module';
 
 @Module({
   imports: [
@@ -20,6 +24,10 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     CompaniesModule,
     UsersModule,
     DashboardModule,
+    SettingsModule,
+    SuppliersModule,
+    PurchaseOrdersModule,
+    GoodsReceiptsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

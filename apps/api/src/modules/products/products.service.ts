@@ -20,12 +20,22 @@ export class ProductsService {
     });
   }
 
-  // 2. LISTAR (Solo de mi empresa)
-  async findAll(companyId: string) {
-    if (!companyId) return []; // O lanzar error, depende de la lógica de negocio
+  // 2. LISTAR (Solo de mi empresa o TODO si es ADMIN)
+  async findAll(companyId: string, role?: string) {
+    // Si es ADMIN real (no importa si tiene companyId o no, un Super Admin ve todo)
+    if (role === 'ADMIN') {
+        return this.prisma.product.findMany({
+            include: { company: true }, // Incluimos info de la empresa para saber de quién es
+            orderBy: { 
+                company: { name: 'asc' } // Ordenar por empresa y luego nombre
+            }
+        });
+    }
+
+    if (!companyId) return []; 
 
     return this.prisma.product.findMany({
-      where: { companyId }, // 🔍 Filtro clave
+      where: { companyId }, 
       orderBy: { name: 'asc' },
     });
   }

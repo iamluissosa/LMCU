@@ -18,15 +18,25 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
     const user = await this.usersService.findOne(payload.sub);
 
     if (!user) {
-      throw new UnauthorizedException('Usuario no registrado en el sistema ERP');
+      // ⚠️ CAMBIO CRÍTICO: Permitir usuarios nuevos para que puedan registrarse
+      return {
+        userId: payload.sub,
+        email: payload.email,
+        isNew: true, // 🚩 Bandera para identificar usuarios pendientes de registro
+        companyId: null,
+        roles: [],
+        permissions: []
+      };
     }
 
     return { 
       userId: payload.sub, 
       email: payload.email,
       roles: payload.app_metadata?.roles || [],
-      companyId: user.companyId, // ✅ CRÍTICO: Inyectamos companyId
-      role: user.role // ✅ Inyectamos el rol local
+      companyId: user.companyId, 
+      role: user.roleLegacy,      // Rol legacy (ADMIN/USER)
+      roleName: user.role?.name,  // Nombre del rol personalizado
+      permissions: user.role?.permissions || [] // Permisos del rol personalizado
     };
   }
 }

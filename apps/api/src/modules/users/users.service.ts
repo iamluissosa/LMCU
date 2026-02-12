@@ -11,26 +11,33 @@ export class UsersService {
     const hashedPassword = await bcrypt.hash(data.password, 10);
     return this.prisma.user.create({
       data: {
+        id: data.id, // ✅ Permitimos setear ID (para sync con Supabase)
         email: data.email,
         password: hashedPassword,
         name: data.name,
-        role: data.role || 'USER',
+        roleLegacy: data.roleLegacy || data.role || 'USER',
         companyId: data.companyId,
       },
     });
   }
 
   // 2. Listar Usuarios (FILTRADO POR EMPRESA)
-  async findAll(companyId: string) {
-    // Si el usuario no tiene empresa (ej. Super Admin global), quizás quiera ver todos.
-    // Pero por seguridad estricta, si companyId viene, filtramos.
-    
+  // 2. Listar Usuarios (FILTRADO POR EMPRESA o TODO si es ADMIN)
+  async findAll(companyId: string, role?: string) {
+    if (role === 'ADMIN') {
+        return this.prisma.user.findMany({
+            include: { company: true, role: true },
+            orderBy: { name: 'asc' }
+        });
+    }
+
     const whereCondition = companyId ? { companyId } : {};
 
     return this.prisma.user.findMany({
-      where: whereCondition, // 👈 Aquí aplicamos el filtro
+      where: whereCondition, 
       include: {
         company: true,
+        role: true // Include role details
       },
       orderBy: { name: 'asc' },
     });
@@ -40,7 +47,10 @@ export class UsersService {
   async findOne(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
-      include: { company: true },
+      include: { 
+        company: true,
+        role: true // ✅ Traemos el rol con sus permisos
+      },
     });
   }
 

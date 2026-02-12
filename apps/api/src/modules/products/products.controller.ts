@@ -19,14 +19,15 @@ export class ProductsController {
 
   @Post()
   create(@Body() createProductDto: any, @Request() req) {
-    const companyId = req.user.companyId;
+    const companyId = req.user.companyId || (req.user.role === 'ADMIN' ? createProductDto.companyId : null);
+    if (!companyId) throw new Error('Se requiere ID de empresa para crear un producto');
     return this.productsService.create(createProductDto, companyId);
   }
 
   @Get()
   findAll(@Request() req) {
-    const companyId = req.user.companyId;
-    return this.productsService.findAll(companyId);
+    const user = req.user;
+    return this.productsService.findAll(user.companyId, user.role);
   }
 
   @Get(':id')

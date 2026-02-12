@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { 
   LayoutDashboard, Package, Users, Settings, LogOut, 
-  Menu, Building2, UserCircle 
+  Menu, Building2, UserCircle, Truck, ShoppingCart, ClipboardCheck
 } from 'lucide-react';
 
 const supabase = createClient(
@@ -20,6 +20,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [userRole, setUserRole] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
 
   useEffect(() => {
     const getUser = async () => {
@@ -29,40 +30,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return;
       }
 
-      // 1. Obtener datos del usuario desde NUESTRA API (para tener nombre y empresa)
       try {
-        const res = await fetch('http://localhost:3001/profile', { // Asumiendo que existe endpoint profile, si no, lo simulo abajo con la sesión
+        // ✅ Usamos el nuevo endpoint optimizado
+        const res = await fetch('http://localhost:3001/users/me', {
            headers: { Authorization: `Bearer ${session.access_token}` }
         });
         
-        // Si tienes un endpoint /profile úsalo, si no, usaremos la lógica local:
-        // Por ahora, buscaré el usuario por su email en la lista (truco rápido)
-        // O mejor: decodificamos el token si el backend lo envía.
-        
-        // ESTRATEGIA SEGURA: Consultar el usuario actual al backend
-        const resUser = await fetch(`http://localhost:3001/users/${session.user.id}`, { // Ojo: Necesitas endpoint que busque por ID de Supabase o Email
-             headers: { Authorization: `Bearer ${session.access_token}` }
-        });
-
-        // ⚠️ SI NO TIENES endpoint para "mi perfil", usaremos el email del session como fallback
-        // Pero intentemos mostrar el nombre real si lo guardaste en metadata de supabase
-        const { user } = session;
-        
-        // Intentar obtener el nombre desde la API de usuarios filtrando por email (Solución temporal efectiva)
-        const resApi = await fetch('http://localhost:3001/users', {
-            headers: { Authorization: `Bearer ${session.access_token}` }
-        });
-        
-        if (resApi.ok) {
-            const users = await resApi.json();
-            const myUser = users.find((u: any) => u.email === user.email);
-            if (myUser) {
-                setUserName(myUser.name);
-                setUserRole(myUser.role);
-                setCompanyName(myUser.company?.name || "Sin Empresa");
-            } else {
-                setUserName(user.email?.split('@')[0] || "Usuario");
-            }
+        if (res.ok) {
+            const myUser = await res.json();
+            // Si el backend no devuelve el nombre (pq está en otra tabla), usamos el email
+            // Pero como el strategy ya tiene acceso a todo, idealmente el backend debería devolverlo.
+            // Por ahora, asumimos que req.user tiene lo básico.
+            // Si req.user no trae 'name', lo sacamos del email.
+            setUserName(myUser.name || session.user.email?.split('@')[0] || "Usuario");
+            setUserRole(myUser.roleName || myUser.role); // Mostrar nombre del rol custom o el legacy
+            setCompanyName(myUser.companyId ? "Mi Empresa" : "Sin Empresa"); // O idealmente traer el nombre de la empresa en /me
+            setUserPermissions(myUser.permissions || []);
         }
 
       } catch (e) {
@@ -78,12 +61,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/');
   };
 
+  // Función para verificar permisos
+  const can = (permission: string) => {
+    if (userRole === 'ADMIN') return true; // Super admin ve todo
+    return userPermissions.includes(permission);
+  };
+
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { name: 'Inventario', icon: Package, path: '/dashboard/inventory' },
-    { name: 'Configuración', icon: Settings, path: '/dashboard/settings/companies' }, // Ajusta tus rutas
-    { name: 'Usuarios', icon: Users, path: '/dashboard/settings/users' },
+    { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', requiredPermission: null }, 
+    { name: 'Proveedores', icon: Truck, path: '/dashboard/suppliers', requiredPermission: 'suppliers.view' },
+    { name: 'Órdenes de Compra', icon: ShoppingCart, path: '/dashboard/purchase-orders', requiredPermission: 'purchase_orders.view' },
+    { name: 'Inventario', icon: Package, path: '/dashboard/inventory', requiredPermission: 'inventory.view' },
+    { name: 'Recepciones', icon: ClipboardCheck, path: '/dashboard/inventory/receptions', requiredPermission: 'receptions.view' },
+    { name: 'Empresas', icon: Building2, path: '/dashboard/settings/general/companies', requiredPermission: 'companies.view' },
+    { name: 'Configuración', icon: Settings, path: '/dashboard/settings/general/users', requiredPermission: 'settings.view' },
   ];
+
+  const filteredMenu = menuItems.filter(item => 
+    !item.requiredPermission || can(item.requiredPermission)
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -97,7 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </div>
 
-        {/* INFO DEL USUARIO (Aquí está la magia ✨) */}
+        {/* INFO DEL USUARIO */}
         <div className={`p-4 border-b border-gray-100 ${!isSidebarOpen && 'hidden'}`}>
             <div className="flex items-center gap-3">
                 <div className="bg-blue-100 p-2 rounded-full text-blue-600">
@@ -111,7 +107,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="p-4 space-y-2">
-          {menuItems.map((item) => (
+          {filteredMenu.map((item) => (
             <Link 
               key={item.path} 
               href={item.path}

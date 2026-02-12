@@ -39,7 +39,7 @@ export class DashboardService {
     });
     
     const inventoryValue = products.reduce((acc, item) => {
-      return acc + (Number(item.priceBase) * item.currentStock);
+      return acc + (Number(item.priceBase) * Number(item.currentStock));
     }, 0);
 
     // 5. Tabla Rápida (SOLO de esta empresa)
