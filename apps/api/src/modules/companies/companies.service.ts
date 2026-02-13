@@ -15,8 +15,8 @@ export class CompaniesService {
         state: data.state,
         city: data.city,
         taxpayerType: data.taxpayerType,
-        phone: data.phone,     // ✅
-        email: data.email,     // ✅
+        phone: data.phone, // ✅
+        email: data.email, // ✅
         website: data.website, // ✅ Nuevo campo
       },
     });

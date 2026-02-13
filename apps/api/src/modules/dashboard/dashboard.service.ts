@@ -8,27 +8,30 @@ export class DashboardService {
   // Ahora pedimos el companyId como requisito
   async getStats(companyId: string) {
     if (!companyId) {
-      return { 
-        totalProducts: 0, totalUsers: 0, lowStockCount: 0, 
-        inventoryValue: 0, lowStockProducts: [] 
+      return {
+        totalProducts: 0,
+        totalUsers: 0,
+        lowStockCount: 0,
+        inventoryValue: 0,
+        lowStockProducts: [],
       };
     }
 
     // 1. Contar Productos (SOLO de esta empresa)
     const totalProducts = await this.prisma.product.count({
-      where: { companyId }
+      where: { companyId },
     });
 
     // 2. Contar Usuarios (SOLO de esta empresa)
     const totalUsers = await this.prisma.user.count({
-      where: { companyId }
+      where: { companyId },
     });
 
     // 3. Stock Bajo (SOLO de esta empresa)
     const lowStockCount = await this.prisma.product.count({
-      where: { 
+      where: {
         companyId,
-        currentStock: { lte: 10 } 
+        currentStock: { lte: 10 },
       },
     });
 
@@ -37,16 +40,16 @@ export class DashboardService {
       where: { companyId },
       select: { priceBase: true, currentStock: true },
     });
-    
+
     const inventoryValue = products.reduce((acc, item) => {
-      return acc + (Number(item.priceBase) * Number(item.currentStock));
+      return acc + Number(item.priceBase) * Number(item.currentStock);
     }, 0);
 
     // 5. Tabla Rápida (SOLO de esta empresa)
     const lowStockProducts = await this.prisma.product.findMany({
-      where: { 
+      where: {
         companyId,
-        currentStock: { lte: 10 } 
+        currentStock: { lte: 10 },
       },
       take: 5,
       orderBy: { currentStock: 'asc' },
@@ -57,7 +60,7 @@ export class DashboardService {
       totalUsers,
       lowStockCount,
       inventoryValue,
-      lowStockProducts
+      lowStockProducts,
     };
   }
 }

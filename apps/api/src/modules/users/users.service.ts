@@ -25,19 +25,19 @@ export class UsersService {
   // 2. Listar Usuarios (FILTRADO POR EMPRESA o TODO si es ADMIN)
   async findAll(companyId: string, role?: string) {
     if (role === 'ADMIN') {
-        return this.prisma.user.findMany({
-            include: { company: true, role: true },
-            orderBy: { name: 'asc' }
-        });
+      return this.prisma.user.findMany({
+        include: { company: true, role: true },
+        orderBy: { name: 'asc' },
+      });
     }
 
     const whereCondition = companyId ? { companyId } : {};
 
     return this.prisma.user.findMany({
-      where: whereCondition, 
+      where: whereCondition,
       include: {
         company: true,
-        role: true // Include role details
+        role: true, // Include role details
       },
       orderBy: { name: 'asc' },
     });
@@ -47,9 +47,9 @@ export class UsersService {
   async findOne(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
-      include: { 
+      include: {
         company: true,
-        role: true // ✅ Traemos el rol con sus permisos
+        role: true, // ✅ Traemos el rol con sus permisos
       },
     });
   }

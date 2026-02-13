@@ -36,11 +36,12 @@ model Company {
   clients  Client[]
   invoices Invoice[]
 
-  // Relaciones de Compras (NUEVO)
+  // Relaciones de Compras y Tesorería
   suppliers      Supplier[]
   purchaseOrders PurchaseOrder[]
   purchaseBills  PurchaseBill[]
   goodsReceipts  GoodsReceipt[]
+  paymentsOut    PaymentOut[] // Nuevo: Historial de Pagos
 }
 
 model CompanySettings {
@@ -56,9 +57,13 @@ model CompanySettings {
   productPrefix   String @default("PROD-")
   nextProductCode Int    @default(1)
 
-  // Compras (NUEVO)
+  // Compras
   purchaseOrderPrefix String @default("OC-")
   nextPurchaseOrder   Int    @default(1)
+
+  // Tesorería / Egresos
+  paymentOutPrefix     String @default("EGR-")
+  nextPaymentOutNumber Int    @default(1)
 
   currency String @default("USD")
   timeZone String @default("America/Caracas")
@@ -111,10 +116,10 @@ model Product {
   description String?
 
   // Costos y Precios
-  costAverage Decimal @default(0) @db.Decimal(12, 2) // Costo Promedio (NUEVO)
-  priceBase   Decimal @db.Decimal(10, 2) // Precio de Venta
+  costAverage Decimal @default(0) @db.Decimal(12, 2)
+  priceBase   Decimal @db.Decimal(10, 2)
 
-  currentStock Decimal @default(0) @db.Decimal(12, 2) // Stock actual (Ahora soporta decimales)
+  currentStock Decimal @default(0) @db.Decimal(12, 2)
   imageUrl     String?
 
   companyId String
@@ -122,8 +127,9 @@ model Product {
 
   // Relaciones
   invoiceItems       InvoiceItem[]
-  purchaseOrderItems PurchaseOrderItem[] // (NUEVO)
-  goodsReceiptItems  GoodsReceiptItem[] // (NUEVO)
+  purchaseOrderItems PurchaseOrderItem[]
+  goodsReceiptItems  GoodsReceiptItem[]
+  purchaseBillItems  PurchaseBillItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -159,16 +165,16 @@ model Supplier {
   @@unique([companyId, rif])
 }
 
-// Status de la Orden de Compra
 enum POStatus {
   OPEN
   PARTIALLY_RECEIVED
   RECEIVED
+  BILLED
   CLOSED
   CANCELLED
 }
 
-// 2. ORDEN DE COMPRA (El Contrato)
+// 2. ORDEN DE COMPRA
 model PurchaseOrder {
   id         String @id @default(uuid())
   companyId  String
@@ -210,7 +216,7 @@ model PurchaseOrderItem {
   product       Product       @relation(fields: [productId], references: [id])
 }
 
-// 3. RECEPCIÓN DE MERCANCÍA (Entrada al Almacén)
+// 3. RECEPCIÓN DE MERCANCÍA
 model GoodsReceipt {
   id              String   @id @default(uuid())
   companyId       String
@@ -239,14 +245,17 @@ model GoodsReceiptItem {
   product      Product      @relation(fields: [productId], references: [id])
 }
 
-// Status de la Factura
+// ==========================================
+// 💸 TESORERÍA Y PAGOS (CUENTAS POR PAGAR)
+// ==========================================
+
 enum BillStatus {
   UNPAID
   PAID
   VOID
 }
 
-// 4. FACTURA DE COMPRA (Cuenta por Pagar)
+// 4. FACTURA DE COMPRA (Cuenta por Pagar con Retenciones)
 model PurchaseBill {
   id              String  @id @default(uuid())
   companyId       String
@@ -256,19 +265,109 @@ model PurchaseBill {
   invoiceNumber String
   controlNumber String?
   issueDate     DateTime
+  dueDate       DateTime? // Fecha de Vencimiento
 
-  currencyCode String  @default("VES")
+  // Montos Base
+  currencyCode String  @default("USD")
   exchangeRate Decimal @db.Decimal(12, 4)
 
-  totalAmount Decimal    @db.Decimal(12, 2)
-  status      BillStatus @default(UNPAID)
+  // Desglose Fiscal (Venezuela)
+  exemptAmount  Decimal @default(0) @db.Decimal(12, 2) // Exento
+  taxableAmount Decimal @default(0) @db.Decimal(12, 2) // Base Imponible
+  taxRate       Decimal @default(16.00) @db.Decimal(5, 2) // % IVA
+  taxAmount     Decimal @default(0) @db.Decimal(12, 2) // Monto IVA
+
+  // RETENCIONES (Se resta al pago del proveedor)
+  retentionIVA  Decimal @default(0) @db.Decimal(12, 2)
+  rateRetIVA    Decimal @default(75) @db.Decimal(5, 2) // % usual 75 o 100
+  receiptRetIVA String? // N° Comprobante
+
+  retentionISLR  Decimal @default(0) @db.Decimal(12, 2)
+  rateRetISLR    Decimal @default(0) @db.Decimal(5, 2)
+  receiptRetISLR String? // N° Comprobante
+
+  // IGTF (Se suma al pago si es en divisa efectivo)
+  igtfAmount Decimal @default(0) @db.Decimal(12, 2)
+
+  // Totales
+  totalAmount Decimal @db.Decimal(12, 2) // Total Factura
+  paidAmount  Decimal @default(0) @db.Decimal(12, 2) // Lo pagado hasta ahora
+
+  status BillStatus @default(UNPAID)
+  inBook Boolean    @default(true) // ¿Va al libro de compras?
 
   company       Company        @relation(fields: [companyId], references: [id])
   supplier      Supplier       @relation(fields: [supplierId], references: [id])
   purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
 
+  items    PurchaseBillItem[]
+  payments PaymentOutDetail[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// DETALLE DE FACTURA DE COMPRA (Items)
+model PurchaseBillItem {
+  id             String       @id @default(uuid())
+  purchaseBillId String
+  purchaseBill   PurchaseBill @relation(fields: [purchaseBillId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity  Decimal @db.Decimal(12, 2)
+  unitPrice Decimal @db.Decimal(12, 2)
+  taxRate   Decimal @default(0) @db.Decimal(5, 2) // Nueva columna para IVA por ítem
+  islrRate  Decimal @default(0) @db.Decimal(5, 2) // Retención ISLR manual por ítem
+  totalLine Decimal @db.Decimal(12, 2)
+}
+
+enum PaymentMethod {
+  CASH_USD
+  CASH_VES
+  ZELLE
+  TRANSFER_VES
+  TRANSFER_USD
+  PAGO_MOVIL
+}
+
+// 5. EGRESOS / PAGOS (NUEVO)
+model PaymentOut {
+  id            String @id @default(uuid())
+  companyId     String
+  paymentNumber String // EGR-0001
+
+  paymentDate DateTime @default(now())
+
+  method    PaymentMethod
+  reference String? // Ref Bancaria
+  bankName  String?
+
+  currencyCode String  @default("USD")
+  exchangeRate Decimal @default(1.0000) @db.Decimal(12, 4)
+  amountPaid   Decimal @db.Decimal(12, 2) // Monto que salió del banco
+
+  notes String?
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  // Detalle de qué facturas cubre este pago
+  details PaymentOutDetail[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PaymentOutDetail {
+  id             String @id @default(uuid())
+  paymentOutId   String
+  purchaseBillId String
+
+  amountApplied Decimal @db.Decimal(12, 2) // Monto aplicado a esta factura
+
+  paymentOut   PaymentOut   @relation(fields: [paymentOutId], references: [id])
+  purchaseBill PurchaseBill @relation(fields: [purchaseBillId], references: [id])
 }
 
 // ==========================================
@@ -330,4 +429,22 @@ model InvoiceItem {
 
   productId String
   product   Product @relation(fields: [productId], references: [id])
+}
+
+// ==========================================
+// 💱 MONEDAS Y TASAS DE CAMBIO
+// ==========================================
+
+model ExchangeRate {
+  id String @id @default(uuid())
+
+  date DateTime @default(now()) // Fecha y Hora exacta del registro
+
+  fromCurrency String // USD
+  toCurrency   String // VES
+  rate         Decimal @db.Decimal(12, 4) // Tasa de cambio (Ej: 36.5432)
+
+  source String? // BCV, PARALELO, MANUAL
+
+  createdAt DateTime @default(now())
 }

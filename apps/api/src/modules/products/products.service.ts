@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -7,7 +12,8 @@ export class ProductsService {
 
   // 1. CREAR PRODUCTO (Vinculado a la compañía del usuario)
   async create(data: any, companyId: string) {
-    if (!companyId) throw new ForbiddenException('Usuario no tiene empresa asignada');
+    if (!companyId)
+      throw new ForbiddenException('Usuario no tiene empresa asignada');
 
     return this.prisma.product.create({
       data: {
@@ -24,18 +30,18 @@ export class ProductsService {
   async findAll(companyId: string, role?: string) {
     // Si es ADMIN real (no importa si tiene companyId o no, un Super Admin ve todo)
     if (role === 'ADMIN') {
-        return this.prisma.product.findMany({
-            include: { company: true }, // Incluimos info de la empresa para saber de quién es
-            orderBy: { 
-                company: { name: 'asc' } // Ordenar por empresa y luego nombre
-            }
-        });
+      return this.prisma.product.findMany({
+        include: { company: true }, // Incluimos info de la empresa para saber de quién es
+        orderBy: {
+          company: { name: 'asc' }, // Ordenar por empresa y luego nombre
+        },
+      });
     }
 
-    if (!companyId) return []; 
+    if (!companyId) return [];
 
     return this.prisma.product.findMany({
-      where: { companyId }, 
+      where: { companyId },
       orderBy: { name: 'asc' },
     });
   }
@@ -43,17 +49,20 @@ export class ProductsService {
   // 3. BUSCAR UNO (Validando que sea de mi empresa)
   async findOne(id: string, companyId: string) {
     const product = await this.prisma.product.findFirst({
-      where: { id, companyId }
+      where: { id, companyId },
     });
 
-    if (!product) throw new NotFoundException('Producto no encontrado o no pertenece a tu empresa');
+    if (!product)
+      throw new NotFoundException(
+        'Producto no encontrado o no pertenece a tu empresa',
+      );
     return product;
   }
 
   // 4. ACTUALIZAR (Validando propiedad)
   async update(id: string, data: any, companyId: string) {
     // Primero verificamos que el producto exista y sea de la empresa
-    await this.findOne(id, companyId); 
+    await this.findOne(id, companyId);
 
     return this.prisma.product.update({
       where: { id },
@@ -65,8 +74,18 @@ export class ProductsService {
   async remove(id: string, companyId: string) {
     await this.findOne(id, companyId);
 
-    return this.prisma.product.delete({
-      where: { id },
-    });
+    try {
+      return await this.prisma.product.delete({
+        where: { id },
+      });
+    } catch (error: any) {
+      // P2003: Foreign key constraint failed
+      if (error.code === 'P2003') {
+        throw new BadRequestException(
+          'No se puede eliminar este producto porque tiene movimientos asociados (Compras, Inventario o Ventas).',
+        );
+      }
+      throw error;
+    }
   }
 }

@@ -58,6 +58,7 @@ export default function GeneralSettingsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   const ALL_PERMISSIONS = [
+    { id: 'dashboard.view', label: 'Ver Dashboard' },
     { id: 'inventory.view', label: 'Ver Inventario' },
     { id: 'inventory.create', label: 'Crear Productos' },
     { id: 'inventory.edit', label: 'Editar Productos' },
@@ -68,10 +69,20 @@ export default function GeneralSettingsPage() {
     { id: 'purchase_orders.create', label: 'Crear Órdenes de Compra' },
     { id: 'purchase_orders.edit', label: 'Editar Órdenes de Compra' },
     { id: 'purchase_orders.delete', label: 'Eliminar Órdenes de Compra' },
+    { id: 'bills.view', label: 'Ver Pagos de Factura' },
+    { id: 'bills.create', label: 'Registrar Pagos de Factura' },
+    { id: 'bills.edit', label: 'Editar Pagos de Factura' },
+    { id: 'bills.delete', label: 'Eliminar Pagos de Factura' },
+    { id: 'payments.view', label: 'Ver Historial de Pagos' },
+    { id: 'payments.create', label: 'Registrar Egresos' },
     { id: 'suppliers.view', label: 'Ver Proveedores' },
     { id: 'suppliers.create', label: 'Crear Proveedores' },
     { id: 'suppliers.edit', label: 'Editar Proveedores' },
     { id: 'suppliers.delete', label: 'Eliminar Proveedores' },
+    { id: 'users.view', label: 'Ver Usuarios' },
+    { id: 'users.create', label: 'Crear Usuarios' },
+    { id: 'users.edit', label: 'Editar Usuarios' },
+    { id: 'users.delete', label: 'Eliminar Usuarios' },
     { id: 'companies.view', label: 'Ver Empresas' },
     { id: 'companies.create', label: 'Crear Empresas' },
     { id: 'companies.edit', label: 'Editar Empresas' },

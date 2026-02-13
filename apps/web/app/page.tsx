@@ -26,36 +26,27 @@ export default function LoginPage() {
 
     try {
       if (isRegister) {
-        // --- REGISTRO ---
-        if (isSuperAdmin) {
-            // 🚀 REGISTRO DIRECTO (Bypass Confirmación)
-            const res = await fetch('http://localhost:3001/users/register-admin', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password, name })
-            });
+        // --- REGISTRO UNIFICADO (Auth + DB) ---
+        // Llamamos a nuestro backend para que cree Auth + User DB atómicamente (o casi)
+        const res = await fetch('http://localhost:3001/users/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                email, 
+                password, 
+                name,
+                roleLegacy: isSuperAdmin ? 'ADMIN' : 'USER'
+            })
+        });
 
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.message || "Error registrando admin");
-            }
-            
-            // Login automático después de registrar
-            const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-            if (loginError) throw loginError;
-
-        } else {
-            // Registro Normal (Requiere confirmación)
-            const { data, error } = await supabase.auth.signUp({ email, password });
-            if (error) throw error;
-            if (!data.session) {
-                setErrorMsg("Confirma tu email antes de continuar.");
-                setLoading(false);
-                return;
-            }
-            // ... (Lógica de crear user normal en BD local si supabase no pidiera confirmación)
-            // Por ahora el foco es el Super Admin directo.
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.message || "Error registrando usuario");
         }
+        
+        // Login automático después de registrar
+        const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+        if (loginError) throw loginError;
 
         router.push('/dashboard');
 

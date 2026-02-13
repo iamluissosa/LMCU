@@ -40,10 +40,10 @@ export class SettingsService {
   // 3. Gestión de ROLES
   async getRoles(companyId: string, userRole?: string) {
     if (userRole === 'ADMIN') {
-        return this.prisma.role.findMany({
-            include: { company: true },
-            orderBy: { company: { name: 'asc' } }
-        });
+      return this.prisma.role.findMany({
+        include: { company: true },
+        orderBy: { company: { name: 'asc' } },
+      });
     }
     return this.prisma.role.findMany({ where: { companyId } });
   }
@@ -58,31 +58,38 @@ export class SettingsService {
     });
   }
 
-  async updateRole(id: string, data: any, userCompanyId?: string, userRole?: string) {
+  async updateRole(
+    id: string,
+    data: any,
+    userCompanyId?: string,
+    userRole?: string,
+  ) {
     // Si NO es ADMIN, verificamos que el rol sea de su empresa
     if (userRole !== 'ADMIN') {
-        const count = await this.prisma.role.count({
-            where: { id, companyId: userCompanyId }
-        });
-        if (count === 0) throw new Error('Rol no encontrado o no pertenece a tu empresa');
+      const count = await this.prisma.role.count({
+        where: { id, companyId: userCompanyId },
+      });
+      if (count === 0)
+        throw new Error('Rol no encontrado o no pertenece a tu empresa');
     }
 
     return this.prisma.role.update({
-        where: { id },
-        data: {
-            name: data.name,
-            permissions: data.permissions
-        }
+      where: { id },
+      data: {
+        name: data.name,
+        permissions: data.permissions,
+      },
     });
   }
 
   async deleteRole(id: string, userCompanyId?: string, userRole?: string) {
     // Si NO es ADMIN, verificamos que el rol sea de su empresa
     if (userRole !== 'ADMIN') {
-        const role = await this.prisma.role.findFirst({
-            where: { id, companyId: userCompanyId }
-        });
-        if (!role) throw new Error('Rol no encontrado o no pertenece a tu empresa');
+      const role = await this.prisma.role.findFirst({
+        where: { id, companyId: userCompanyId },
+      });
+      if (!role)
+        throw new Error('Rol no encontrado o no pertenece a tu empresa');
     }
 
     return this.prisma.role.delete({ where: { id } });

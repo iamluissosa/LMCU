@@ -12,6 +12,9 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { GoodsReceiptsModule } from './modules/goods-receipts/goods-receipts.module';
+import { PurchaseBillsModule } from './modules/purchase-bills/purchase-bills.module';
+import { PaymentsOutModule } from './modules/payments-out/payments-out.module';
+import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
 
 @Module({
   imports: [
@@ -28,6 +31,9 @@ import { GoodsReceiptsModule } from './modules/goods-receipts/goods-receipts.mod
     SuppliersModule,
     PurchaseOrdersModule,
     GoodsReceiptsModule,
+    PurchaseBillsModule,
+    PaymentsOutModule,
+    ExchangeRatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

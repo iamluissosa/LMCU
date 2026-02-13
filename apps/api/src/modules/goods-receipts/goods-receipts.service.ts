@@ -11,7 +11,6 @@ export class GoodsReceiptsService {
 
     // 1. Iniciamos una Transacción (Todo o Nada)
     return this.prisma.$transaction(async (tx) => {
-      
       // A. Validar que la Orden existe y pertenece a la empresa
       const po = await tx.purchaseOrder.findUnique({
         where: { id: purchaseOrderId },
@@ -24,7 +23,7 @@ export class GoodsReceiptsService {
 
       // B. Crear la Cabecera de Recepción
       // Generamos un correlativo temporal (idealmente usarías CompanySettings)
-      const receiptNumber = `RX-${Date.now().toString().slice(-6)}`; 
+      const receiptNumber = `RX-${Date.now().toString().slice(-6)}`;
 
       const reception = await tx.goodsReceipt.create({
         data: {
@@ -45,11 +44,19 @@ export class GoodsReceiptsService {
 
         // 1. Buscar el item original en la PO para saber el PRECIO PACTADO
         const poItem = po.items.find((i) => i.productId === item.productId);
-        if (!poItem) throw new BadRequestException(`Producto ${item.productId} no está en la orden.`);
+        if (!poItem)
+          throw new BadRequestException(
+            `Producto ${item.productId} no está en la orden.`,
+          );
 
         // 2. Buscar el Producto actual (Stock y Costo)
-        const product = await tx.product.findUnique({ where: { id: item.productId } });
-        if (!product) throw new BadRequestException(`Producto ${item.productId} no encontrado en base de datos.`);
+        const product = await tx.product.findUnique({
+          where: { id: item.productId },
+        });
+        if (!product)
+          throw new BadRequestException(
+            `Producto ${item.productId} no encontrado en base de datos.`,
+          );
 
         // 3. CÁLCULO DE COSTO PROMEDIO PONDERADO
         const currentStock = Number(product.currentStock || 0);
@@ -61,9 +68,10 @@ export class GoodsReceiptsService {
         const newTotalQty = currentStock + receivedQty;
 
         // Evitar división por cero
-        const newAverageCost = newTotalQty > 0 
-          ? (totalValueOld + totalValueNew) / newTotalQty 
-          : incomingCost;
+        const newAverageCost =
+          newTotalQty > 0
+            ? (totalValueOld + totalValueNew) / newTotalQty
+            : incomingCost;
 
         // 4. ACTUALIZAR PRODUCTO (Stock + Costo)
         await tx.product.update({
@@ -112,11 +120,13 @@ export class GoodsReceiptsService {
   async findAll(companyId: string) {
     return this.prisma.goodsReceipt.findMany({
       where: { companyId },
-      include: { 
-        purchaseOrder: { select: { orderNumber: true, supplier: { select: { name: true } } } },
-        items: { include: { product: true } }
+      include: {
+        purchaseOrder: {
+          select: { orderNumber: true, supplier: { select: { name: true } } },
+        },
+        items: { include: { product: true } },
       },
-      orderBy: { receivedAt: 'desc' }
+      orderBy: { receivedAt: 'desc' },
     });
   }
 }

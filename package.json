@@ -20,6 +20,7 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@nestjs/mapped-types": "*",
     "@prisma/client": "5.19.1"
   }
 }

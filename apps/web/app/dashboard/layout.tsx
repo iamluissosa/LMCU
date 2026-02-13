@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { 
   LayoutDashboard, Package, Users, Settings, LogOut, 
-  Menu, Building2, UserCircle, Truck, ShoppingCart, ClipboardCheck
+  Menu, Building2, UserCircle, Truck, ShoppingCart, ClipboardCheck, DollarSign, CreditCard, RefreshCw
 } from 'lucide-react';
 
 const supabase = createClient(
@@ -21,6 +21,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [companyName, setCompanyName] = useState("");
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [bcvRate, setBcvRate] = useState<number | null>(null);
+  const [loadingRate, setLoadingRate] = useState(false);
 
   useEffect(() => {
     const getUser = async () => {
@@ -54,7 +56,51 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
 
     getUser();
+    getUser();
   }, [router]);
+
+  // Fetch Tasa BCV al cargar
+  useEffect(() => {
+    const getRate = async () => {
+        try {
+            const res = await fetch('http://localhost:3001/exchange-rates/latest');
+            if (res.ok) {
+                const text = await res.text();
+                if (text) {
+                    const data = JSON.parse(text);
+                    if (data && data.rate) setBcvRate(Number(data.rate));
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching rate", error);
+        }
+    };
+    getRate();
+  }, []);
+
+  const syncRate = async () => {
+    setLoadingRate(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    try {
+        const res = await fetch('http://localhost:3001/exchange-rates/sync', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            setBcvRate(Number(data.rate));
+            alert(`Tasa actualizada: ${data.rate}`);
+        } else {
+            alert("Error actualizando tasa");
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Error de conexión");
+    } finally {
+        setLoadingRate(false);
+    }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -68,11 +114,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', requiredPermission: null }, 
+    { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', requiredPermission: 'dashboard.view' }, 
     { name: 'Proveedores', icon: Truck, path: '/dashboard/suppliers', requiredPermission: 'suppliers.view' },
     { name: 'Órdenes de Compra', icon: ShoppingCart, path: '/dashboard/purchase-orders', requiredPermission: 'purchase_orders.view' },
     { name: 'Inventario', icon: Package, path: '/dashboard/inventory', requiredPermission: 'inventory.view' },
     { name: 'Recepciones', icon: ClipboardCheck, path: '/dashboard/inventory/receptions', requiredPermission: 'receptions.view' },
+    { name: 'Tesorería', icon: CreditCard, path: '/dashboard/accounting/payments' },
+    { name: 'Pagos de Factura', icon: DollarSign, path: '/dashboard/accounting/bills', requiredPermission: 'bills.view' },
+    { name: 'Registrar Pago', icon: CreditCard, path: '/dashboard/accounting/payments/new', requiredPermission: 'payments.create' },
     { name: 'Empresas', icon: Building2, path: '/dashboard/settings/general/companies', requiredPermission: 'companies.view' },
     { name: 'Configuración', icon: Settings, path: '/dashboard/settings/general/users', requiredPermission: 'settings.view' },
   ];
@@ -141,6 +190,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-4">
+             {/* WIDGET TASA CAMBIO */}
+             <div className="hidden md:flex items-center gap-2 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                <span className="text-xs font-bold text-green-700">BCV:</span>
+                <span className="text-sm font-mono text-gray-800">{bcvRate ? `${bcvRate.toFixed(4)}` : '---'}</span>
+                <button onClick={syncRate} disabled={loadingRate} className="text-green-600 hover:text-green-800 transition-colors">
+                    <RefreshCw size={14} className={loadingRate ? "animate-spin" : ""} />
+                </button>
+             </div>
+             
              {/* Aquí puedes poner notificaciones u otros elementos */}
              <span className="text-sm text-gray-500 hidden sm:block">
                 Rol: <span className="font-semibold text-gray-700">{userRole || 'Cargando...'}</span>

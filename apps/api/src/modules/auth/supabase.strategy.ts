@@ -9,7 +9,9 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.SUPABASE_JWT_SECRET || 'RKB5Y2sroARzTpFnYJl1CCwADYnTcBLmj/EShBueeuGDUs3OVNuhbwzQgdOSaoAxd1KYuS0v2qDNArUyl7qruw==',
+      secretOrKey:
+        process.env.SUPABASE_JWT_SECRET ||
+        'RKB5Y2sroARzTpFnYJl1CCwADYnTcBLmj/EShBueeuGDUs3OVNuhbwzQgdOSaoAxd1KYuS0v2qDNArUyl7qruw==',
     });
   }
 
@@ -25,18 +27,18 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
         isNew: true, // 🚩 Bandera para identificar usuarios pendientes de registro
         companyId: null,
         roles: [],
-        permissions: []
+        permissions: [],
       };
     }
 
-    return { 
-      userId: payload.sub, 
+    return {
+      userId: payload.sub,
       email: payload.email,
       roles: payload.app_metadata?.roles || [],
-      companyId: user.companyId, 
-      role: user.roleLegacy,      // Rol legacy (ADMIN/USER)
-      roleName: user.role?.name,  // Nombre del rol personalizado
-      permissions: user.role?.permissions || [] // Permisos del rol personalizado
+      companyId: user.companyId,
+      role: user.roleLegacy, // Rol legacy (ADMIN/USER)
+      roleName: user.role?.name, // Nombre del rol personalizado
+      permissions: user.role?.permissions || [], // Permisos del rol personalizado
     };
   }
 }

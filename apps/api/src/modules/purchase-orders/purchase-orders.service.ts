@@ -8,10 +8,13 @@ export class PurchaseOrdersService {
 
   // 1. Crear Orden de Compra (Draft)
   async create(companyId: string, data: any) {
-    if (!data.supplierId) throw new BadRequestException('El proveedor es obligatorio');
+    if (!data.supplierId)
+      throw new BadRequestException('El proveedor es obligatorio');
 
     // Generar correlativo (simple, se puede mejorar usando CompanySettings)
-    const count = await this.prisma.purchaseOrder.count({ where: { companyId } });
+    const count = await this.prisma.purchaseOrder.count({
+      where: { companyId },
+    });
     const orderNumber = `OC-${String(count + 1).padStart(4, '0')}`;
 
     return this.prisma.purchaseOrder.create({
@@ -23,14 +26,20 @@ export class PurchaseOrdersService {
         notes: data.notes,
         currencyCode: data.currencyCode || 'USD',
         exchangeRate: data.exchangeRate || 1,
-        totalAmount: data.items?.reduce((acc, item) => acc + (Number(item.quantityOrdered) * Number(item.unitPrice)), 0) || 0,
+        totalAmount:
+          data.items?.reduce(
+            (acc, item) =>
+              acc + Number(item.quantityOrdered) * Number(item.unitPrice),
+            0,
+          ) || 0,
         // Si vienen items al crear
         items: {
-          create: data.items?.map((item: any) => ({
-            productId: item.productId,
-            quantityOrdered: Number(item.quantityOrdered),
-            unitPrice: Number(item.unitPrice),
-          })) || [],
+          create:
+            data.items?.map((item: any) => ({
+              productId: item.productId,
+              quantityOrdered: Number(item.quantityOrdered),
+              unitPrice: Number(item.unitPrice),
+            })) || [],
         },
       },
       include: { items: true, supplier: true },
@@ -69,13 +78,18 @@ export class PurchaseOrdersService {
     // Si se envían items, se REEMPLAZAN (modo simple) o se actualizan (complejo).
     // Para simplificar, si data.items existe, borramos los viejos y creamos nuevos (solo en DRAFT)
 
-    const po = await this.prisma.purchaseOrder.findUnique({ where: { id }, include: { items: true } });
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: { items: true },
+    });
     if (!po) throw new BadRequestException('Orden de compra no encontrada');
 
     if (po.status !== POStatus.OPEN && data.items) {
-      throw new BadRequestException('Solo se pueden modificar items en estado Abierto (OPEN)');
+      throw new BadRequestException(
+        'Solo se pueden modificar items en estado Abierto (OPEN)',
+      );
     }
-    
+
     // Transaccion
     return this.prisma.$transaction(async (tx) => {
       // 1. Actualizar cabecera
@@ -93,18 +107,20 @@ export class PurchaseOrdersService {
       // 2. Si hay items, reemplazar
       if (data.items && po.status === POStatus.OPEN) {
         // Borrar anteriores
-        await tx.purchaseOrderItem.deleteMany({ where: { purchaseOrderId: id } });
-        
+        await tx.purchaseOrderItem.deleteMany({
+          where: { purchaseOrderId: id },
+        });
+
         // Crear nuevos
         for (const item of data.items) {
-           await tx.purchaseOrderItem.create({
-             data: {
-               purchaseOrderId: id,
-               productId: item.productId,
-               quantityOrdered: Number(item.quantityOrdered),
-               unitPrice: Number(item.unitPrice),
-             }
-           });
+          await tx.purchaseOrderItem.create({
+            data: {
+              purchaseOrderId: id,
+              productId: item.productId,
+              quantityOrdered: Number(item.quantityOrdered),
+              unitPrice: Number(item.unitPrice),
+            },
+          });
         }
       }
       return updatedPO;
@@ -114,8 +130,11 @@ export class PurchaseOrdersService {
   // 5. Eliminar (Solo si está en DRAFT)
   async remove(id: string) {
     const po = await this.prisma.purchaseOrder.findUnique({ where: { id } });
-    if (po?.status !== POStatus.OPEN) throw new BadRequestException('Solo se pueden eliminar órdenes en estado Abierto (OPEN)');
-    
+    if (po?.status !== POStatus.OPEN)
+      throw new BadRequestException(
+        'Solo se pueden eliminar órdenes en estado Abierto (OPEN)',
+      );
+
     return this.prisma.purchaseOrder.delete({ where: { id } });
   }
 }

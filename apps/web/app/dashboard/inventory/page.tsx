@@ -139,7 +139,8 @@ export default function InventoryPage() {
       if (res.ok) {
         fetchProducts();
       } else {
-        alert('❌ No se pudo eliminar');
+        const errData = await res.json();
+        alert(`❌ Error: ${errData.message || 'No se pudo eliminar'}`);
       }
     } catch (error) {
       alert('❌ Error de conexión');
