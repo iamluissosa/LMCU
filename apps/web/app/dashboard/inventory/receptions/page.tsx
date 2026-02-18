@@ -1,12 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { ClipboardCheck, PackageCheck, Save, Search, ArrowRight } from 'lucide-react';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { apiClient } from '@/lib/api-client';
+import {
+  PackageCheck, ClipboardCheck
+} from 'lucide-react';
+import Link from 'next/link';
 
 export default function ReceptionsPage() {
   const [activeStep, setActiveStep] = useState(1); // 1: Seleccionar PO, 2: Verificar Cantidades
@@ -15,21 +13,20 @@ export default function ReceptionsPage() {
   const [receptionItems, setReceptionItems] = useState<any[]>([]); // Lo que vamos a recibir
   const [loading, setLoading] = useState(false);
 
+
   // Cargar Órdenes Pendientes
   useEffect(() => {
     const fetchOrders = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      
       // Aquí deberías tener un endpoint que filtre por status != RECEIVED
       // Por ahora simulo trayendo todas y filtrando en front
-      const res = await fetch('http://localhost:3001/purchase-orders', { 
-        headers: { Authorization: `Bearer ${session.access_token}` } 
-      });
-      if (res.ok) {
-        const data = await res.json();
+      try {
+        const response = await apiClient.get<{ items: any[]; pagination: any }>('/purchase-orders');
         // Solo mostramos las que se pueden recibir
-        setOrders(data.filter((o: any) => o.status === 'OPEN' || o.status === 'PARTIALLY_RECEIVED'));
+        if (response.items) {
+           setOrders(response.items.filter((o: any) => o.status === 'OPEN' || o.status === 'PARTIALLY_RECEIVED'));
+        }
+      } catch (error) {
+         console.error(error);
       }
     };
     fetchOrders();
@@ -38,20 +35,14 @@ export default function ReceptionsPage() {
   // Paso 1 -> Paso 2: Preparar Items
   const handleSelectOrder = async (orderSummary: any) => {
     // Fetch detalle completo para obtener los items y productos
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
     try {
-        const res = await fetch(`http://localhost:3001/purchase-orders/${orderSummary.id}`, { 
-            headers: { Authorization: `Bearer ${session.access_token}` } 
-        });
+        const order = await apiClient.get<any>(`/purchase-orders/${orderSummary.id}`);
         
-        if (!res.ok) {
+        if (!order) {
             alert('Error cargando los detalles de la orden');
             return;
         }
 
-        const order = await res.json();
         setSelectedOrder(order);
 
         // Pre-llenamos con lo que FALTA por recibir
@@ -73,14 +64,13 @@ export default function ReceptionsPage() {
 
     } catch(err) {
         console.error(err);
-        alert('Error de conexión');
+        alert('Error de conexión / carga');
     }
   };
 
   // Guardar Recepción
   const handleSubmit = async () => {
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
     
     try {
       const payload = {
@@ -92,23 +82,14 @@ export default function ReceptionsPage() {
         }))
       };
 
-      const res = await fetch('http://localhost:3001/receptions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      await apiClient.post('/receptions', payload);
 
-      if (res.ok) {
-        alert("✅ Mercancía recibida e inventario actualizado.");
-        window.location.reload();
-      } else {
-        alert("❌ Error al procesar recepción");
-      }
+      alert("✅ Mercancía recibida e inventario actualizado.");
+      window.location.reload();
+
     } catch (e) {
       console.error(e);
+      alert("❌ Error al procesar recepción");
     } finally {
       setLoading(false);
     }

@@ -1,17 +1,22 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { ChevronLeft, Plus, Save, Trash2 } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
+import { 
+  Save, Trash2, Plus, ChevronLeft
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function NewPurchaseOrderPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  
+  // Datos
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+
+
   
   const [formData, setFormData] = useState({
     supplierId: '',
@@ -21,42 +26,27 @@ export default function NewPurchaseOrderPage() {
   });
 
   const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
 
   // Cargar datos iniciales
   useEffect(() => {
     const fetchData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const headers = { Authorization: `Bearer ${session.access_token}` };
-
       // Cargar Proveedores
       try {
-        const res = await fetch('http://localhost:3001/suppliers', { headers });
-        if (res.ok) {
-           const data = await res.json();
-           if (Array.isArray(data)) setSuppliers(data);
-           else console.error('Proveedores no es un array:', data);
-        } else {
-             console.error('Error cargando proveedores:', res.statusText);
-        }
+        const response = await apiClient.get<{ items: any[]; pagination: any }>('/suppliers');
+        if (response.items && Array.isArray(response.items)) setSuppliers(response.items);
+        else console.error('Proveedores no es un array:', response);
       } catch (err) {
          console.error('Error de red proveedores:', err);
       }
 
-      // Cargar Productos
+      // Cargar Productos (P-02: Respuesta paginada)
       try {
-        const res = await fetch('http://localhost:3001/products', { headers });
-        if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data)) setProducts(data);
-            else console.error('Productos no es un array:', data);
-        } else {
-            console.error('Error cargando productos:', res.statusText);
-        }
+        const response = await apiClient.get<{ items: any[]; pagination: any }>('/products');
+        setProducts(response.items || []);
       } catch (err) {
-         console.error('Error de red productos:', err);
+        console.error('Error de red productos:', err);
       }
+
     };
     fetchData();
   }, []);
@@ -96,29 +86,28 @@ export default function NewPurchaseOrderPage() {
     if (items.length === 0) return alert('Agrega al menos un producto');
 
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
     
     try {
-      const res = await fetch('http://localhost:3001/purchase-orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({
-          ...formData,
-          items
-        })
-      });
+      const payload = {
+        ...formData,
+        items: items.map(item => ({
+          productId: item.productId,
+          quantityOrdered: Number(item.quantityOrdered),
+          unitPrice: Number(item.unitPrice)
+        }))
+      };
 
-      if (res.ok) {
-        window.location.href = '/dashboard/purchase-orders';
-      } else {
-        alert('Error al crear la orden');
-      }
-    } catch (error) {
-      console.error(error);
-      alert('Error de conexión');
+      await apiClient.post('/purchase-orders', payload);
+      window.location.href = '/dashboard/purchase-orders';
+
+    } catch (error: any) {
+      console.error('Error al crear orden:', JSON.stringify(error, null, 2));
+      const responseMsg = error.response?.data?.message;
+      const errorMessage = responseMsg 
+        ? (Array.isArray(responseMsg) ? responseMsg.join('\n') : responseMsg)
+        : (error.message || 'Error desconocido al crear la orden');
+      
+      alert(`❌ Error: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -137,42 +126,28 @@ export default function NewPurchaseOrderPage() {
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
 
     try {
-        const res = await fetch('http://localhost:3001/products', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({
-                name: newProduct.name,
-                code: newProduct.code,
-                description: newProduct.description,
-                priceBase: Number(newProduct.price),
-                // costAverage se actualizará con la compra, iniciamos en 0
-            })
+        const created = await apiClient.post<any>('/products', {
+            name: newProduct.name,
+            code: newProduct.code,
+            description: newProduct.description,
+            priceBase: Number(newProduct.price),
+            // costAverage se actualizará con la compra, iniciamos en 0
         });
 
-        if (res.ok) {
-            const created = await res.json();
-            // Agregar a la lista local
-            setProducts([...products, created]);
-            
-            // Seleccionar en la fila activa
-            if (activeRowIndex !== null) {
-                updateItem(activeRowIndex, 'productId', created.id);
-            }
-            
-            setIsProductModalOpen(false);
-        } else {
-            alert('Error creando producto');
+        // Agregar a la lista local
+        setProducts([...products, created]);
+        
+        // Seleccionar en la fila activa
+        if (activeRowIndex !== null) {
+            updateItem(activeRowIndex, 'productId', created.id);
         }
+        
+        setIsProductModalOpen(false);
     } catch (error) {
         console.error(error);
-        alert('Error de conexión');
+        alert('Error creando producto / de conexión');
     }
   };
 

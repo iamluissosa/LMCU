@@ -1,19 +1,20 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { useEffect, useState, useCallback } from 'react';
+import { apiClient } from '@/lib/api-client';
+import { createClient } from '@/lib/supabase';
 import { Building2, Plus, Pencil, X, Save, MapPin } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createClient();
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
+
+  
+  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [viewCompany, setViewCompany] = useState<any | null>(null); // ✅ Nuevo estado para ver detalles
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Datos del Formulario
   const [formData, setFormData] = useState({
@@ -29,19 +30,16 @@ export default function CompaniesPage() {
   });
 
   // Cargar Empresas
-  const fetchCompanies = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
-    const res = await fetch('http://localhost:3001/companies', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    if (res.ok) {
-      setCompanies(await res.json());
+  const fetchCompanies = useCallback(async () => {
+    try {
+      const data = await apiClient.get<any[]>('/companies');
+      setCompanies(data);
+    } catch (error) {
+       console.error(error);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchCompanies(); }, []);
+  useEffect(() => { fetchCompanies(); }, [fetchCompanies]);
 
   // Abrir Modal
   const handleOpen = (company?: any) => {
@@ -62,31 +60,22 @@ export default function CompaniesPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
 
     try {
       const url = editingId 
-        ? `http://localhost:3001/companies/${editingId}`
-        : 'http://localhost:3001/companies';
+        ? `/companies/${editingId}`
+        : '/companies';
       
-      const method = editingId ? 'PATCH' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!res.ok) throw new Error('Error al guardar');
+      if (editingId) {
+          await apiClient.patch(url, formData);
+      } else {
+          await apiClient.post(url, formData);
+      }
 
       setIsModalOpen(false);
       fetchCompanies();
     } catch (error) {
+      console.error(error);
       alert('❌ Error al guardar la empresa');
     } finally {
       setIsSaving(false);

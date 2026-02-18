@@ -5,6 +5,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 
 @Injectable()
 export class ProductsService {
@@ -26,24 +28,62 @@ export class ProductsService {
     });
   }
 
-  // 2. LISTAR (Solo de mi empresa o TODO si es ADMIN)
-  async findAll(companyId: string, role?: string) {
-    // Si es ADMIN real (no importa si tiene companyId o no, un Super Admin ve todo)
-    if (role === 'ADMIN') {
-      return this.prisma.product.findMany({
-        include: { company: true }, // Incluimos info de la empresa para saber de quién es
-        orderBy: {
-          company: { name: 'asc' }, // Ordenar por empresa y luego nombre
-        },
-      });
+  // 2. LISTAR con paginación (Solo de mi empresa o TODO si es ADMIN)
+  async findAll(companyId: string, pagination: PaginationDto, role?: string): Promise<PaginatedResponse<any>> {
+    const { page = 1, limit = 20 } = pagination;
+    const skip = (page - 1) * limit;
+
+    if (!this.prisma.product) {
+       throw new BadRequestException('Prisma Client out of sync (Product model missing). Restart/Regenerate.');
     }
 
-    if (!companyId) return [];
 
-    return this.prisma.product.findMany({
-      where: { companyId },
-      orderBy: { name: 'asc' },
-    });
+    // Si es ADMIN real (no importa si tiene companyId o no, un Super Admin ve todo)
+    if (role === 'ADMIN') {
+      const [products, total] = await Promise.all([
+        this.prisma.product.findMany({
+          skip,
+          take: limit,
+          include: { company: true }, // Incluimos info de la empresa para saber de quién es
+          orderBy: {
+            company: { name: 'asc' }, // Ordenar por empresa y luego nombre
+          },
+        }),
+        this.prisma.product.count()
+      ]);
+
+      return {
+        items: products,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      };
+    }
+
+    if (!companyId) return { items: [], pagination: { page, limit, total: 0, totalPages: 0 } };
+
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { companyId },
+        skip,
+        take: limit,
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.product.count({ where: { companyId } })
+    ]);
+
+    return {
+      items: products,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   }
 
   // 3. BUSCAR UNO (Validando que sea de mi empresa)

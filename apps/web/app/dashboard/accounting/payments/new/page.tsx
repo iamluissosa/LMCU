@@ -1,15 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase';
 import { 
-  CreditCard, DollarSign, Save, Search, Calculator, ArrowLeft, FileText, Calendar, Trash2 
+  CreditCard, DollarSign, Save, Search, ArrowLeft, FileText, Trash2 
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { Supplier, PurchaseBill, PurchaseBillItem } from '@erp/types'; // Importar tipos compartidos
+import { apiClient } from '@/lib/api-client';
 
 export default function NewPaymentPage() {
   const router = useRouter();
@@ -18,10 +15,12 @@ export default function NewPaymentPage() {
   const [actionLoading, setActionLoading] = useState(false); // To prevent multiple clicks
   
   // Datos
-  const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [pendingBills, setPendingBills] = useState<any[]>([]);
-  const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
-  const [selectedBill, setSelectedBill] = useState<any>(null);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]); // Tipado estricto
+  
+  const supabase = createClient();
+  const [pendingBills, setPendingBills] = useState<PurchaseBill[]>([]); // Tipado estricto
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null); // Tipado estricto
+  const [selectedBill, setSelectedBill] = useState<PurchaseBill | null>(null); // Tipado estricto
 
   // Formulario
   const [paymentData, setPaymentData] = useState({
@@ -58,44 +57,34 @@ export default function NewPaymentPage() {
   // 1. Cargar Proveedores, Permisos y Tasa BCV
   useEffect(() => {
     const fetchData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
       // Cargar Proveedores
-      const res = await fetch('http://localhost:3001/suppliers', {
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      if (res.ok) setSuppliers(await res.json());
+      try {
+        const response = await apiClient.get<{ items: Supplier[]; pagination: any }>('/suppliers');
+        setSuppliers(response.items || []);
+      } catch (error) { console.error('Error loading suppliers', error); }
 
       // Cargar Tasa BCV
       try {
-        const resRate = await fetch('http://localhost:3001/exchange-rates/latest');
-        if (resRate.ok) {
-            const text = await resRate.text();
-            if (text) {
-                const data = JSON.parse(text);
-                if (data && data.rate) {
-                    const r = Number(data.rate);
-                    setFetchedRate(r);
-                    setPaymentData(prev => ({ ...prev, exchangeRate: r }));
-                }
-            }
+        // Exchange rates endpoint returns raw JSON, api-client handles ApiResponse wrapper
+        // If exchange-rates/latest returns { rate: number } directly (not wrapped), we might need accurate type
+        // Assuming current backend implementation returns standard JSON.
+        // If T-02 wraps EVERYTHING, then apiClient unwraps it.
+        // Let's assume exchange-rates might NOT be wrapped yet if it's a proxy, or it IS wrapped.
+        // For safety, let's use apiClient.get<any> and inspect.
+        const rateData = await apiClient.get<any>('/exchange-rates/latest');
+        if (rateData && rateData.rate) {
+           const r = Number(rateData.rate);
+           setFetchedRate(r);
+           setPaymentData(prev => ({ ...prev, exchangeRate: r }));
         }
       } catch (e) { console.error("Error fetching rate", e); }
 
       // Verificar Permiso de Eliminar
-      // Usamos el endpoint /users/me que ya trae los permisos calculados por el backend
       try {
-        const resMe = await fetch('http://localhost:3001/users/me', {
-          headers: { Authorization: `Bearer ${session.access_token}` }
-        });
-        
-        if (resMe.ok) {
-           const userData = await resMe.json();
-           if (userData.permissions && Array.isArray(userData.permissions)) {
-              if (userData.permissions.includes('bills.delete')) {
-                 setCanDelete(true);
-              }
+        const userData = await apiClient.get<any>('/users/me');
+        if (userData.permissions && Array.isArray(userData.permissions)) {
+           if (userData.permissions.includes('bills.delete')) {
+              setCanDelete(true);
            }
         }
       } catch (err) {
@@ -108,42 +97,31 @@ export default function NewPaymentPage() {
   // 2. Buscar Facturas Pendientes
   const fetchBills = async (supplierId: string) => {
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch('http://localhost:3001/bills', {
-      headers: { Authorization: `Bearer ${session?.access_token}` }
-    });
-    if (res.ok) {
-      const allBills = await res.json();
-      const filtered = allBills.filter((b: any) => 
+    try {
+      const response = await apiClient.get<{ items: PurchaseBill[]; pagination: any }>('/bills');
+      const pending = response.items.filter((b) => 
         b.supplierId === supplierId && b.status !== 'PAID'
       );
-      setPendingBills(filtered);
+      setPendingBills(pending);
       setStep(2);
+    } catch (error) {
+      console.error(error);
+      alert('Error cargando facturas');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  // 3. Generador de Comprobante (YYYYMM + Random/Secuencia)
-  const generateReceiptNumber = () => {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    // En un sistema real, esto vendría del "nextPaymentOutNumber" de CompanySettings
-    // Aquí simulamos el formato del PDF: 202511 + 8 dígitos
-    const sequence = Math.floor(Math.random() * 100000000).toString().padStart(8, '0'); 
-    return `${year}${month}${sequence}`;
-  }
-
-  // 4. Seleccionar Factura
-  const handleSelectBill = (bill: any) => {
+  // 3. Seleccionar Factura
+  // ✅ Q-01: Eliminamos generación de comprobantes, ahora lo hace el backend
+  const handleSelectBill = (bill: PurchaseBill) => {
     setSelectedBill(bill);
-    const generatedReceipt = generateReceiptNumber();
     
     setPaymentData({
       ...paymentData,
       // Priorizamos la tasa del día (fetchedRate) sobre la de la factura
       exchangeRate: fetchedRate > 0 ? fetchedRate : Number(bill.exchangeRate),
-      receiptRetIVA: generatedReceipt, // Pre-llenamos formato oficial
+      // ❌ NO generamos receiptRetIVA/ISLR aquí, el backend lo hará automáticamente
       retentionIVAPercent: 75,
       amountPaid: 0 
     });
@@ -156,45 +134,35 @@ export default function NewPaymentPage() {
     if (!confirm(`¿Estás seguro de eliminar la factura #${invoiceNumber}? Esta acción no se puede deshacer.`)) return;
 
     setActionLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
     try {
-      const res = await fetch(`http://localhost:3001/bills/${billId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${session?.access_token}` }
-      });
-
-      if (res.ok) {
-        alert('Factura eliminada correctamente');
-        // Actualizar lista local
-        setPendingBills(prev => prev.filter(b => b.id !== billId));
-        // Si la factura seleccionada era esta, limpiar selección
-        if (selectedBill?.id === billId) {
-            setSelectedBill(null);
-            setStep(2);
-        }
-      } else {
-        const err = await res.json();
-        alert(`Error al eliminar: ${err.message || 'Desconocido'}`);
+      await apiClient.delete(`/bills/${billId}`);
+      alert('Factura eliminada correctamente');
+      // Actualizar lista local
+      setPendingBills(prev => prev.filter(b => b.id !== billId));
+      // Si la factura seleccionada era esta, limpiar selección
+      if (selectedBill?.id === billId) {
+          setSelectedBill(null);
+          setStep(2);
       }
-    } catch (error) {
-      console.error(error);
-      alert('Error de conexión al eliminar');
+    } catch (error: any) {
+      console.error('Error al eliminar:', JSON.stringify(error, null, 2));
+      const msg = error.response?.data?.message || error.message || 'Error desconocido';
+      alert(`Error al eliminar: ${msg}`);
     } finally {
       setActionLoading(false);
     }
   };
-
-
 
   // 5. CÁLCULO MATEMÁTICO (Efecto)
   useEffect(() => {
     if (!selectedBill) return;
 
     // Calcular Periodo Fiscal (YYYY-MM)
-    const pDate = new Date(paymentData.paymentDate);
+    const pDate = new Date(String(paymentData.paymentDate));
     const periodo = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
 
     // A. Retención IVA
+    // Asegurar que los campos numéricos sean tratados como números
     const taxAmount = Number(selectedBill.taxAmount);
     const retIVA = taxAmount * (paymentData.retentionIVAPercent / 100);
 
@@ -221,13 +189,12 @@ export default function NewPaymentPage() {
 
   // 6. Enviar Pago
   const handleSubmit = async () => {
+    if (!selectedBill) return;
     if (!confirm(`¿Confirmar pago por $${totals.netPayable.toFixed(2)}?`)) return;
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
 
     try {
       const payload = {
-        companyId: selectedBill.companyId,
         paymentDate: paymentData.paymentDate,
         method: paymentData.method,
         reference: paymentData.reference,
@@ -250,22 +217,16 @@ export default function NewPaymentPage() {
         }]
       };
 
-      const res = await fetch('http://localhost:3001/payments-out', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      await apiClient.post('/payments-out', payload);
 
-      if (res.ok) {
-        alert("✅ Egreso y Retenciones registradas correctamente.");
-        router.push('/dashboard/accounting/bills');
-      } else {
-        alert("❌ Error al procesar pago");
-      }
-    } catch (error) { console.error(error); } 
+      alert("✅ Egreso y Retenciones registradas correctamente.");
+      router.push('/dashboard/accounting/bills');
+
+    } catch (error: any) { 
+      console.error('Error al procesar pago:', JSON.stringify(error, null, 2));
+      const msg = error.response?.data?.message || error.message || 'Error desconocido';
+      alert(`❌ Error al procesar pago: ${msg}`);
+    } 
     finally { setLoading(false); }
   };
 
@@ -356,7 +317,7 @@ export default function NewPaymentPage() {
                  </div>
                  <div className="bg-blue-50 p-2 rounded">
                     <span className="block text-xs text-blue-600 font-bold uppercase">% Alíc. (General)</span>
-                    <span className="font-medium">{Number(selectedBill.taxRate)}%</span>
+                    <span className="font-medium">{selectedBill.taxableAmount > 0 ? ((selectedBill.taxAmount / selectedBill.taxableAmount) * 100).toFixed(0) : 0}%</span>
                  </div>
                  <div className="bg-blue-50 p-2 rounded">
                     <span className="block text-xs text-blue-600 font-bold uppercase">Impuesto I.V.A</span>
@@ -383,7 +344,7 @@ export default function NewPaymentPage() {
                           </tr>
                        </thead>
                        <tbody>
-                          {selectedBill.items?.map((item:any) => {
+                          {selectedBill.items?.map((item: PurchaseBillItem) => {
                              const base = Number(item.totalLine);
                              const taxRate = Number(item.taxRate || 0);
                              const islrRate = Number(item.islrRate || 0);
@@ -419,12 +380,15 @@ export default function NewPaymentPage() {
                   {/* Nro Comprobante y Fecha */}
                   <div className="space-y-4">
                      <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">N° Comprobante (YYYYMM...)</label>
-                        <input type="text" className="w-full border-2 border-blue-100 rounded-lg p-2 font-mono text-blue-700 font-bold tracking-wide"
-                          value={paymentData.receiptRetIVA}
-                          onChange={e => setPaymentData({...paymentData, receiptRetIVA: e.target.value})}
+                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Nº Comprobante (YYYYMM...)</label>
+                        <input 
+                          type="text" 
+                          className="w-full border-2 border-gray-200 rounded-lg p-2 font-mono text-gray-500 bg-gray-50 cursor-not-allowed"
+                          value="Se generará automáticamente"
+                          readOnly
+                          disabled
                         />
-                        <p className="text-[10px] text-gray-400 mt-1">Sugerido automáticamenete</p>
+                        <p className="text-[10px] text-blue-600 mt-1">✅ El sistema generará el número correlativo al guardar el pago</p>
                      </div>
                      <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Fecha de Emisión</label>
@@ -516,18 +480,28 @@ export default function NewPaymentPage() {
 
               <div className="mb-2">
                 <span className="block text-xs text-gray-500 uppercase">Neto a Pagar</span>
-                <span className="text-4xl font-bold tracking-tight">Bs. {totals.netPayable.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                <span className="text-4xl font-bold tracking-tight">
+                  {selectedBill.currencyCode === 'USD' ? '$' : 'Bs.'} {totals.netPayable.toLocaleString(selectedBill.currencyCode === 'USD' ? 'en-US' : 'es-VE', { minimumFractionDigits: 2 })}
+                </span>
               </div>
 
-              {/* Conversión Bs */}
-              {/* Conversión Bs -> USD (Solicitado por Usuario) */}
+              {/* Conversión Dinámica */}
               <div className="bg-gray-800 rounded-lg p-3 mb-6">
-                 <label className="text-[10px] text-gray-400 uppercase font-bold block mb-1">Dolares a pagar (BCV)</label>
+                 <label className="text-[10px] text-gray-400 uppercase font-bold block mb-1">
+                    {selectedBill.currencyCode === 'USD' ? 'Bolívares a pagar (BCV)' : 'Dólares a pagar (BCV)'}
+                 </label>
                  <div className="flex items-center gap-2">
-                    <DollarSign size={18} className="text-green-500"/>
-                    {/* Cálculo: Neto / Tasa */}
+                    {selectedBill.currencyCode === 'USD' ? (
+                        <span className="text-2xl font-bold text-white">Bs.</span>
+                    ) : (
+                        <DollarSign size={18} className="text-green-500"/>
+                    )}
                     <span className="text-2xl font-mono font-bold text-white">
-                        {(totals.netPayable / (paymentData.exchangeRate || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {
+                          selectedBill.currencyCode === 'USD' 
+                            ? (totals.netPayable * (paymentData.exchangeRate || 1)).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            : (totals.netPayable / (paymentData.exchangeRate || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        }
                     </span>
                  </div>
                  <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-700">

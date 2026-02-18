@@ -1,12 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { apiClient } from '@/lib/api-client';
 import { Settings, Save, Shield, Hash } from 'lucide-react';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function GeneralSettingsPage() {
   const [activeTab, setActiveTab] = useState('correlatives');
@@ -16,18 +11,19 @@ export default function GeneralSettingsPage() {
 
   // Cargar datos
   const fetchData = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-    const headers = { Authorization: `Bearer ${session.access_token}` };
+    try {
+      const [settingsData, rolesData] = await Promise.all([
+        apiClient.get<any>('/settings/general'),
+        apiClient.get<any[]>('/settings/roles')
+      ]);
 
-    const [resSettings, resRoles] = await Promise.all([
-      fetch('http://localhost:3001/settings/general', { headers }),
-      fetch('http://localhost:3001/settings/roles', { headers })
-    ]);
-
-    if (resSettings.ok) setSettings(await resSettings.json());
-    if (resRoles.ok) setRoles(await resRoles.json());
-    setLoading(false);
+      if (settingsData) setSettings(settingsData);
+      if (rolesData) setRoles(rolesData);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -35,18 +31,13 @@ export default function GeneralSettingsPage() {
   // Guardar Correlativos
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
-    await fetch('http://localhost:3001/settings/general', {
-      method: 'PATCH',
-      headers: { 
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}` 
-      },
-      body: JSON.stringify(settings),
-    });
-    alert('Configuración guardada');
+    try {
+      await apiClient.patch('/settings/general', settings);
+      alert('Configuración guardada');
+    } catch (error) {
+      console.error(error);
+      alert('Error al guardar configuración');
+    }
   };
 
   // --- MODAL & PERMISSIONS ---
@@ -91,30 +82,16 @@ export default function GeneralSettingsPage() {
   ];
 
   const handleOpenModal = async (role?: any) => {
-    // Verificar si es ADMIN para cargar empresas
-    const { data: { session } } = await supabase.auth.getSession();
-    if(session) {
-        // Obtenemos info del usuario actual para saber si es ADMIN (podríamos guardarlo en estado al cargar página también)
-        // Por consistencia, reutilizaremos la lógica de fetch users list tab o haremos un fetch rápido si no tenemos la info.
-        // Simulamos chequeo rápido decodificando token o asumiendo que si ve el tab de roles puede ser admin? 
-        // Mejor fetch de /profile o check de claims. 
-        // Simplificación: si la lista de roles tiene roles de varias empresas, es admin.
-        // O mejor: hacemos fetch de companies siempre si no están cargadas.
-    }
-
     // Cargar empresas si aún no están cargadas
     if (companies.length === 0) {
-        if(session) {
-             const res = await fetch('http://localhost:3001/companies', { 
-                headers: { Authorization: `Bearer ${session?.access_token}` }
-             });
-             if(res.ok) {
-                 const data = await res.json();
+        try {
+             const data = await apiClient.get<any[]>('/companies');
+             if(data) {
                  setCompanies(data);
-                 // Si pudo cargar compañías, asumimos que tiene permisos elevados o es que el endpoint es público (no debería)
-                 // Pero para UI nos sirve. 
                  setIsAdmin(true); 
              }
+        } catch (error) {
+             console.error('No se pudieron cargar empresas, usuario no es admin global o error red');
         }
     }
 
@@ -138,24 +115,26 @@ export default function GeneralSettingsPage() {
 
   const handleSaveRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
 
-    await fetch('http://localhost:3001/settings/roles' + (currentRole.id ? `/${currentRole.id}` : ''), {
-      method: currentRole.id ? 'PATCH' : 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}` 
-      },
-      body: JSON.stringify({ 
+    try {
+      const payload = { 
           name: currentRole.name, 
           permissions: currentRole.permissions,
-          companyId: currentRole.companyId // Enviar companyId
-      }),
-    });
-    
-    setIsModalOpen(false);
-    fetchData(); 
+          companyId: currentRole.companyId 
+      };
+
+      if (currentRole.id) {
+          await apiClient.patch(`/settings/roles/${currentRole.id}`, payload);
+      } else {
+          await apiClient.post('/settings/roles', payload);
+      }
+      
+      setIsModalOpen(false);
+      fetchData(); 
+    } catch (error) {
+      console.error(error);
+      alert('Error al guardar rol');
+    }
   };
 
   if (loading) return <div>Cargando configuraciones...</div>;
@@ -277,13 +256,13 @@ export default function GeneralSettingsPage() {
                         <button onClick={() => handleOpenModal(rol)} className="text-blue-600 hover:text-blue-800 mr-3">Editar</button>
                         <button onClick={async () => {
                             if (!confirm('¿Eliminar rol?')) return;
-                            const { data: { session } } = await supabase.auth.getSession();
-                            if (!session) return;
-                            await fetch(`http://localhost:3001/settings/roles/${rol.id}`, {
-                                method: 'DELETE',
-                                headers: { Authorization: `Bearer ${session.access_token}` }
-                            });
-                            fetchData();
+                            try {
+                                await apiClient.delete(`/settings/roles/${rol.id}`);
+                                fetchData();
+                            } catch (error) {
+                                console.error(error);
+                                alert('Error al eliminar rol');
+                            }
                         }} className="text-red-500 hover:text-red-700">Eliminar</button>
                     </td>
                   </tr>
@@ -381,20 +360,16 @@ function UsersListTab() {
 
     // Cargar Usuarios, Roles y Empresas
     const fetchData = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-        const headers = { Authorization: `Bearer ${session.access_token}` };
-
         try {
-            const [resUsers, resRoles, resCompanies] = await Promise.all([
-                fetch('http://localhost:3001/users', { headers }),
-                fetch('http://localhost:3001/settings/roles', { headers }),
-                fetch('http://localhost:3001/companies', { headers })
+            const [usersData, rolesData, companiesData] = await Promise.all([
+                apiClient.get<any[]>('/users'),
+                apiClient.get<any[]>('/settings/roles'),
+                apiClient.get<any[]>('/companies').catch(() => []) // Puede fallar si no es admin
             ]);
 
-            if (resUsers.ok) setUsers(await resUsers.json());
-            if (resRoles.ok) setRoles(await resRoles.json());
-            if (resCompanies.ok) setCompanies(await resCompanies.json());
+            if (usersData) setUsers(usersData);
+            if (rolesData) setRoles(rolesData);
+            if (companiesData) setCompanies(companiesData);
         } catch (error) {
             console.error(error);
         } finally {
@@ -433,63 +408,43 @@ function UsersListTab() {
     const handleDeleteUser = async (userId: string) => {
         if (!confirm('¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.')) return;
         
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-        
-        await fetch(`http://localhost:3001/users/${userId}`, { 
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${session.access_token}` } 
-        });
-        fetchData();
+        try {
+            await apiClient.delete(`/users/${userId}`);
+            fetchData();
+        } catch (error) {
+            console.error(error);
+            alert('Error al eliminar usuario');
+        }
     };
 
     const handleSaveUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-        const headers = { 
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}` 
-        };
 
         try {
             if (editingUser.id) {
                 // UPDATE
-                await fetch(`http://localhost:3001/users/${editingUser.id}`, {
-                    method: 'PATCH',
-                    headers,
-                    body: JSON.stringify({
-                        name: editingUser.name,
-                        roleLegacy: editingUser.roleLegacy,
-                        roleId: editingUser.roleId || null,
-                        companyId: editingUser.companyId || null
-                    }),
+                await apiClient.patch(`/users/${editingUser.id}`, {
+                    name: editingUser.name,
+                    roleLegacy: editingUser.roleLegacy,
+                    roleId: editingUser.roleId || null,
+                    companyId: editingUser.companyId || null
                 });
             } else {
                 // CREATE (User + Auth)
-                const res = await fetch('http://localhost:3001/users/create-with-auth', {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({
-                        email: editingUser.email,
-                        password: editingUser.password, // Solo al crear
-                        name: editingUser.name,
-                        roleLegacy: editingUser.roleLegacy,
-                        roleId: editingUser.roleId || null,
-                        companyId: editingUser.companyId || null
-                    }),
+                await apiClient.post('/users/create-with-auth', {
+                    email: editingUser.email,
+                    password: editingUser.password, // Solo al crear
+                    name: editingUser.name,
+                    roleLegacy: editingUser.roleLegacy,
+                    roleId: editingUser.roleId || null,
+                    companyId: editingUser.companyId || null
                 });
-                if (!res.ok) {
-                    const err = await res.json();
-                    alert(`Error: ${err.message}`);
-                    return;
-                }
             }
             setIsUserModalOpen(false);
             fetchData();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Error al guardar usuario');
+            alert(`Error: ${error.message || 'Error al guardar usuario'}`);
         }
     };
 

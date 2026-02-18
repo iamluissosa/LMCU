@@ -174,21 +174,21 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @Get(':id')
   @Permissions('users.view')
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req) {
+    return this.usersService.findOne(id, req.user.companyId);
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @Patch(':id')
   @Permissions('users.edit')
-  update(@Param('id') id: string, @Body() updateUserDto: any) {
-    return this.usersService.update(id, updateUserDto);
+  update(@Param('id') id: string, @Body() updateUserDto: any, @Request() req) {
+    return this.usersService.update(id, updateUserDto, req.user.companyId);
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @Delete(':id')
   @Permissions('users.delete')
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
+  remove(@Param('id') id: string, @Request() req) {
+    return this.usersService.remove(id, req.user.companyId);
   }
 }

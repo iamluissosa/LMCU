@@ -1,12 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { Truck, Plus, Pencil, Trash2, X, Save, Search } from 'lucide-react';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { apiClient } from '@/lib/api-client';
+import { Truck, Plus, Search, Pencil, Trash2, X, Save } from 'lucide-react';
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -17,6 +12,8 @@ export default function SuppliersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+
 
   const [formData, setFormData] = useState({
     name: '',
@@ -31,14 +28,9 @@ export default function SuppliersPage() {
   // Cargar datos
   const fetchSuppliers = async () => {
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
     try {
-      const res = await fetch('http://localhost:3001/suppliers', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) setSuppliers(await res.json());
+      const response = await apiClient.get<{ items: any[]; pagination: any }>('/suppliers');
+      setSuppliers(response.items);
     } catch (error) {
       console.error(error);
     } finally {
@@ -58,8 +50,8 @@ export default function SuppliersPage() {
         email: supplier.email || '',
         phone: supplier.phone || '',
         address: supplier.address || '',
-        retentionISLR: supplier.retentionISLR || 0,
-        paymentTerms: supplier.paymentTerms || 0
+        retentionISLR: Number(supplier.retentionISLR) || 0,
+        paymentTerms: Number(supplier.paymentTerms) || 0
       });
     } else {
       setEditingId(null);
@@ -72,32 +64,29 @@ export default function SuppliersPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
 
     try {
       const url = editingId 
-        ? `http://localhost:3001/suppliers/${editingId}`
-        : 'http://localhost:3001/suppliers';
+        ? `/suppliers/${editingId}`
+        : '/suppliers';
       
-      const method = editingId ? 'PATCH' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!res.ok) throw new Error('Error al guardar');
+      // Sanitizar datos (convertir '' a undefined para validación backend)
+      const payload: any = { ...formData };
+      if (payload.email === '') delete payload.email;
+      if (payload.phone === '') delete payload.phone;
+      if (payload.address === '') delete payload.address;
+      
+      if (editingId) {
+          await apiClient.patch(url, payload);
+      } else {
+          await apiClient.post(url, payload);
+      }
 
       setIsModalOpen(false);
       fetchSuppliers();
       
-    } catch (error) {
-      alert('❌ Error al guardar proveedor');
+    } catch (error: any) {
+      alert(`❌ Error al guardar proveedor: ${error.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -106,14 +95,14 @@ export default function SuppliersPage() {
   // Eliminar
   const handleDelete = async (id: string) => {
     if(!confirm("¿Eliminar este proveedor?")) return;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
 
-    await fetch(`http://localhost:3001/suppliers/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    fetchSuppliers();
+    try {
+        await apiClient.delete(`/suppliers/${id}`);
+        fetchSuppliers();
+    } catch (error) {
+        console.error(error);
+        alert("Error eliminando proveedor");
+    }
   };
 
   // Filtrado de búsqueda

@@ -24,6 +24,14 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const permissions: string[] = user?.permissions || [];
-    return required.every((perm) => permissions.includes(perm));
+    const hasPermission = required.every((perm) => permissions.includes(perm));
+    
+    if (!hasPermission) {
+      console.warn(`⛔ Acceso Denegado. Usuario: ${user?.email}, Rol: ${user?.roleName}`);
+      console.warn(`   Permisos requeridos: [${required.join(', ')}]`);
+      console.warn(`   Permisos del usuario: [${permissions.join(', ')}]`);
+    }
+
+    return hasPermission;
   }
 }

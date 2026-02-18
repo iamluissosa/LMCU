@@ -8,11 +8,13 @@ import {
   Delete,
   UseGuards,
   Request,
+  Query,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Controller('products')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
@@ -32,9 +34,9 @@ export class ProductsController {
 
   @Get()
   @Permissions('inventory.view')
-  findAll(@Request() req) {
+  findAll(@Request() req, @Query() query: PaginationDto = new PaginationDto()) {
     const user = req.user;
-    return this.productsService.findAll(user.companyId, user.role);
+    return this.productsService.findAll(user.companyId, query || new PaginationDto(), user.role);
   }
 
   @Get(':id')

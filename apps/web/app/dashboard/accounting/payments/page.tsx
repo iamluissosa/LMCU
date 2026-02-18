@@ -1,33 +1,36 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { apiClient } from '@/lib/api-client';
 import { 
-  CreditCard, Plus, Search, Calendar, FileText, ArrowUpRight, CheckCircle 
+  CreditCard, Search, 
+  Plus, FileText, CheckCircle, Calendar
 } from 'lucide-react';
 import Link from 'next/link';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-export default function PaymentsHistoryPage() {
+export default function PaymentsOutPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+
+
+
+
 
   useEffect(() => {
     const fetchPayments = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const res = await fetch('http://localhost:3001/payments-out', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) {
-        setPayments(await res.json());
+      try {
+        const response = await apiClient.get<{ items: any[]; pagination: any }>('/payments-out');
+        if (response && response.items) {
+          setPayments(response.items);
+        }
+      } catch (error: any) {
+        console.error('Error fetching payments (full):', error);
+        console.error('Error message:', error.message);
+        console.error('Error response:', error.response);
+        alert(`Error: ${error.message || JSON.stringify(error)}`);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     fetchPayments();
   }, []);
@@ -225,7 +228,12 @@ export default function PaymentsHistoryPage() {
                 <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
                     <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cerrar</button>
                     <button 
-                        onClick={handlePrint}
+                        onClick={() => {
+                            console.log('--- PRINT DEBUG ---');
+                            console.log('Selected Payment:', selectedPayment);
+                            console.log('Company:', selectedPayment?.company);
+                            handlePrint();
+                        }}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 shadow-sm"
                     >
                         <FileText size={18} /> Imprimir Comprobante
@@ -242,7 +250,11 @@ export default function PaymentsHistoryPage() {
                  {/* ENCABEZADO */}
                  <div className="text-center mb-6">
                      <h1 className="text-xl font-bold uppercase">Comprobante de Retención de Impuesto al Valor Agregado</h1>
-                     <p className="text-sm">Conforme al Artículo 11 de la Ley de IVA</p>
+                     <div className="flex justify-between items-center px-20 mt-2">
+                        <p className="text-lg font-bold">Nº: {d.purchaseBill.receiptRetIVA || 'PENDIENTE'}</p>
+                        <p className="text-sm font-bold">FECHA: {new Date(selectedPayment.paymentDate).toLocaleDateString()}</p>
+                     </div>
+                     <p className="text-sm mt-2">Conforme al Artículo 11 de la Ley de IVA</p>
                  </div>
 
                  {/* DATOS DEL AGENTE (NOSOTROS) */}

@@ -17,7 +17,7 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: any) {
     // Validar existencia en BD local y obtener companyId
-    const user = await this.usersService.findOne(payload.sub);
+    const user = await this.usersService.findUserById(payload.sub);
 
     if (!user) {
       // ⚠️ CAMBIO CRÍTICO: Permitir usuarios nuevos para que puedan registrarse
@@ -31,14 +31,19 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
       };
     }
 
+    const permissions = user.role?.permissions || [];
+    // console.log(`🔍 Usuario: ${user.email}, Rol: ${user.role?.name}, Perms: ${permissions.length}`);
+    
     return {
       userId: payload.sub,
       email: payload.email,
+      name: user.name, // Nombre del usuario
       roles: payload.app_metadata?.roles || [],
       companyId: user.companyId,
+      companyName: user.company?.name, // Nombre de la empresa
       role: user.roleLegacy, // Rol legacy (ADMIN/USER)
       roleName: user.role?.name, // Nombre del rol personalizado
-      permissions: user.role?.permissions || [], // Permisos del rol personalizado
+      permissions: permissions, // Permisos del rol personalizado
     };
   }
 }

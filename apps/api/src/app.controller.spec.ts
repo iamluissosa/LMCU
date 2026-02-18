@@ -14,9 +14,9 @@ describe('AppController', () => {
     appController = app.get<AppController>(AppController);
   });
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+  describe('public', () => {
+    it('should return public message', () => {
+      expect(appController.getPublic()).toEqual({ message: 'Esto lo puede ver todo el mundo 🌍' });
     });
   });
 });

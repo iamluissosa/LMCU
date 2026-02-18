@@ -1,13 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { ShoppingCart, Plus, Calendar, User, FileText, CheckCircle, Clock, XCircle, ChevronRight, Search, Package } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
+import { 
+  ShoppingCart, Plus, Search, Calendar, ArrowRight, ChevronRight, User, Package,
+  CheckCircle, Clock, XCircle, AlertTriangle 
+} from 'lucide-react';
 import Link from 'next/link';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const PO_STATUS_LABELS: Record<string, string> = {
   'OPEN': 'Abierto',
@@ -37,14 +35,9 @@ export default function PurchaseOrdersPage() {
 
   const fetchOrders = async () => {
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
     try {
-      const res = await fetch('http://localhost:3001/purchase-orders', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) setOrders(await res.json());
+      const response = await apiClient.get<{ items: any[]; pagination: any }>('/purchase-orders');
+      setOrders(response.items);
     } catch (error) {
       console.error(error);
     } finally {
@@ -54,17 +47,10 @@ export default function PurchaseOrdersPage() {
 
   const fetchOrderDetails = async (id: string) => {
     setLoadingDetails(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
     try {
-      const res = await fetch(`http://localhost:3001/purchase-orders/${id}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) {
-        setSelectedOrder(await res.json());
-        setIsModalOpen(true);
-      }
+      const data = await apiClient.get<any>(`/purchase-orders/${id}`);
+      setSelectedOrder(data);
+      setIsModalOpen(true);
     } catch (error) {
       console.error(error);
       alert('Error al cargar detalles de la orden');
@@ -263,9 +249,10 @@ export default function PurchaseOrdersPage() {
                 </button>
                 {/* Aquí se podrían agregar acciones como "Recibir Orden", "Imprimir", etc. */}
                 {selectedOrder.status === 'OPEN' && (
-                     <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm shadow-sm">
+                     <Link href={`/dashboard/purchase-orders/${selectedOrder.id}/edit`} 
+                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm shadow-sm flex items-center gap-2">
                         Editar Orden
-                     </button>
+                     </Link>
                 )}
             </div>
           </div>

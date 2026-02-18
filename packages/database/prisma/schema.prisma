@@ -65,6 +65,14 @@ model CompanySettings {
   paymentOutPrefix     String @default("EGR-")
   nextPaymentOutNumber Int    @default(1)
 
+  // Retenciones (Comprobantes SENIAT)
+  nextRetentionIVANumber  Int    @default(1)
+  nextRetentionISLRNumber Int    @default(1)
+  retentionPrefix         String @default("RET-")
+
+  // Año fiscal activo (para control de secuencias)
+  fiscalYear Int @default(2026)
+
   currency String @default("USD")
   timeZone String @default("America/Caracas")
 
@@ -103,6 +111,17 @@ model User {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   goodsReceipts GoodsReceipt[]
+
+  // Auditoría
+  createdBills    PurchaseBill[]  @relation("BillCreatedBy")
+  updatedBills    PurchaseBill[]  @relation("BillUpdatedBy")
+  createdOrders   PurchaseOrder[] @relation("OrderCreatedBy")
+  updatedOrders   PurchaseOrder[] @relation("OrderUpdatedBy")
+  createdPayments PaymentOut[]    @relation("PaymentCreatedBy")
+  updatedPayments PaymentOut[]    @relation("PaymentUpdatedBy")
+  purchaseOrders  PurchaseOrder[]
+  purchaseBills   PurchaseBill[]
+  paymentOuts     PaymentOut[]
 }
 
 // ==========================================
@@ -135,6 +154,7 @@ model Product {
   updatedAt DateTime @updatedAt
 
   @@unique([companyId, code])
+  @@index([companyId, currentStock])
 }
 
 // ==========================================
@@ -146,11 +166,12 @@ model Supplier {
   id        String @id @default(uuid())
   companyId String
 
-  name    String
-  rif     String
-  email   String?
-  phone   String?
-  address String?
+  name        String
+  rif         String
+  email       String?
+  phone       String?
+  address     String?
+  contactName String? // Nuevo campo tras refactor T-01
 
   retentionISLR Decimal @default(0) @db.Decimal(5, 2)
   paymentTerms  Int     @default(0)
@@ -197,6 +218,15 @@ model PurchaseOrder {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+
+  // Auditoría
+  createdById String?
+  createdBy   User?     @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?     @relation("OrderUpdatedBy", fields: [updatedById], references: [id])
+  deletedAt   DateTime?
 
   @@unique([companyId, orderNumber])
 }
@@ -253,6 +283,7 @@ enum BillStatus {
   UNPAID
   PAID
   VOID
+  PARTIAL // Nuevo estado para pagos parciales
 }
 
 // 4. FACTURA DE COMPRA (Cuenta por Pagar con Retenciones)
@@ -305,6 +336,19 @@ model PurchaseBill {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+
+  // Auditoría
+  createdById String?
+  createdBy   User?     @relation("BillCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?     @relation("BillUpdatedBy", fields: [updatedById], references: [id])
+  deletedAt   DateTime?
+
+  @@index([companyId, status])
+  @@index([supplierId, status])
+  @@index([issueDate])
 }
 
 // DETALLE DE FACTURA DE COMPRA (Items)
@@ -357,6 +401,17 @@ model PaymentOut {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+
+  // Auditoría
+  createdById String?
+  createdBy   User?     @relation("PaymentCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?     @relation("PaymentUpdatedBy", fields: [updatedById], references: [id])
+  deletedAt   DateTime?
+
+  @@index([companyId, paymentDate])
 }
 
 model PaymentOutDetail {

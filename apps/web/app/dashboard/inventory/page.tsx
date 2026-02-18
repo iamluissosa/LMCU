@@ -1,20 +1,19 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { apiClient } from '@/lib/api-client';
 import { 
   Package, Search, Plus, RefreshCw, X, Save, 
   Pencil, Trash2 
 } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
 export default function InventoryPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   
+  // Stats
+  const [stats, setStats] = useState({ total: 0, lowStock: 0, value: 0 });
+
   // Estados del Modal y Edición
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -31,19 +30,13 @@ export default function InventoryPage() {
   // --- 1. CARGAR PRODUCTOS ---
   const fetchProducts = async () => {
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
     try {
-      const res = await fetch('http://localhost:3001/products', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(data);
-      }
-    } catch (err) {
-      console.error(err);
+      const response = await apiClient.get<{ items: any[]; pagination: any }>('/products');
+      setProducts(response.items || []);
+    } catch (err: any) {
+      console.error('Error fetching products (full):', err);
+      console.error('Error message:', err.message);
+      alert(`Error: ${err.message || 'Error al cargar inventario'}`);
     } finally {
       setLoading(false);
     }
@@ -75,9 +68,6 @@ export default function InventoryPage() {
     e.preventDefault();
     setIsSaving(true);
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
     try {
       // Limpieza de datos (Coma a Punto)
       let cleanPrice = formData.priceBase.toString().replace(',', '.');
@@ -93,24 +83,11 @@ export default function InventoryPage() {
         currentStock: stockNumber,
       };
 
-      let url = 'http://localhost:3001/products';
-      let method = 'POST';
-
       if (editingId) {
-        url = `http://localhost:3001/products/${editingId}`;
-        method = 'PATCH';
+        await apiClient.patch(`/products/${editingId}`, payload);
+      } else {
+        await apiClient.post('/products', payload);
       }
-
-      const res = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error('Error en la operación');
 
       setIsModalOpen(false);
       fetchProducts();
@@ -127,23 +104,12 @@ export default function InventoryPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este producto? Esta acción no se puede deshacer.')) return;
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
     try {
-      const res = await fetch(`http://localhost:3001/products/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-
-      if (res.ok) {
-        fetchProducts();
-      } else {
-        const errData = await res.json();
-        alert(`❌ Error: ${errData.message || 'No se pudo eliminar'}`);
-      }
+      await apiClient.delete(`/products/${id}`);
+      fetchProducts();
     } catch (error) {
-      alert('❌ Error de conexión');
+      console.error(error);
+      alert('❌ Error eliminando producto');
     }
   };
 

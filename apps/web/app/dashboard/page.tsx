@@ -1,32 +1,43 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { 
-  Package, Users, DollarSign, AlertTriangle, 
-  TrendingUp, Activity 
+import { apiClient } from '@/lib/api-client';
+import {
+  DollarSign, Package, Users, AlertTriangle, Activity, TrendingUp
 } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Interface local temporal hasta que se mueva a @erp/types
+interface DashboardStats {
+  monthlySales: number;
+  activeOrders: number;
+  lowStockItems: number;
+  totalCustomers: number;
+  inventoryValue?: number;
+  totalProducts?: number;
+  lowStockCount?: number;
+  totalUsers?: number;
+  lowStockProducts?: any[];
+}
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<DashboardStats>({
+    monthlySales: 0,
+    activeOrders: 0,
+    lowStockItems: 0,
+    totalCustomers: 0,
+    inventoryValue: 0,
+    totalProducts: 0,
+    lowStockCount: 0,
+    totalUsers: 0,
+    lowStockProducts: []
+  });
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
       try {
-        const res = await fetch('http://localhost:3001/dashboard/stats', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (res.ok) {
-          setStats(await res.json());
-        }
+        const data = await apiClient.get<DashboardStats>('/dashboard/stats');
+        setStats(data);
       } catch (error) {
         console.error("Error cargando dashboard", error);
       } finally {

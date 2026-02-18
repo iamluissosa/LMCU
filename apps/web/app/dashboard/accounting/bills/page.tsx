@@ -1,17 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { apiClient } from '@/lib/api-client';
 import { FileText, DollarSign } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { PurchaseOrder, PurchaseOrderItem } from '@erp/types'; // Importar tipos
 
-export default function PurchaseBillsPage() {
+export default function BillsPage() {
   const [step, setStep] = useState(1);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]); // Tipado
+  const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null); // Tipado
   
   // Datos de la Factura
   const [invoiceData, setInvoiceData] = useState({
@@ -19,55 +16,55 @@ export default function PurchaseBillsPage() {
     controlNumber: '',
     issueDate: new Date().toISOString().split('T')[0]
   });
-  const [billItems, setBillItems] = useState<any[]>([]);
+  
+  // Interface local para items de factura en edición
+  interface BillItemDraft {
+      productId: string;
+      productName: string;
+      received: number;
+      quantity: number;
+      unitPrice: number;
+      taxRate: number;
+      islrRate: number;
+  }
+
+  const [billItems, setBillItems] = useState<BillItemDraft[]>([]);
 
   // 1. Cargar Órdenes con Recepciones
   useEffect(() => {
     const fetchOrders = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const res = await fetch('http://localhost:3001/purchase-orders', { 
-        headers: { Authorization: `Bearer ${session.access_token}` } 
-      });
-      if (res.ok) {
-        const data = await res.json();
+      try {
+        const response = await apiClient.get<{ items: PurchaseOrder[]; pagination: any }>('/purchase-orders');
         // Filtramos solo las que tienen algo recibido (status != OPEN)
-        setOrders(data.filter((o: any) => o.status === 'PARTIALLY_RECEIVED' || o.status === 'RECEIVED'));
+        setOrders(response.items.filter((o) => o.status === 'PARTIALLY_RECEIVED' || o.status === 'RECEIVED'));
+      } catch (error: any) {
+        console.error('Error fetching orders (full):', error);
+        console.error('Error message:', error.message);
+        alert(`Error: ${error.message || 'Error al cargar órdenes'}`);
       }
     };
     fetchOrders();
   }, []);
 
   // 2. Preparar la Factura basada en lo RECIBIDO
-  const handleSelectOrder = async (order: any) => {
+  const handleSelectOrder = async (order: PurchaseOrder) => {
     // Necesitamos cargar los detalles COMPLETOS (items y productos)
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
     try {
-        const res = await fetch(`http://localhost:3001/purchase-orders/${order.id}`, { 
-            headers: { Authorization: `Bearer ${session.access_token}` } 
-        });
-        
-        if (!res.ok) throw new Error('Error cargando detalles de la orden');
-        
-        const fullOrder = await res.json();
+        const fullOrder = await apiClient.get<PurchaseOrder>(`/purchase-orders/${order.id}`);
         setSelectedOrder(fullOrder);
         
         // Mapeamos lo items. 
         // PRECARGAMOS: Cantidad = Lo Recibido. Precio = El de la Orden.
         // El contador puede editar el precio si varió, pero la cantidad no debería subir.
-        const itemsToBill = fullOrder.items?.map((item: any) => ({
+        const itemsToBill: BillItemDraft[] = fullOrder.items?.map((item: PurchaseOrderItem) => ({
           productId: item.productId,
           productName: item.product?.name || 'Producto Desconocido',
-          received: item.quantityReceived, // Límite Máximo
-          quantity: item.quantityReceived, // Sugerido
-          unitPrice: item.unitPrice,       // Precio pactado
-          unitPrice: item.unitPrice,       // Precio pactado
+          received: Number(item.quantityReceived || 0), // Límite Máximo
+          quantity: Number(item.quantityReceived || 0), // Sugerido
+          unitPrice: Number(item.unitPrice),       // Precio pactado
           taxRate: 16,                     // Default 16%
           islrRate: 0,                     // Default 0%
-        })).filter((i: any) => Number(i.received) > 0) || []; // Solo facturamos lo que llegó
+        })).filter((i) => i.received > 0) || []; // Solo facturamos lo que llegó
 
         setBillItems(itemsToBill);
         setStep(2);
@@ -87,7 +84,7 @@ export default function PurchaseBillsPage() {
   };
 
   const handleSubmit = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    if (!selectedOrder) return;
     
     // Calcular totales globales para la cabecera
     const totalTaxable = billItems.reduce((acc, i) => acc + (Number(i.quantity) * Number(i.unitPrice)), 0);
@@ -107,31 +104,20 @@ export default function PurchaseBillsPage() {
           productName: i.productName,
           quantity: Number(i.quantity),
           unitPrice: Number(i.unitPrice),
-          unitPrice: Number(i.unitPrice),
           taxRate: Number(i.taxRate), // Guardamos la tasa individual
           islrRate: Number(i.islrRate), // Guardamos la tasa ISLR
           totalLine: (Number(i.quantity) * Number(i.unitPrice)) // Subtotal línea sin iva
         }))
       };
 
-      const res = await fetch('http://localhost:3001/bills', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      await apiClient.post('/bills', payload);
 
-      if (res.ok) {
-        alert("✅ Factura registrada y conciliada correctamente.");
-        window.location.reload();
-      } else {
-        const errorData = await res.json();
-        alert(`❌ Error de Conciliación: ${errorData.message}`);
-      }
-    } catch (e) {
-      alert("Error de conexión");
+      alert("✅ Factura registrada y conciliada correctamente.");
+      window.location.reload();
+    } catch (e: any) {
+      console.error('Error completo:', JSON.stringify(e, null, 2));
+      const errorMessage = e.response?.data?.message || e.message || 'Error desconocido';
+      alert(`❌ Error de Conciliación: ${errorMessage}`);
     }
   };
 
@@ -151,7 +137,7 @@ export default function PurchaseBillsPage() {
                    className="flex justify-between items-center p-4 border rounded-lg hover:border-green-500 cursor-pointer transition-colors bg-gray-50 hover:bg-white">
                 <div>
                   <div className="font-bold text-gray-800">{order.orderNumber}</div>
-                  <div className="text-sm text-gray-500">{order.supplier.name}</div>
+                  <div className="text-sm text-gray-500">{order.supplier?.name || 'Proveedor Desconocido'}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-full mb-1">
@@ -215,13 +201,15 @@ export default function PurchaseBillsPage() {
                     <input type="number" className="w-full border rounded p-1 text-center font-bold"
                       max={item.received}
                       value={item.quantity}
-                      onChange={(e) => {
+                        onChange={(e) => {
                         const val = Number(e.target.value);
                         // Validación visual rápida
                         if(val > item.received) alert("¡No puedes facturar más de lo recibido!");
                         const newItems = [...billItems];
-                        newItems[idx].quantity = val;
-                        setBillItems(newItems);
+                        if (newItems[idx]) {
+                           newItems[idx].quantity = val;
+                           setBillItems(newItems);
+                        }
                       }}
                     />
                   </td>
@@ -230,8 +218,10 @@ export default function PurchaseBillsPage() {
                       value={item.unitPrice}
                       onChange={(e) => {
                         const newItems = [...billItems];
-                        newItems[idx].unitPrice = e.target.value;
-                        setBillItems(newItems);
+                        if (newItems[idx]) {
+                           newItems[idx].unitPrice = Number(e.target.value);
+                           setBillItems(newItems);
+                        }
                       }}
                     />
                   </td>
@@ -241,8 +231,10 @@ export default function PurchaseBillsPage() {
                         value={item.taxRate}
                         onChange={(e) => {
                             const newItems = [...billItems];
-                            newItems[idx].taxRate = Number(e.target.value);
-                            setBillItems(newItems);
+                            if (newItems[idx]) {
+                               newItems[idx].taxRate = Number(e.target.value);
+                               setBillItems(newItems);
+                            }
                         }}
                      >
                         <option value={16}>16% (G)</option>
@@ -257,8 +249,10 @@ export default function PurchaseBillsPage() {
                         value={item.islrRate}
                         onChange={(e) => {
                             const newItems = [...billItems];
-                            newItems[idx].islrRate = Number(e.target.value);
-                            setBillItems(newItems);
+                            if (newItems[idx]) {
+                               newItems[idx].islrRate = Number(e.target.value);
+                               setBillItems(newItems);
+                            }
                         }}
                      />
                   </td>

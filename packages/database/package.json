@@ -5,7 +5,8 @@
   "types": "index.ts",
   "scripts": {
     "db:push": "prisma db push",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "generate": "prisma generate"
   },
   "devDependencies": {
     "prisma": "^5.22.0",

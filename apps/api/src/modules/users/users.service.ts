@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
@@ -21,41 +21,45 @@ export class UsersService {
     });
   }
 
-  // 2. Listar Usuarios (FILTRADO POR EMPRESA)
-  // 2. Listar Usuarios (FILTRADO POR EMPRESA o TODO si es ADMIN)
+  // 2. Listar Usuarios (Siempre filtrado por companyId)
   async findAll(companyId: string, role?: string) {
-    if (role === 'ADMIN') {
-      return this.prisma.user.findMany({
-        include: { company: true, role: true },
-        orderBy: { name: 'asc' },
-      });
-    }
-
-    const whereCondition = companyId ? { companyId } : {};
-
+    // S-07: Eliminado bypass de ADMIN para garantizar aislamiento
     return this.prisma.user.findMany({
-      where: whereCondition,
+      where: { companyId },
       include: {
         company: true,
-        role: true, // Include role details
+        role: true, 
       },
       orderBy: { name: 'asc' },
     });
   }
 
-  // 3. Buscar uno
-  async findOne(id: string) {
-    return this.prisma.user.findUnique({
-      where: { id },
+  // 3. Buscar uno (Validando companyId)
+  async findOne(id: string, companyId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, companyId },
       include: {
         company: true,
-        role: true, // ✅ Traemos el rol con sus permisos
+        role: true,
       },
     });
+
+    if (!user) {
+        // Si no lo encuentra con ese companyId, lanzamos error o retornamos null
+        // Para consistencia con findOne original que retornaba null si no existía el ID:
+        return null; 
+    }
+    return user;
   }
 
+
+
   // 4. Actualizar
-  async update(id: string, data: any) {
+  async update(id: string, data: any, companyId: string) {
+    // Validar pertenencia
+    const user = await this.prisma.user.findFirst({ where: { id, companyId } });
+    if (!user) throw new NotFoundException('Usuario no encontrado o no pertenece a tu empresa');
+
     if (data.password) {
       data.password = await bcrypt.hash(data.password, 10);
     }
@@ -66,7 +70,22 @@ export class UsersService {
   }
 
   // 5. Eliminar
-  async remove(id: string) {
+  async remove(id: string, companyId: string) {
+    // Validar pertenencia
+    const user = await this.prisma.user.findFirst({ where: { id, companyId } });
+    if (!user) throw new NotFoundException('Usuario no encontrado o no pertenece a tu empresa');
+
     return this.prisma.user.delete({ where: { id } });
+  }
+
+  // 6. Buscar usuario por ID (para autenticación)
+  async findUserById(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        company: true, // Incluir datos de la empresa
+        role: true,    // Incluir rol (campos escalares inc. permissions json)
+      },
+    });
   }
 }
