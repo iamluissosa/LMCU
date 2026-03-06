@@ -70,7 +70,7 @@ export default function InventoryPage() {
     
     try {
       // Limpieza de datos (Coma a Punto)
-      let cleanPrice = formData.priceBase.toString().replace(',', '.');
+      const cleanPrice = formData.priceBase.toString().replace(',', '.');
       const priceNumber = parseFloat(cleanPrice);
       const stockNumber = parseInt(formData.currentStock);
 

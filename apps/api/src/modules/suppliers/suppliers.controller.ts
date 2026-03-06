@@ -60,7 +60,10 @@ export class SuppliersController {
   @Get()
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @Permissions('suppliers.view')
-  async findAll(@Request() req, @Query() query: PaginationDto = new PaginationDto()) {
+  async findAll(
+    @Request() req,
+    @Query() query: PaginationDto = new PaginationDto(),
+  ) {
     try {
       if (!req.user?.companyId) {
         throw new HttpException(
@@ -69,7 +72,11 @@ export class SuppliersController {
         );
       }
       const { page = 1, limit = 20 } = query || new PaginationDto();
-      return await this.suppliersService.findAll(req.user.companyId, page, limit);
+      return await this.suppliersService.findAll(
+        req.user.companyId,
+        page,
+        limit,
+      );
     } catch (error) {
       console.error('Error buscando proveedores:', error);
       if (error instanceof HttpException) throw error;

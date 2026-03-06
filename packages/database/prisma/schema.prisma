@@ -37,11 +37,19 @@ model Company {
   invoices Invoice[]
 
   // Relaciones de Compras y Tesorería
-  suppliers      Supplier[]
-  purchaseOrders PurchaseOrder[]
-  purchaseBills  PurchaseBill[]
-  goodsReceipts  GoodsReceipt[]
-  paymentsOut    PaymentOut[] // Nuevo: Historial de Pagos
+  suppliers         Supplier[]
+  purchaseOrders    PurchaseOrder[]
+  purchaseBills     PurchaseBill[]
+  goodsReceipts     GoodsReceipt[]
+  paymentsOut       PaymentOut[]
+  expenseCategories ExpenseCategory[]
+
+  // Relaciones de Ventas y Servicios (nuevo)
+  quotes            Quote[]
+  salesOrders       SalesOrder[]
+  salesInvoices     SalesInvoice[]
+  paymentsIn        PaymentIn[]
+  serviceCategories ServiceCategory[]
 }
 
 model CompanySettings {
@@ -72,6 +80,20 @@ model CompanySettings {
 
   // Año fiscal activo (para control de secuencias)
   fiscalYear Int @default(2026)
+
+  // ── MÓDULO DE VENTAS ─────────────────────
+  quotePrefix     String @default("COT-")
+  nextQuoteNumber Int    @default(1)
+
+  salesOrderPrefix     String @default("PV-")
+  nextSalesOrderNumber Int    @default(1)
+
+  salesInvoicePrefix     String @default("FACT-V-")
+  nextSalesInvoiceNumber Int    @default(1)
+
+  paymentInPrefix     String @default("COB-")
+  nextPaymentInNumber Int    @default(1)
+  // ─────────────────────────────────────────
 
   currency String @default("USD")
   timeZone String @default("America/Caracas")
@@ -122,6 +144,38 @@ model User {
   purchaseOrders  PurchaseOrder[]
   purchaseBills   PurchaseBill[]
   paymentOuts     PaymentOut[]
+  quotes          Quote[]
+  salesOrders     SalesOrder[]
+  salesInvoices   SalesInvoice[]
+  paymentIns      PaymentIn[]
+  // Auditoría de ventas
+  createdQuotes   Quote[]         @relation("QuoteCreatedBy")
+  createdSOs      SalesOrder[]    @relation("SOCreatedBy")
+  createdSIs      SalesInvoice[]  @relation("SICreatedBy")
+  createdPIs      PaymentIn[]     @relation("PICreatedBy")
+}
+
+// ==========================================
+// 🛠️ CATEGORÍAS DE SERVICIO (Mano de Obra)
+// ==========================================
+
+model ServiceCategory {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Relaciones
+  quoteItems        QuoteItem[]
+  salesOrderItems   SalesOrderItem[]
+  salesInvoiceItems SalesInvoiceItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
 }
 
 // ==========================================
@@ -134,9 +188,14 @@ model Product {
   name        String
   description String?
 
+  // FLAG CRÍTICO: diferencia productos físicos (afecta stock) de servicios (no afecta stock)
+  // REGLA: si isService = true → el SalesOrderService NO validará currentStock ni lo rebajará
+  isService Boolean @default(false)
+
   // Costos y Precios
-  costAverage Decimal @default(0) @db.Decimal(12, 2)
-  priceBase   Decimal @db.Decimal(10, 2)
+  costAverage Decimal  @default(0) @db.Decimal(12, 2)
+  priceBase   Decimal  @db.Decimal(10, 2) // Precio oficial de venta en USD
+  priceAlt    Decimal? @db.Decimal(10, 2) // Precio alternativo (descuentos, mayoristas, etc.)
 
   currentStock Decimal @default(0) @db.Decimal(12, 2)
   imageUrl     String?
@@ -148,13 +207,19 @@ model Product {
   invoiceItems       InvoiceItem[]
   purchaseOrderItems PurchaseOrderItem[]
   goodsReceiptItems  GoodsReceiptItem[]
-  purchaseBillItems  PurchaseBillItem[]
+  purchaseBillItems  PurchaseBillItem[]  @relation("ProductBillItems")
+
+  // Relaciones de ventas (nuevo módulo)
+  quoteItems        QuoteItem[]
+  salesOrderItems   SalesOrderItem[]
+  salesInvoiceItems SalesInvoiceItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([companyId, code])
   @@index([companyId, currentStock])
+  @@index([companyId, isService]) // índice para filtrar productos vs servicios en catálogos
 }
 
 // ==========================================
@@ -250,7 +315,7 @@ model PurchaseOrderItem {
 model GoodsReceipt {
   id              String   @id @default(uuid())
   companyId       String
-  purchaseOrderId String
+  purchaseOrderId String?
   receivedAt      DateTime @default(now())
 
   receiptNumber String
@@ -260,7 +325,7 @@ model GoodsReceipt {
   receivedBy   User?   @relation(fields: [receivedById], references: [id])
 
   company       Company            @relation(fields: [companyId], references: [id])
-  purchaseOrder PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrder PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
   items         GoodsReceiptItem[]
 }
 
@@ -324,8 +389,9 @@ model PurchaseBill {
   totalAmount Decimal @db.Decimal(12, 2) // Total Factura
   paidAmount  Decimal @default(0) @db.Decimal(12, 2) // Lo pagado hasta ahora
 
-  status BillStatus @default(UNPAID)
-  inBook Boolean    @default(true) // ¿Va al libro de compras?
+  status    BillStatus @default(UNPAID)
+  inBook    Boolean    @default(true) // ¿Va al libro de compras?
+  isExpense Boolean    @default(false) // true = gasto operativo, false = inventario
 
   company       Company        @relation(fields: [companyId], references: [id])
   supplier      Supplier       @relation(fields: [supplierId], references: [id])
@@ -357,14 +423,37 @@ model PurchaseBillItem {
   purchaseBillId String
   purchaseBill   PurchaseBill @relation(fields: [purchaseBillId], references: [id], onDelete: Cascade)
 
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
+  // Inventario: solo para facturas de compra normal
+  productId String?
+  product   Product? @relation("ProductBillItems", fields: [productId], references: [id])
+
+  // Gastos: solo para compras directas (isExpense = true)
+  expenseCategoryId String?
+  expenseCategory   ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id])
+  description       String? // Descripción libre del gasto
 
   quantity  Decimal @db.Decimal(12, 2)
   unitPrice Decimal @db.Decimal(12, 2)
-  taxRate   Decimal @default(0) @db.Decimal(5, 2) // Nueva columna para IVA por ítem
-  islrRate  Decimal @default(0) @db.Decimal(5, 2) // Retención ISLR manual por ítem
+  taxRate   Decimal @default(0) @db.Decimal(5, 2)
+  islrRate  Decimal @default(0) @db.Decimal(5, 2)
   totalLine Decimal @db.Decimal(12, 2)
+}
+
+// CATEGORÍAS DE GASTO (para Compras Directas)
+model ExpenseCategory {
+  id          String  @id @default(uuid())
+  companyId   String
+  name        String // "Servicios Públicos", "Alquiler", "Papelería"
+  description String?
+  isActive    Boolean @default(true)
+
+  company   Company            @relation(fields: [companyId], references: [id])
+  billItems PurchaseBillItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
 }
 
 enum PaymentMethod {
@@ -430,19 +519,39 @@ model PaymentOutDetail {
 // ==========================================
 
 model Client {
-  id      String  @id @default(uuid())
-  name    String
-  rif     String?
-  address String?
-  phone   String?
-  email   String?
+  id   String @id @default(uuid())
+  name String
+
+  // Datos Fiscales (Venezuela)
+  rif          String? // RIF o Cédula del cliente
+  taxpayerType String? // 'J', 'V', 'G', 'E' – tipo de contribuyente
+  isIvaAgent   Boolean @default(false) // Agente de retención de IVA (rete el 75%)
+  islrRate     Decimal @default(0) @db.Decimal(5, 2) // % ISLR que nos retendrá (0, 1, 2, 3...)
+
+  // Datos Comerciales
+  address      String?
+  phone        String?
+  email        String?
+  contactName  String? // Nombre del contacto en la empresa
+  paymentTerms Int      @default(0) // Días de crédito (0 = contado, 30, 60, 90)
+  creditLimit  Decimal? @db.Decimal(12, 2) // Límite de crédito en USD
 
   companyId String
-  company   Company   @relation(fields: [companyId], references: [id])
-  invoices  Invoice[]
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Relaciones antiguas
+  invoices Invoice[]
+
+  // Relaciones nuevas (Módulo de Ventas)
+  quotes        Quote[]
+  salesOrders   SalesOrder[]
+  salesInvoices SalesInvoice[]
+  paymentsIn    PaymentIn[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([companyId, rif])
 }
 
 model Invoice {
@@ -502,4 +611,380 @@ model ExchangeRate {
   source String? // BCV, PARALELO, MANUAL
 
   createdAt DateTime @default(now())
+}
+
+// ==========================================
+// 🛒 MÓDULO DE VENTAS Y FACTURACIÓN
+// ==========================================
+// FLUJO ESTRICTO: Quote → SalesOrder → SalesInvoice → PaymentIn
+// Cada flecha implica una copiada de ítems + actualización de estado.
+//
+// REGLA DE STOCK:
+//   - Al crear SalesOrder: rebajar stock SOLO si item.product.isService = false
+//   - Al cancelar SalesOrder: reponer stock de los ítems físicos
+//   - SalesInvoice no toca stock (ya fue rebajado en el pedido)
+//
+// REGLA DE RETENCIONES (SENIAT):
+//   - retentionIVA = taxAmount * (retIvaRate / 100)   → lo retiene el cliente agente
+//   - retentionISLR = taxableAmount * (islrRate / 100) → varía por tipo de servicio
+//   - igtfAmount = totalToPay * 0.03                  → solo si cliente paga en divisa efectivo
+//   - Neto a cobrar = total - retentionIVA - retentionISLR + igtfAmount
+// ==========================================
+
+// ------------------------------------------
+// ENUMS DE VENTAS
+// ------------------------------------------
+
+enum QuoteStatus {
+  DRAFT // Borrador — no visible al cliente
+  SENT // Enviada al cliente
+  ACCEPTED // Aceptada → genera SalesOrder
+  REJECTED // Rechazada
+  EXPIRED // Venció sin respuesta
+  CANCELLED // Anulada internamente
+}
+
+enum SalesOrderStatus {
+  CONFIRMED // Pedido confirmado — stock comprometido
+  PROCESSING // En preparación/despacho
+  SHIPPED // Despachado
+  DELIVERED // Entregado y confirmado
+  INVOICED // Facturado (invoice generado)
+  CANCELLED // Cancelado — stock repuesto
+}
+
+enum SalesInvoiceStatus {
+  DRAFT // Borrador — no fiscal
+  ISSUED // Emitida — crea la Cuenta por Cobrar
+  PARTIAL // Pago parcial recibido
+  PAID // Cobrada totalmente
+  VOID // Anulada (requiere nota de crédito)
+  OVERDUE // Vencida (calculado por job nocturno)
+}
+
+// ------------------------------------------
+// 1. COTIZACIÓN (Quote)
+// ------------------------------------------
+model Quote {
+  id        String @id @default(uuid())
+  companyId String
+  clientId  String
+
+  // Numeración
+  quoteNumber String // Ej: COT-2026-0001 (generado por CompanySettings)
+
+  status QuoteStatus @default(DRAFT)
+
+  // Vigencia — si hoy > expiresAt y status=SENT → se marca EXPIRED vía job
+  issueDate DateTime  @default(now())
+  expiresAt DateTime? // Fecha máxima para aceptar la cotización
+
+  // Multimoneda
+  currencyCode String  @default("USD")
+  exchangeRate Decimal @default(1.0000) @db.Decimal(12, 4) // Tasa BCV del día de emisión
+
+  // Montos (en la moneda de la cotización)
+  subtotal      Decimal @default(0) @db.Decimal(12, 2) // Suma de item.totalLine
+  exemptAmount  Decimal @default(0) @db.Decimal(12, 2) // Ítems exentos de IVA
+  taxableAmount Decimal @default(0) @db.Decimal(12, 2) // Base imponible (IVA)
+  taxAmount     Decimal @default(0) @db.Decimal(12, 2) // IVA calculado
+  totalAmount   Decimal @default(0) @db.Decimal(12, 2) // Total a pagar
+
+  notes        String? // Observaciones / términos y condiciones
+  internalNote String? // Nota interna (no visible al cliente)
+
+  // Vínculos del flujo
+  salesOrderId String? // Se llena cuando la cotización es ACCEPTED
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id])
+
+  company Company     @relation(fields: [companyId], references: [id])
+  client  Client      @relation(fields: [clientId], references: [id])
+  items   QuoteItem[]
+
+  // Auditoría
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  createdBy   User?     @relation("QuoteCreatedBy", fields: [createdById], references: [id])
+  deletedAt   DateTime?
+  user        User?     @relation(fields: [userId], references: [id])
+  userId      String?
+
+  @@unique([companyId, quoteNumber])
+  @@index([companyId, status])
+  @@index([companyId, issueDate])
+  @@index([clientId, status]) // Pipeline por cliente
+}
+
+model QuoteItem {
+  id      String @id @default(uuid())
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  // Un ítem puede ser un producto físico/servicio (Product) O un servicio libre categorizado (ServiceCategory)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  serviceCategoryId String?
+  serviceCategory   ServiceCategory? @relation(fields: [serviceCategoryId], references: [id])
+
+  description String? // Descripción personalizada (opcional — override del product.name)
+
+  quantity  Decimal @db.Decimal(12, 2)
+  unitPrice Decimal @db.Decimal(12, 2) // Precio negociado para esta cotización
+
+  // Impuestos por línea
+  taxRate   Decimal @default(16.00) @db.Decimal(5, 2) // 16, 8, o 0 (exento)
+  discount  Decimal @default(0) @db.Decimal(5, 2) // % descuento por línea
+  totalLine Decimal @db.Decimal(12, 2) // = qty * price * (1 - disc%) + iva
+
+  @@index([quoteId])
+}
+
+// ------------------------------------------
+// 2. PEDIDO DE VENTA (SalesOrder)
+// ------------------------------------------
+// MOMENTO CLAVE: aquí se compromete el inventario.
+// El servicio debe:
+//   1. Leer cada item.product.isService
+//   2. Si isService = false → validar currentStock ≥ qty y rebajar
+//   3. Si isService = true  → no tocar stock
+model SalesOrder {
+  id        String @id @default(uuid())
+  companyId String
+  clientId  String
+
+  // Numeración
+  orderNumber String // Ej: PV-2026-0001
+
+  status SalesOrderStatus @default(CONFIRMED)
+
+  // Un SalesOrder puede haber sido generado desde una cotización (opcional)
+  // La FK inversa vive en Quote.salesOrderId → esta es la relación inversa
+
+  orderDate    DateTime  @default(now())
+  expectedDate DateTime? // Fecha estimada de entrega
+  deliveredAt  DateTime? // Fecha real de entrega
+
+  // Multimoneda
+  currencyCode String  @default("USD")
+  exchangeRate Decimal @default(1.0000) @db.Decimal(12, 4)
+
+  // Montos
+  subtotal      Decimal @default(0) @db.Decimal(12, 2)
+  exemptAmount  Decimal @default(0) @db.Decimal(12, 2)
+  taxableAmount Decimal @default(0) @db.Decimal(12, 2)
+  taxAmount     Decimal @default(0) @db.Decimal(12, 2)
+  totalAmount   Decimal @default(0) @db.Decimal(12, 2)
+
+  deliveryAddress String? // Dirección de entrega (puede diferir del cliente)
+  notes           String?
+  internalNote    String?
+
+  company Company          @relation(fields: [companyId], references: [id])
+  client  Client           @relation(fields: [clientId], references: [id])
+  items   SalesOrderItem[]
+
+  // Relaciones inversas del flujo
+  salesInvoices SalesInvoice[] // Facturas generadas desde este pedido
+  quotesLinked  Quote[] // Cotizaciones que originaron este pedido
+
+  // Auditoría
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  createdBy   User?     @relation("SOCreatedBy", fields: [createdById], references: [id])
+  deletedAt   DateTime?
+  user        User?     @relation(fields: [userId], references: [id])
+  userId      String?
+
+  @@unique([companyId, orderNumber])
+  @@index([companyId, status])
+  @@index([companyId, orderDate])
+  @@index([clientId, status])
+}
+
+model SalesOrderItem {
+  id           String     @id @default(uuid())
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  serviceCategoryId String?
+  serviceCategory   ServiceCategory? @relation(fields: [serviceCategoryId], references: [id])
+
+  description String?
+  quantity    Decimal @db.Decimal(12, 2)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  taxRate     Decimal @default(16.00) @db.Decimal(5, 2)
+  discount    Decimal @default(0) @db.Decimal(5, 2)
+  totalLine   Decimal @db.Decimal(12, 2)
+
+  // Control de despacho: qty comprometida vs qty ya enviada
+  // Permite despachos parciales (SalesOrder en status PROCESSING → SHIPPED)
+  quantityShipped Decimal @default(0) @db.Decimal(12, 2)
+  isClosed        Boolean @default(false) // true cuando qty = quantityShipped
+
+  @@index([salesOrderId])
+}
+
+// ------------------------------------------
+// 3. FACTURA DE VENTA (SalesInvoice)
+// ------------------------------------------
+// Crea la Cuenta por Cobrar (CxC).
+// NO modifica stock — ese trabajo ya lo hizo el SalesOrder.
+// Desglose fiscal obligatorio para el Libro de Ventas SENIAT.
+model SalesInvoice {
+  id        String @id @default(uuid())
+  companyId String
+  clientId  String
+
+  // Numeración fiscal
+  invoiceNumber String // Ej: FACT-2026-0001 (correlativo de CompanySettings)
+  controlNumber String? // N° de Control (requerido por SENIAT)
+
+  status SalesInvoiceStatus @default(ISSUED)
+
+  // Trazabilidad: Pedido → Factura
+  salesOrderId String?
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id])
+
+  issueDate DateTime  @default(now())
+  dueDate   DateTime? // Fecha de vencimiento del crédito (issueDate + client.paymentTerms días)
+
+  // Multimoneda
+  currencyCode String  @default("USD")
+  exchangeRate Decimal @default(1.0000) @db.Decimal(12, 4) // Tasa BCV al momento de facturar
+
+  // ==== DESGLOSE FISCAL VENEZOLANO (Libro de Ventas) ====
+  exemptAmount  Decimal @default(0) @db.Decimal(12, 2) // Base Exenta (Ítems sin IVA)
+  taxableAmount Decimal @default(0) @db.Decimal(12, 2) // Base Imponible IVA 16% (o 8%)
+  taxRate       Decimal @default(16.00) @db.Decimal(5, 2) // Alícuota principal
+  taxAmount     Decimal @default(0) @db.Decimal(12, 2) // IVA cobrado
+  subtotal      Decimal @default(0) @db.Decimal(12, 2) // Suma líneas antes de impuestos
+  totalAmount   Decimal @default(0) @db.Decimal(12, 2) // Total de la factura
+
+  // ==== RETENCIONES QUE APLICARÁ EL CLIENTE (Agentes SENIAT) ====
+  // El cliente agente nos RETIENE parte del IVA y/o ISLR al moment de pagar.
+  // Estos campos se llenan CUANDO se registra el pago, no al emitir.
+
+  // Retención IVA (75% del IVA cobrado para agentes ordinarios, 100% para agentes especiales)
+  retIvaRate    Decimal @default(75.00) @db.Decimal(5, 2) // % de retención sobre taxAmount
+  retentionIVA  Decimal @default(0) @db.Decimal(12, 2) // Calculado: taxAmount * retIvaRate/100
+  receiptRetIVA String? // N° Comprobante de retención IVA entregado por el cliente
+
+  // Retención ISLR (varía por actividad: 1%, 2%, 3%... viene del Client.islrRate)
+  retISLRRate    Decimal @default(0) @db.Decimal(5, 2)
+  retentionISLR  Decimal @default(0) @db.Decimal(12, 2) // taxableAmount * retISLRRate/100
+  receiptRetISLR String?
+
+  // IGTF – Impuesto a las Grandes Transacciones Financieras (3%)
+  // Se activa SOLO si el cliente paga en divisa en efectivo (currencyCode=USD y CASH_USD)
+  // NUNCA aplica sobre Zelle, transferencias internacionales ni bolívares.
+  igtfApplies Boolean @default(false)
+  igtfRate    Decimal @default(3.00) @db.Decimal(4, 2)
+  igtfAmount  Decimal @default(0) @db.Decimal(12, 2) // netToPay * 0.03 (lo asume el cliente)
+
+  // Saldo de cobro
+  paidAmount Decimal @default(0) @db.Decimal(12, 2) // Acumulado de pagos recibidos
+  // netToPay (calculado en app) = totalAmount - retentionIVA - retentionISLR + igtfAmount
+
+  inBook Boolean @default(true) // ¿Va al Libro de Ventas SENIAT?
+  notes  String?
+
+  company  Company            @relation(fields: [companyId], references: [id])
+  client   Client             @relation(fields: [clientId], references: [id])
+  items    SalesInvoiceItem[]
+  payments PaymentInDetail[] // Todos los cobros parciales asociados
+
+  // Auditoría
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  createdBy   User?     @relation("SICreatedBy", fields: [createdById], references: [id])
+  deletedAt   DateTime?
+  user        User?     @relation(fields: [userId], references: [id])
+  userId      String?
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, status])
+  @@index([companyId, issueDate])
+  @@index([clientId, status])
+  @@index([companyId, dueDate]) // Para job de facturas vencidas
+}
+
+model SalesInvoiceItem {
+  id             String       @id @default(uuid())
+  salesInvoiceId String
+  salesInvoice   SalesInvoice @relation(fields: [salesInvoiceId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  serviceCategoryId String?
+  serviceCategory   ServiceCategory? @relation(fields: [serviceCategoryId], references: [id])
+
+  description String?
+  quantity    Decimal @db.Decimal(12, 2)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  taxRate     Decimal @default(16.00) @db.Decimal(5, 2) // 16, 8, 0
+  discount    Decimal @default(0) @db.Decimal(5, 2)
+  totalLine   Decimal @db.Decimal(12, 2)
+
+  @@index([salesInvoiceId])
+}
+
+// ------------------------------------------
+// 4. COBROS (PaymentIn) — Cuentas por Cobrar
+// ------------------------------------------
+// Espejo de PaymentOut (proveedor) pero orientado a cobros de clientes.
+// Un PaymentIn puede cubrir múltiples facturas (cobro parcial o total).
+model PaymentIn {
+  id            String @id @default(uuid())
+  companyId     String
+  clientId      String
+  paymentNumber String // Ej: COB-2026-0001 (correlativo de CompanySettings)
+
+  paymentDate DateTime @default(now())
+
+  // Multimoneda y método
+  method         PaymentMethod
+  reference      String? // Referencia bancaria
+  bankName       String?
+  currencyCode   String        @default("USD")
+  exchangeRate   Decimal       @default(1.0000) @db.Decimal(12, 4)
+  amountReceived Decimal       @db.Decimal(12, 2) // Monto bruto que entró al banco
+
+  // IGTF (si aplica — método CASH_USD → 3% adicional pagado por el cliente)
+  igtfAmount Decimal @default(0) @db.Decimal(12, 2)
+
+  notes String?
+
+  company Company           @relation(fields: [companyId], references: [id])
+  client  Client            @relation(fields: [clientId], references: [id])
+  details PaymentInDetail[] // Qué facturas cubre este cobro
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  createdBy   User?     @relation("PICreatedBy", fields: [createdById], references: [id])
+  deletedAt   DateTime?
+  user        User?     @relation(fields: [userId], references: [id])
+  userId      String?
+
+  @@index([companyId, paymentDate])
+  @@index([clientId])
+}
+
+model PaymentInDetail {
+  id             String @id @default(uuid())
+  paymentInId    String
+  salesInvoiceId String
+
+  amountApplied Decimal @db.Decimal(12, 2) // Monto aplicado a esta factura específica
+
+  paymentIn    PaymentIn    @relation(fields: [paymentInId], references: [id], onDelete: Cascade)
+  salesInvoice SalesInvoice @relation(fields: [salesInvoiceId], references: [id])
 }

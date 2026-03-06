@@ -25,15 +25,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      
+
       if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
         const payload = exceptionResponse as Record<string, unknown>;
-        message = typeof payload.message === 'string'
-          ? payload.message
-          : JSON.stringify(payload.message || exception.message);
-        code = typeof payload.error === 'string' 
-          ? payload.error 
-          : JSON.stringify(payload.error || 'HTTP_ERROR');
+        message =
+          typeof payload.message === 'string'
+            ? payload.message
+            : JSON.stringify(payload.message || exception.message);
+        code =
+          typeof payload.error === 'string'
+            ? payload.error
+            : JSON.stringify(payload.error || 'HTTP_ERROR');
       } else {
         message = exception.message;
       }
@@ -42,15 +44,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       exception instanceof Prisma.PrismaClientKnownRequestError
     ) {
       // Manejo de errores de Prisma
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const prismaError = exception as any;
-      
+
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       if (prismaError.code === 'P2002') {
         status = HttpStatus.CONFLICT;
         message = 'Unique constraint failed. Recurso duplicado.';
         code = 'DUPLICATE_ENTRY';
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       } else if (prismaError.code === 'P2025') {
         status = HttpStatus.NOT_FOUND;
         message = 'Record not found. Recurso no encontrado.';

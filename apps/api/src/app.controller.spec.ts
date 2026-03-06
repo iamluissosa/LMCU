@@ -16,7 +16,9 @@ describe('AppController', () => {
 
   describe('public', () => {
     it('should return public message', () => {
-      expect(appController.getPublic()).toEqual({ message: 'Esto lo puede ver todo el mundo 🌍' });
+      expect(appController.getPublic()).toEqual({
+        message: 'Esto lo puede ver todo el mundo 🌍',
+      });
     });
   });
 });

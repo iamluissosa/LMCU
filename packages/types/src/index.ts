@@ -51,6 +51,7 @@ export interface PurchaseBill {
   supplier?: Supplier; // Relation
   items?: PurchaseBillItem[]; // Relation
   companyId: string;
+  purchaseOrderId?: string | null;
 }
 
 export interface PurchaseOrderItem {

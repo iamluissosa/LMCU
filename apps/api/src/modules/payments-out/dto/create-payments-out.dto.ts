@@ -1,4 +1,15 @@
-import { IsString, IsNotEmpty, IsDateString, IsNumber, IsOptional, IsArray, ValidateNested, Min, IsUUID, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  Min,
+  IsUUID,
+  IsEnum,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 // Definición manual para evitar dependencia de regeneración de prisma client en este entorno

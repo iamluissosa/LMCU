@@ -142,6 +142,11 @@ export default function PaymentsOutPage() {
                         <div key={d.id} className="flex items-center gap-2 text-xs">
                           <CheckCircle size={12} className="text-green-500"/>
                           <span className="text-gray-700">Fac. {d.purchaseBill.invoiceNumber}</span>
+                          {!d.purchaseBill.purchaseOrderId && (
+                            <span className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold">
+                              Compra Directa
+                            </span>
+                          )}
                           <span className="text-gray-400">({d.purchaseBill.supplier.name})</span>
                         </div>
                       ))}
@@ -209,7 +214,14 @@ export default function PaymentsOutPage() {
                         {selectedPayment.details.map((d: any) => (
                             <div key={d.id} className="bg-gray-50 p-3 rounded-lg text-sm flex justify-between items-center">
                                 <div>
-                                    <p className="font-bold text-gray-800">Fac. {d.purchaseBill.invoiceNumber}</p>
+                                    <p className="font-bold text-gray-800 flex items-center gap-2">
+                                        Fac. {d.purchaseBill.invoiceNumber}
+                                        {!d.purchaseBill.purchaseOrderId && (
+                                            <span className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded">
+                                                Compra Directa
+                                            </span>
+                                        )}
+                                    </p>
                                     <p className="text-gray-500">{d.purchaseBill.supplier.name}</p>
                                     <p className="text-xs text-gray-400">RIF: {d.purchaseBill.supplier.rif}</p>
                                 </div>

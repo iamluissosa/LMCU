@@ -33,10 +33,26 @@ export class ProductsController {
   }
 
   @Get()
-  @Permissions('inventory.view')
+  @Permissions(
+    'inventory.view',
+    'inventory.create',
+    'inventory.edit',
+    'inventory.delete',
+    'sales.view',
+    'quotes.view',
+    'sales-orders.view',
+    'sales-invoices.view',
+    'purchase_orders.view',
+    'receptions.view',
+    'bills.view',
+  )
   findAll(@Request() req, @Query() query: PaginationDto = new PaginationDto()) {
     const user = req.user;
-    return this.productsService.findAll(user.companyId, query || new PaginationDto(), user.role);
+    return this.productsService.findAll(
+      user.companyId,
+      query || new PaginationDto(),
+      user.role,
+    );
   }
 
   @Get(':id')

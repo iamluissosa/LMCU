@@ -28,7 +28,7 @@ export class UsersService {
       where: { companyId },
       include: {
         company: true,
-        role: true, 
+        role: true,
       },
       orderBy: { name: 'asc' },
     });
@@ -45,20 +45,21 @@ export class UsersService {
     });
 
     if (!user) {
-        // Si no lo encuentra con ese companyId, lanzamos error o retornamos null
-        // Para consistencia con findOne original que retornaba null si no existía el ID:
-        return null; 
+      // Si no lo encuentra con ese companyId, lanzamos error o retornamos null
+      // Para consistencia con findOne original que retornaba null si no existía el ID:
+      return null;
     }
     return user;
   }
-
-
 
   // 4. Actualizar
   async update(id: string, data: any, companyId: string) {
     // Validar pertenencia
     const user = await this.prisma.user.findFirst({ where: { id, companyId } });
-    if (!user) throw new NotFoundException('Usuario no encontrado o no pertenece a tu empresa');
+    if (!user)
+      throw new NotFoundException(
+        'Usuario no encontrado o no pertenece a tu empresa',
+      );
 
     if (data.password) {
       data.password = await bcrypt.hash(data.password, 10);
@@ -73,7 +74,10 @@ export class UsersService {
   async remove(id: string, companyId: string) {
     // Validar pertenencia
     const user = await this.prisma.user.findFirst({ where: { id, companyId } });
-    if (!user) throw new NotFoundException('Usuario no encontrado o no pertenece a tu empresa');
+    if (!user)
+      throw new NotFoundException(
+        'Usuario no encontrado o no pertenece a tu empresa',
+      );
 
     return this.prisma.user.delete({ where: { id } });
   }
@@ -84,7 +88,7 @@ export class UsersService {
       where: { id },
       include: {
         company: true, // Incluir datos de la empresa
-        role: true,    // Incluir rol (campos escalares inc. permissions json)
+        role: true, // Incluir rol (campos escalares inc. permissions json)
       },
     });
   }

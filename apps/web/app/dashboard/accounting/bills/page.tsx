@@ -3,10 +3,13 @@ import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { FileText, DollarSign } from 'lucide-react';
 
-import { PurchaseOrder, PurchaseOrderItem } from '@erp/types'; // Importar tipos
+import { PurchaseOrder, PurchaseOrderItem } from '@erp/types';
+import { useRouter } from 'next/navigation';
 
 export default function BillsPage() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
+// ... existing states ...
   const [orders, setOrders] = useState<PurchaseOrder[]>([]); // Tipado
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null); // Tipado
   
@@ -123,9 +126,17 @@ export default function BillsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-        <DollarSign className="text-green-600" /> Registro de Facturas (Cuentas por Pagar)
-      </h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <DollarSign className="text-green-600" /> Registro de Facturas (Cuentas por Pagar)
+        </h1>
+        <button 
+          onClick={() => router.push('/dashboard/accounting/bills/direct')} 
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow transition-colors"
+        >
+          + Nueva Compra Directa
+        </button>
+      </div>
 
       {/* PASO 1: ELEGIR ORDEN PARA CRUZAR */}
       {step === 1 && (

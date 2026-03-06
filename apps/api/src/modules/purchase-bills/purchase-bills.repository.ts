@@ -6,7 +6,12 @@ import { PurchaseBill, Prisma } from '@repo/database';
 export class PurchaseBillsRepository {
   constructor(private prisma: PrismaService) {}
 
-  async create(companyId: string, userId: string, data: Prisma.PurchaseBillCreateInput, tx?: Prisma.TransactionClient): Promise<PurchaseBill> {
+  async create(
+    companyId: string,
+    userId: string,
+    data: Prisma.PurchaseBillCreateInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<PurchaseBill> {
     const client = tx || this.prisma;
     return client.purchaseBill.create({
       data: {
@@ -26,20 +31,20 @@ export class PurchaseBillsRepository {
 
     const [bills, total] = await Promise.all([
       this.prisma.purchaseBill.findMany({
-        where: { 
+        where: {
           companyId,
-          deletedAt: null 
+          deletedAt: null,
         } as any,
         skip,
         take: limit,
         include: { supplier: true, items: true },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.purchaseBill.count({ 
-        where: { 
+      this.prisma.purchaseBill.count({
+        where: {
           companyId,
-          deletedAt: null 
-        } as any 
+          deletedAt: null,
+        } as any,
       }),
     ]);
 
@@ -54,7 +59,11 @@ export class PurchaseBillsRepository {
     };
   }
 
-  async update(id: string, userId: string, data: Prisma.PurchaseBillUpdateInput): Promise<PurchaseBill> {
+  async update(
+    id: string,
+    userId: string,
+    data: Prisma.PurchaseBillUpdateInput,
+  ): Promise<PurchaseBill> {
     return this.prisma.purchaseBill.update({
       where: { id },
       data: {
@@ -82,9 +91,9 @@ export class PurchaseBillsRepository {
 
   async countByOrderId(orderId: string): Promise<number> {
     return this.prisma.purchaseBill.count({
-      where: { 
+      where: {
         purchaseOrderId: orderId,
-        deletedAt: null 
+        deletedAt: null,
       } as any, // Cast por EPERM
     });
   }

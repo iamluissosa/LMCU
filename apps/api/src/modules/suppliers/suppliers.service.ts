@@ -30,14 +30,24 @@ export class SuppliersService {
   async findAll(
     companyId: string,
     page: number = 1,
-    limit: number = 20
-  ): Promise<{ items: Supplier[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
+    limit: number = 20,
+  ): Promise<{
+    items: Supplier[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
     const skip = (page - 1) * limit;
 
     if (!this.prisma.supplier) {
       // Return empty list safely or throw specific error?
       // Better to throw so admin knows to fix it, but specific error is better than 500
-      throw new BadRequestException('Prisma Client out of sync (Supplier model missing). Restart/Regenerate.');
+      throw new BadRequestException(
+        'Prisma Client out of sync (Supplier model missing). Restart/Regenerate.',
+      );
     }
 
     try {
@@ -48,7 +58,7 @@ export class SuppliersService {
           take: limit,
           orderBy: { name: 'asc' },
         }),
-        this.prisma.supplier.count({ where: { companyId } })
+        this.prisma.supplier.count({ where: { companyId } }),
       ]);
 
       return {
@@ -57,12 +67,14 @@ export class SuppliersService {
           page,
           limit,
           total,
-          totalPages: Math.ceil(total / limit)
-        }
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch (error: any) {
       console.error('Error fetching suppliers:', error);
-      throw new BadRequestException(`Error fetching suppliers: ${error.message}`);
+      throw new BadRequestException(
+        `Error fetching suppliers: ${error.message}`,
+      );
     }
   }
 
@@ -80,8 +92,14 @@ export class SuppliersService {
       where: { id },
       data: {
         ...data,
-        retentionISLR: data.retentionISLR !== undefined ? Number(data.retentionISLR) : undefined,
-        paymentTerms: data.paymentTerms !== undefined ? Number(data.paymentTerms) : undefined,
+        retentionISLR:
+          data.retentionISLR !== undefined
+            ? Number(data.retentionISLR)
+            : undefined,
+        paymentTerms:
+          data.paymentTerms !== undefined
+            ? Number(data.paymentTerms)
+            : undefined,
       },
     });
     return updated as unknown as Supplier;
@@ -111,13 +129,20 @@ export class SuppliersService {
 
     const currentPerms = (roleBuilder.permissions as any) || [];
     const newPerms = new Set([...currentPerms]);
-    
+
     // Agregar permisos faltantes (Suppliers + Inventory + Purchase Orders)
     [
-      'suppliers.create', 'suppliers.view', 'suppliers.edit', 'suppliers.delete',
-      'inventory.create', 'inventory.view', 'inventory.edit', 'inventory.delete',
-      'purchase_orders.create', 'purchase_orders.view'
-    ].forEach(p => newPerms.add(p));
+      'suppliers.create',
+      'suppliers.view',
+      'suppliers.edit',
+      'suppliers.delete',
+      'inventory.create',
+      'inventory.view',
+      'inventory.edit',
+      'inventory.delete',
+      'purchase_orders.create',
+      'purchase_orders.view',
+    ].forEach((p) => newPerms.add(p));
 
     const updatedRole = await this.prisma.role.update({
       where: { id: roleBuilder.id },

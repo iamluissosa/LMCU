@@ -15,6 +15,10 @@ import { GoodsReceiptsModule } from './modules/goods-receipts/goods-receipts.mod
 import { PurchaseBillsModule } from './modules/purchase-bills/purchase-bills.module';
 import { PaymentsOutModule } from './modules/payments-out/payments-out.module';
 import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
+import { ExpenseCategoriesModule } from './modules/expense-categories/expense-categories.module';
+import { SalesModule } from './modules/sales/sales.module';
+import { ClientsModule } from './modules/clients/clients.module';
+import { ServiceCategoriesModule } from './modules/service-categories/service-categories.module';
 
 @Module({
   imports: [
@@ -34,6 +38,10 @@ import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.mod
     PurchaseBillsModule,
     PaymentsOutModule,
     ExchangeRatesModule,
+    ExpenseCategoriesModule,
+    SalesModule,
+    ClientsModule,
+    ServiceCategoriesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

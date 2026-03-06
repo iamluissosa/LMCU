@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, UseGuards, Request, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  Query,
+} from '@nestjs/common';
 import { PaymentsOutService } from './payments-out.service';
 import { AuthGuard } from '@nestjs/passport';
 import { CreatePaymentOutDto } from './dto/create-payments-out.dto';
@@ -11,15 +19,23 @@ export class PaymentsOutController {
 
   @Post()
   create(@Request() req, @Body() data: CreatePaymentOutDto) {
-    return this.paymentsOutService.create(req.user.companyId, req.user.id, data);
+    return this.paymentsOutService.create(
+      req.user.companyId,
+      req.user.id,
+      data,
+    );
   }
 
-
-
-// ... class
+  // ... class
 
   @Get()
-  findAll(@Request() req, @Query() pagination: PaginationDto = new PaginationDto()) {
-    return this.paymentsOutService.findAll(req.user.companyId, pagination || new PaginationDto());
+  findAll(
+    @Request() req,
+    @Query() pagination: PaginationDto = new PaginationDto(),
+  ) {
+    return this.paymentsOutService.findAll(
+      req.user.companyId,
+      pagination || new PaginationDto(),
+    );
   }
 }

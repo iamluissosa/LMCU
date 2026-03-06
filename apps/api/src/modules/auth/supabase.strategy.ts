@@ -32,8 +32,10 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
     }
 
     const permissions = user.role?.permissions || [];
-    // console.log(`🔍 Usuario: ${user.email}, Rol: ${user.role?.name}, Perms: ${permissions.length}`);
-    
+    console.log(
+      `🔍 AUTH VALIDATE - Email: ${user.email}, RoleLegacy: ${user.roleLegacy}, CustomRole: ${user.role?.name}, Perms: ${Array.isArray(permissions) ? permissions.length : 'N/A'}`,
+    );
+
     return {
       userId: payload.sub,
       email: payload.email,

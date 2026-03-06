@@ -8,6 +8,7 @@ import {
   Patch,
   Param,
   Delete,
+  BadRequestException,
 } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -23,13 +24,22 @@ export class SettingsController {
   @Get('general')
   @Permissions('settings.view')
   getSettings(@Request() req) {
-    return this.settingsService.getSettings(req.user.companyId);
+    const companyId: string | undefined = req.user.companyId;
+    if (!companyId) {
+      // Superadmins without a company shouldn't call this endpoint
+      throw new BadRequestException('Usuario sin empresa asignada');
+    }
+    return this.settingsService.getSettings(companyId);
   }
 
   @Patch('general')
   @Permissions('settings.edit')
   updateSettings(@Request() req, @Body() data: any) {
-    return this.settingsService.updateSettings(req.user.companyId, data);
+    const companyId: string | undefined = req.user.companyId;
+    if (!companyId) {
+      throw new BadRequestException('Usuario sin empresa asignada');
+    }
+    return this.settingsService.updateSettings(companyId, data);
   }
 
   // --- ROLES ---

@@ -51,25 +51,32 @@ export class PurchaseOrdersService {
       });
     } catch (error: any) {
       console.error('Error creating purchase order:', error);
-      throw new BadRequestException(error.stack || error.message || 'Error al crear la orden de compra');
+      throw new BadRequestException(
+        error.stack || error.message || 'Error al crear la orden de compra',
+      );
     }
   }
 
   // 2. Listar con paginación
-  async findAll(companyId: string, pagination: PaginationDto): Promise<PaginatedResponse<any>> {
+  async findAll(
+    companyId: string,
+    pagination: PaginationDto,
+  ): Promise<PaginatedResponse<any>> {
     const { page = 1, limit = 20 } = pagination || {};
     const skip = (page - 1) * limit;
 
     if (!this.prisma.purchaseOrder) {
-      throw new BadRequestException('Prisma Client out of sync (PurchaseOrder model missing). Restart/Regenerate.');
+      throw new BadRequestException(
+        'Prisma Client out of sync (PurchaseOrder model missing). Restart/Regenerate.',
+      );
     }
 
     try {
       const [orders, total] = await Promise.all([
         this.prisma.purchaseOrder.findMany({
-          where: { 
+          where: {
             companyId,
-            deletedAt: null 
+            deletedAt: null,
           } as any,
           skip,
           take: limit,
@@ -79,12 +86,12 @@ export class PurchaseOrdersService {
           },
           orderBy: { createdAt: 'desc' },
         }),
-        this.prisma.purchaseOrder.count({ 
-          where: { 
+        this.prisma.purchaseOrder.count({
+          where: {
             companyId,
-            deletedAt: null 
-          } as any 
-        })
+            deletedAt: null,
+          } as any,
+        }),
       ]);
 
       return {
@@ -93,15 +100,13 @@ export class PurchaseOrdersService {
           page,
           limit,
           total,
-          totalPages: Math.ceil(total / limit)
-        }
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch (error: any) {
       console.error('Error fetching purchase orders:', error);
       throw new BadRequestException(`Error fetching orders: ${error.message}`);
     }
-
-
   }
 
   // 3. Detalle (para editar o ver)
@@ -142,8 +147,11 @@ export class PurchaseOrdersService {
 
       // 1. Si hay items, reemplazar y calcular nuevo total
       if (data.items && po.status === POStatus.OPEN) {
-        console.log('Update PO: Recalculando total con items:', data.items.length);
-        
+        console.log(
+          'Update PO: Recalculando total con items:',
+          data.items.length,
+        );
+
         // Borrar anteriores
         await tx.purchaseOrderItem.deleteMany({
           where: { purchaseOrderId: id },
@@ -169,7 +177,12 @@ export class PurchaseOrdersService {
         newTotal = calculatedTotal;
         console.log('Update PO: Nuevo Total Calculado:', newTotal);
       } else {
-        console.log('Update PO: No se actualizaron items. Status:', po.status, 'Items received:', !!data.items);
+        console.log(
+          'Update PO: No se actualizaron items. Status:',
+          po.status,
+          'Items received:',
+          !!data.items,
+        );
       }
 
       // 2. Actualizar cabecera con el nuevo total si hubo cambio de items
@@ -183,7 +196,10 @@ export class PurchaseOrdersService {
 
       if (newTotal !== undefined) {
         updateData.totalAmount = newTotal;
-        console.log('Update PO: Actualizando cabecera totalAmount a:', newTotal);
+        console.log(
+          'Update PO: Actualizando cabecera totalAmount a:',
+          newTotal,
+        );
       }
 
       const updatedPO = await tx.purchaseOrder.update({
@@ -191,7 +207,7 @@ export class PurchaseOrdersService {
         data: {
           ...updateData,
           updatedBy: { connect: { id: userId } },
-        } as any,
+        },
         include: { items: true }, // Retornar items actualizados
       });
 

@@ -268,7 +268,14 @@ export default function NewPaymentPage() {
               <div key={bill.id} onClick={() => handleSelectBill(bill)}
                 className="flex justify-between items-center p-4 border rounded-lg hover:bg-blue-50 cursor-pointer border-l-4 border-l-blue-500">
                 <div>
-                  <div className="font-bold text-gray-800">Factura #{bill.invoiceNumber}</div>
+                  <div className="font-bold text-gray-800 flex items-center gap-2">
+                    Factura #{bill.invoiceNumber}
+                    {!bill.purchaseOrderId && (
+                      <span className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded">
+                        Compra Directa
+                      </span>
+                    )}
+                  </div>
                   <div className="text-sm text-gray-500">Emisión: {new Date(bill.issueDate).toLocaleDateString()}</div>
                 </div>
                 <div className="text-right">
@@ -302,7 +309,14 @@ export default function NewPaymentPage() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="bg-gray-50 p-4 border-b border-gray-100 flex justify-between">
                 <div>
-                  <h3 className="font-bold text-gray-800">Factura N° {selectedBill.invoiceNumber}</h3>
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    Factura N° {selectedBill.invoiceNumber}
+                    {!selectedBill.purchaseOrderId && (
+                      <span className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded">
+                        Compra Directa
+                      </span>
+                    )}
+                  </h3>
                   <p className="text-xs text-gray-500">Control: {selectedBill.controlNumber}</p>
                 </div>
                 <div className="text-right">

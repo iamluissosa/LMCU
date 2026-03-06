@@ -31,8 +31,14 @@ export class PurchaseOrdersController {
 
   @Get()
   @Permissions('purchase_orders.view')
-  findAll(@Request() req, @Query() pagination: PaginationDto = new PaginationDto()) {
-    return this.poService.findAll(req.user.companyId, pagination || new PaginationDto());
+  findAll(
+    @Request() req,
+    @Query() pagination: PaginationDto = new PaginationDto(),
+  ) {
+    return this.poService.findAll(
+      req.user.companyId,
+      pagination || new PaginationDto(),
+    );
   }
 
   @Get(':id')
@@ -43,7 +49,11 @@ export class PurchaseOrdersController {
 
   @Patch(':id')
   @Permissions('purchase_orders.edit')
-  update(@Param('id') id: string, @Body() data: UpdatePurchaseOrderDto, @Request() req) {
+  update(
+    @Param('id') id: string,
+    @Body() data: UpdatePurchaseOrderDto,
+    @Request() req,
+  ) {
     return this.poService.update(id, req.user.id, data);
   }
 

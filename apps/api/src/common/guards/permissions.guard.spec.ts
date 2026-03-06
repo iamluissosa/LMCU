@@ -40,7 +40,10 @@ describe('PermissionsGuard', () => {
     } as unknown as Reflector;
 
     const guard = new PermissionsGuard(reflector);
-    const context = createContext({ role: 'USER', permissions: ['a', 'b', 'c'] });
+    const context = createContext({
+      role: 'USER',
+      permissions: ['a', 'b', 'c'],
+    });
 
     expect(guard.canActivate(context)).toBe(true);
   });

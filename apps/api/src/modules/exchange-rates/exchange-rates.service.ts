@@ -1,4 +1,3 @@
-
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -11,21 +10,25 @@ export class ExchangeRatesService {
   async fetchAndSaveBCVRate() {
     try {
       this.logger.log('Fetching BCV rate from ve.dolarapi.com...');
-      const response = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
-      
+      const response = await fetch(
+        'https://ve.dolarapi.com/v1/dolares/oficial',
+      );
+
       if (!response.ok) {
         throw new Error(`Failed to fetch rates: ${response.statusText}`);
       }
 
       const data = await response.json();
-      
+
       // La API retorna un objeto con el campo "promedio" que es la tasa
       // Ejemplo: { fecha: "...", promedio: 36.1234, ... }
-      
+
       const rate = data.promedio;
-      
+
       if (!rate) {
-        throw new Error('Formato de API inesperado: No se encontró el campo promedio');
+        throw new Error(
+          'Formato de API inesperado: No se encontró el campo promedio',
+        );
       }
 
       const newRate = await this.prisma.exchangeRate.create({
@@ -40,17 +43,16 @@ export class ExchangeRatesService {
 
       this.logger.log(`Tasa BCV guardada exitosamente: ${rate} VES/USD`);
       return newRate;
-
     } catch (error) {
-        this.logger.error('Error fetching/saving BCV rate', error);
-        throw error;
+      this.logger.error('Error fetching/saving BCV rate', error);
+      throw error;
     }
   }
 
   async getLatestRate() {
     const rate = await this.prisma.exchangeRate.findFirst({
-        orderBy: { date: 'desc' },
-        where: { fromCurrency: 'USD', toCurrency: 'VES' }
+      orderBy: { date: 'desc' },
+      where: { fromCurrency: 'USD', toCurrency: 'VES' },
     });
     return rate || {};
   }

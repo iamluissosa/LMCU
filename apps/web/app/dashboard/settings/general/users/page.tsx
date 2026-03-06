@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { Settings, Save, Shield, Hash } from 'lucide-react';
+import { Settings, Save, Shield, Hash, Receipt } from 'lucide-react';
 
 export default function GeneralSettingsPage() {
   const [activeTab, setActiveTab] = useState('correlatives');
@@ -11,16 +11,29 @@ export default function GeneralSettingsPage() {
 
   // Cargar datos
   const fetchData = async () => {
+    setLoading(true);
+
+    // Separamos las llamadas para poder aislar errores individuales
     try {
-      const [settingsData, rolesData] = await Promise.all([
-        apiClient.get<any>('/settings/general'),
-        apiClient.get<any[]>('/settings/roles')
-      ]);
+      const settingsData = await apiClient
+        .get<any>('/settings/general')
+        .catch((err) => {
+          console.error('Error cargando configuración general:',
+            JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+          return null;
+        });
+
+      const rolesData = await apiClient
+        .get<any[]>('/settings/roles')
+        .catch((err) => {
+          console.error('Error cargando roles:',
+            JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+          // devolvemos arreglo vacío para evitar paquetes nulos
+          return [] as any[];
+        });
 
       if (settingsData) setSettings(settingsData);
-      if (rolesData) setRoles(rolesData);
-    } catch (error) {
-      console.error(error);
+      if (rolesData) setRoles(rolesData || []);
     } finally {
       setLoading(false);
     }
@@ -79,6 +92,16 @@ export default function GeneralSettingsPage() {
     { id: 'companies.edit', label: 'Editar Empresas' },
     { id: 'settings.view', label: 'Ver Configuración' },
     { id: 'settings.edit', label: 'Editar Configuración' },
+    // ── VENTAS ──────────────────────────────────
+    { id: 'clients.view', label: 'Ver Clientes' },
+    { id: 'clients.create', label: 'Crear Clientes' },
+    { id: 'clients.edit', label: 'Editar Clientes' },
+    { id: 'clients.delete', label: 'Eliminar Clientes' },
+    { id: 'sales.view', label: 'Ver Módulo de Ventas' },
+    { id: 'sales.create', label: 'Crear Cotizaciones y Pedidos' },
+    { id: 'sales.edit', label: 'Editar Estatus de Ventas' },
+    { id: 'sales.invoice', label: 'Emitir Facturas de Venta y Cobros' },
+    { id: 'sales.delete', label: 'Anular Documentos de Venta' },
   ];
 
   const handleOpenModal = async (role?: any) => {
@@ -117,22 +140,26 @@ export default function GeneralSettingsPage() {
     e.preventDefault();
 
     try {
-      const payload = { 
-          name: currentRole.name, 
-          permissions: currentRole.permissions,
-          companyId: currentRole.companyId 
+      const payload = {
+        name: currentRole.name,
+        permissions: currentRole.permissions,
+        companyId: currentRole.companyId,
       };
 
       if (currentRole.id) {
-          await apiClient.patch(`/settings/roles/${currentRole.id}`, payload);
+        await apiClient.patch(`/settings/roles/${currentRole.id}`, payload);
       } else {
-          await apiClient.post('/settings/roles', payload);
+        await apiClient.post('/settings/roles', payload);
       }
-      
+
       setIsModalOpen(false);
-      fetchData(); 
-    } catch (error) {
-      console.error(error);
+      fetchData();
+    } catch (err) {
+      // mostrar detalles legibles cuando el error es ApiError o un objeto con props
+      console.error('Error guardando rol:',
+        typeof err === 'object'
+          ? JSON.stringify(err, Object.getOwnPropertyNames(err), 2)
+          : err);
       alert('Error al guardar rol');
     }
   };
@@ -140,80 +167,101 @@ export default function GeneralSettingsPage() {
   if (loading) return <div>Cargando configuraciones...</div>;
 
   return (
-    <div className="space-y-6 relative">
-      <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-        <Settings className="text-blue-600" /> Configuración del Sistema
+    <div className="space-y-6 relative animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+        <Settings className="text-blue-500" /> Configuración del Sistema
       </h1>
 
-      {/* TABS (Mismo código) */}
-      <div className="flex border-b border-gray-200">
+      {/* TABS */}
+      <div className="flex border-b border-white/10 overflow-x-auto custom-scrollbar">
         <button 
           onClick={() => setActiveTab('correlatives')}
-          className={`px-4 py-2 font-medium text-sm flex items-center gap-2 ${activeTab === 'correlatives' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          className={`px-4 py-3 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap ${activeTab === 'correlatives' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-gray-300'}`}
         >
           <Hash size={16} /> Correlativos y Series
         </button>
         <button 
           onClick={() => setActiveTab('roles')}
-          className={`px-4 py-2 font-medium text-sm flex items-center gap-2 ${activeTab === 'roles' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          className={`px-4 py-3 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap ${activeTab === 'roles' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-gray-300'}`}
         >
           <Shield size={16} /> Roles y Permisos
         </button>
         <button 
           onClick={() => setActiveTab('users_list')}
-          className={`px-4 py-2 font-medium text-sm flex items-center gap-2 ${activeTab === 'users_list' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          className={`px-4 py-3 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap ${activeTab === 'users_list' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-gray-300'}`}
         >
           <Settings size={16} /> Usuarios del Sistema
+        </button>
+        <button 
+          onClick={() => setActiveTab('expense_categories')}
+          className={`px-4 py-3 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap ${activeTab === 'expense_categories' ? 'border-b-2 border-orange-500 text-orange-500' : 'text-gray-400 hover:text-gray-300'}`}
+        >
+          <Receipt size={16} /> Categorías de Gasto
         </button>
       </div>
 
       {/* CONTENIDO TABS */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+      <div className="bg-[#1A1F2C] p-6 lg:p-8 rounded-2xl shadow-xl border border-white/5">
         
         {/* --- CORRELATIVOS --- */}
         {activeTab === 'correlatives' && (
-          <form onSubmit={handleSaveSettings} className="space-y-6">
-             {/* ... (mismo inputs) ... */}
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <div className="space-y-4">
-                 <h3 className="font-semibold text-gray-700">Facturación</h3>
+          <form onSubmit={handleSaveSettings} className="space-y-8">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
+               
+               {/* Columna Facturación */}
+               <div className="space-y-5">
+                 <div className="border-b border-white/5 pb-2 mb-4">
+                     <h3 className="font-semibold text-white flex items-center gap-2">
+                        <Receipt size={18} className="text-emerald-400" /> Facturación
+                     </h3>
+                 </div>
                  <div>
-                   <label className="block text-sm text-gray-600 mb-1">Prefijo Factura</label>
-                   <input type="text" className="w-full border rounded p-2" 
+                   <label className="block text-sm font-medium text-gray-400 mb-1.5">Prefijo Factura</label>
+                   <input type="text" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all" 
+                     placeholder="Ej: FACT-"
                      value={settings.invoicePrefix || ''}
                      onChange={e => setSettings({...settings, invoicePrefix: e.target.value})}
                    />
                  </div>
                  <div>
-                   <label className="block text-sm text-gray-600 mb-1">Próximo Número</label>
-                   <input type="number" className="w-full border rounded p-2" 
+                   <label className="block text-sm font-medium text-gray-400 mb-1.5">Próximo Número</label>
+                   <input type="number" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all" 
+                     placeholder="Ej: 1"
                      value={settings.nextInvoiceNumber || ''}
                      onChange={e => setSettings({...settings, nextInvoiceNumber: e.target.value})}
                    />
                  </div>
                </div>
  
-               <div className="space-y-4">
-                 <h3 className="font-semibold text-gray-700">Inventario</h3>
+               {/* Columna Inventario */}
+               <div className="space-y-5">
+                 <div className="border-b border-white/5 pb-2 mb-4">
+                     <h3 className="font-semibold text-white flex items-center gap-2">
+                        <Hash size={18} className="text-purple-400" /> Inventario
+                     </h3>
+                 </div>
                  <div>
-                   <label className="block text-sm text-gray-600 mb-1">Prefijo Productos</label>
-                   <input type="text" className="w-full border rounded p-2" 
+                   <label className="block text-sm font-medium text-gray-400 mb-1.5">Prefijo Productos</label>
+                   <input type="text" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all" 
+                     placeholder="Ej: PROD-"
                      value={settings.productPrefix || ''}
                      onChange={e => setSettings({...settings, productPrefix: e.target.value})}
                    />
                  </div>
                  <div>
-                   <label className="block text-sm text-gray-600 mb-1">Próximo Código</label>
-                   <input type="number" className="w-full border rounded p-2" 
+                   <label className="block text-sm font-medium text-gray-400 mb-1.5">Próximo Código</label>
+                   <input type="number" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all" 
+                     placeholder="Ej: 1"
                      value={settings.nextProductCode || ''}
                      onChange={e => setSettings({...settings, nextProductCode: e.target.value})}
                    />
                  </div>
                </div>
              </div>
-             <div className="pt-4 flex justify-end">
-               <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-                 <Save size={18} /> Guardar Cambios
+             
+             <div className="pt-6 mt-6 border-t border-white/5 flex justify-end">
+               <button type="submit" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all">
+                 <Save size={18} /> Guardar Configuración
                </button>
              </div>
           </form>
@@ -221,54 +269,59 @@ export default function GeneralSettingsPage() {
 
         {/* --- ROLES --- */}
         {activeTab === 'roles' && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold text-gray-700">Roles Definidos</h3>
-              <button onClick={() => handleOpenModal()} className="text-sm bg-slate-900 text-white px-3 py-2 rounded hover:bg-slate-800">
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                 <h3 className="font-semibold text-white">Roles Definidos</h3>
+                 <p className="text-xs text-gray-400 mt-1">Niveles de acceso y permisos personalizables por empresa.</p>
+              </div>
+              <button onClick={() => handleOpenModal()} className="text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-4 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/20 transition-all">
                 + Crear Rol
               </button>
             </div>
-            <table className="w-full text-left text-sm text-gray-600">
-              <thead className="bg-gray-50 uppercase text-xs">
-                <tr>
-                  <th className="px-4 py-2">Empresa</th>
-                  <th className="px-4 py-2">Rol</th>
-                  <th className="px-4 py-2">Permisos</th>
-                  <th className="px-4 py-2 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {roles.length === 0 ? <tr><td colSpan={4} className="p-4 text-center">No hay roles personalizados.</td></tr> : 
-                roles.map((rol: any) => (
-                  <tr key={rol.id}>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{rol.company?.name || 'Local'}</td>
-                    <td className="px-4 py-3 font-bold">{rol.name}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                          {Array.isArray(rol.permissions) && rol.permissions.map((p:string) => (
-                            <span key={p} className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded text-[10px] border border-blue-100">
-                                {p}
-                            </span>
-                          ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                        <button onClick={() => handleOpenModal(rol)} className="text-blue-600 hover:text-blue-800 mr-3">Editar</button>
-                        <button onClick={async () => {
-                            if (!confirm('¿Eliminar rol?')) return;
-                            try {
-                                await apiClient.delete(`/settings/roles/${rol.id}`);
-                                fetchData();
-                            } catch (error) {
-                                console.error(error);
-                                alert('Error al eliminar rol');
-                            }
-                        }} className="text-red-500 hover:text-red-700">Eliminar</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="border border-white/5 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-sm text-gray-400">
+                  <thead className="bg-white/5 uppercase text-xs font-semibold text-gray-400">
+                    <tr>
+                      <th className="px-5 py-4">Empresa</th>
+                      <th className="px-5 py-4">Rol</th>
+                      <th className="px-5 py-4">Permisos</th>
+                      <th className="px-5 py-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {roles.length === 0 ? <tr><td colSpan={4} className="p-8 text-center text-gray-500">No hay roles personalizados.</td></tr> : 
+                    roles.map((rol: any) => (
+                      <tr key={rol.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-5 py-4 text-gray-500 text-xs">{rol.company?.name || 'Local'}</td>
+                        <td className="px-5 py-4 font-bold text-gray-200">{rol.name}</td>
+                        <td className="px-5 py-4">
+                          <div className="flex flex-wrap gap-1.5">
+                              {Array.isArray(rol.permissions) && rol.permissions.map((p:string) => (
+                                <span key={p} className="bg-blue-500/10 text-blue-400 px-2 py-1 rounded text-[10px] border border-blue-500/20 font-medium">
+                                    {p}
+                                </span>
+                              ))}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                            <button onClick={() => handleOpenModal(rol)} className="text-blue-400 hover:text-blue-300 font-medium mr-4 transition-colors">Editar</button>
+                            <button onClick={async () => {
+                                if (!confirm('¿Eliminar rol?')) return;
+                                try {
+                                    await apiClient.delete(`/settings/roles/${rol.id}`);
+                                    fetchData();
+                                } catch (error) {
+                                    console.error(error);
+                                    alert('Error al eliminar rol');
+                                }
+                            }} className="text-red-400 hover:text-red-300 font-medium transition-colors">Eliminar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+            </div>
           </div>
         )}
 
@@ -276,38 +329,45 @@ export default function GeneralSettingsPage() {
         {activeTab === 'users_list' && (
            <UsersListTab />    
         )}
+
+        {/* --- CAT. GASTO --- */}
+        {activeTab === 'expense_categories' && (
+           <ExpenseCategoriesTab />
+        )}
       </div>
 
        {/* MODAL CREAR ROL */}
        {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg">
-                <h2 className="text-lg font-bold mb-4">{currentRole.id ? 'Editar Rol' : 'Crear Nuevo Rol'}</h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-[#1A1F2C] border border-white/10 p-6 md:p-8 rounded-2xl shadow-2xl w-full max-w-xl">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-white">{currentRole.id ? 'Editar Rol' : 'Crear Nuevo Rol'}</h2>
+                  <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">✕</button>
+                </div>
                 
-                <form onSubmit={handleSaveRole} className="space-y-4">
+                <form onSubmit={handleSaveRole} className="space-y-6">
                     
                     {/* Selector de Empresa para ADMIN */}
                     {companies.length > 0 && (
                         <div>
-                            <label className="block text-sm font-medium mb-1">Empresa (Super Admin)</label>
+                            <label className="block text-sm font-medium text-gray-400 mb-1.5">Empresa (Super Admin)</label>
                             <select 
-                                className="w-full border rounded p-2"
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all custom-scrollbar"
                                 value={currentRole.companyId || ''}
                                 onChange={e => setCurrentRole({ ...currentRole, companyId: e.target.value })}
-                                // Si es un update y ya tiene companyId, o si es create
                             >
-                                <option value="">-- Seleccionar Empresa --</option>
+                                <option value="" className="bg-[#1A1F2C]">-- Seleccionar Empresa --</option>
                                 {companies.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                    <option key={c.id} value={c.id} className="bg-[#1A1F2C]">{c.name}</option>
                                 ))}
                             </select>
-                            <p className="text-xs text-gray-500 mt-1">Como administrador Global, debes asignar el rol a una empresa.</p>
+                            <p className="text-xs text-gray-500 mt-2">Como administrador Global, debes asignar el rol a una empresa.</p>
                         </div>
                     )}
 
                     <div>
-                        <label className="block text-sm font-medium mb-1">Nombre del Rol</label>
-                        <input className="w-full border rounded p-2" required
+                        <label className="block text-sm font-medium text-gray-400 mb-1.5">Nombre del Rol</label>
+                        <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all" required
                             value={currentRole.name} 
                             onChange={e => setCurrentRole({...currentRole, name: e.target.value})} 
                             placeholder="Ej: Gerente de Ventas"
@@ -315,26 +375,26 @@ export default function GeneralSettingsPage() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium mb-2">Permisos de Acceso</label>
-                        <div className="grid grid-cols-2 gap-2 text-sm border p-3 rounded-lg max-h-60 overflow-y-auto">
+                        <label className="block text-sm font-medium text-gray-400 mb-3">Permisos de Acceso</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm border border-white/10 bg-white/5 p-4 rounded-xl max-h-60 overflow-y-auto custom-scrollbar">
                             {ALL_PERMISSIONS.map(p => (
-                                <label key={p.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                <label key={p.id} className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-2 rounded-lg transition-colors">
                                     <input type="checkbox" 
                                         checked={currentRole.permissions.includes(p.id)}
                                         onChange={() => togglePermission(p.id)}
-                                        className="text-blue-600 rounded"
+                                        className="w-4 h-4 text-blue-500 bg-gray-900 border-white/20 rounded focus:ring-blue-500 focus:ring-offset-gray-900"
                                     />
-                                    <span>{p.label}</span>
+                                    <span className="text-gray-300 font-medium">{p.label}</span>
                                 </label>
                             ))}
                         </div>
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-4">
-                        <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">
+                    <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+                        <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl font-medium transition-colors">
                             Cancelar
                         </button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded font-medium">
+                        <button type="submit" className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 transition-all">
                             Guardar Rol
                         </button>
                     </div>
@@ -454,76 +514,86 @@ function UsersListTab() {
     if (loading) return <div>Cargando lista de usuarios...</div>;
 
     return (
-        <div className="space-y-4">
-             <div className="flex justify-between items-center">
-              <h3 className="font-semibold text-gray-700">Usuarios Registrados</h3>
-              <button onClick={handleOpenCreate} className="text-sm bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700">
+        <div className="space-y-6">
+             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="font-semibold text-white">Usuarios Registrados</h3>
+                <p className="text-xs text-gray-400 mt-1">Gestión de cuentas y asignación a empresas.</p>
+              </div>
+              <button onClick={handleOpenCreate} className="text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-4 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/20 transition-all">
                 + Nuevo Usuario
               </button>
             </div>
-            <table className="w-full text-left text-sm text-gray-600">
-              <thead className="bg-gray-50 uppercase text-xs">
-                <tr>
-                  <th className="px-4 py-2">Nombre</th>
-                  <th className="px-4 py-2">Email</th>
-                  <th className="px-4 py-2">Empresa</th>
-                  <th className="px-4 py-2">Rol (Legacy)</th>
-                  <th className="px-4 py-2">Rol (Custom)</th>
-                  <th className="px-4 py-2 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {users.length === 0 ? <tr><td colSpan={6} className="p-4 text-center">No hay usuarios.</td></tr> : 
-                users.map((u: any) => (
-                  <tr key={u.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium cursor-pointer text-blue-600 hover:underline" onClick={() => handleEditUser(u)}>
-                        {u.name || 'Sin Nombre'}
-                    </td>
-                    <td className="px-4 py-3">{u.email}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{u.company?.name || '---'}</td>
-                    <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${u.roleLegacy === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>
-                            {u.roleLegacy}
-                        </span>
-                    </td>
-                     <td className="px-4 py-3">
-                        {u.role ? (
-                             <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs border border-blue-200">
-                                {u.role.name}
-                             </span>
-                        ) : <span className="text-gray-400 text-xs">-</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                        <button onClick={() => handleEditUser(u)} className="text-blue-600 hover:text-blue-800 mr-3">Editar</button>
-                        <button onClick={() => handleDeleteUser(u.id)} className="text-red-500 hover:text-red-700">Eliminar</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            
+            <div className="border border-white/5 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-sm text-gray-400">
+                  <thead className="bg-white/5 uppercase text-xs font-semibold text-gray-400">
+                    <tr>
+                      <th className="px-5 py-4">Nombre</th>
+                      <th className="px-5 py-4">Email</th>
+                      <th className="px-5 py-4">Empresa</th>
+                      <th className="px-5 py-4">Rol (Legacy)</th>
+                      <th className="px-5 py-4">Rol (Custom)</th>
+                      <th className="px-5 py-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {users.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-gray-500">No hay usuarios.</td></tr> : 
+                    users.map((u: any) => (
+                      <tr key={u.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-5 py-4 font-bold text-gray-200 cursor-pointer hover:text-blue-400" onClick={() => handleEditUser(u)}>
+                            {u.name || 'Sin Nombre'}
+                        </td>
+                        <td className="px-5 py-4 text-gray-400">{u.email}</td>
+                        <td className="px-5 py-4 text-xs text-gray-500">{u.company?.name || '---'}</td>
+                        <td className="px-5 py-4">
+                            <span className={`px-2 py-1 rounded-md text-xs font-bold border ${u.roleLegacy === 'ADMIN' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-white/5 text-gray-300 border-white/10'}`}>
+                                {u.roleLegacy}
+                            </span>
+                        </td>
+                         <td className="px-5 py-4">
+                            {u.role ? (
+                                 <span className="bg-blue-500/10 text-blue-400 px-2 py-1 rounded-md text-xs border border-blue-500/20 font-medium">
+                                    {u.role.name}
+                                 </span>
+                            ) : <span className="text-gray-600 text-xs">-</span>}
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                            <button onClick={() => handleEditUser(u)} className="text-blue-400 hover:text-blue-300 font-medium mr-4 transition-colors">Editar</button>
+                            <button onClick={() => handleDeleteUser(u.id)} className="text-red-400 hover:text-red-300 font-medium transition-colors">Eliminar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+            </div>
 
             {/* MODAL USUARIO (CREAR / EDITAR) */}
             {isUserModalOpen && editingUser && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg">
-                        <h2 className="text-lg font-bold mb-4">
-                            {editingUser.id ? 'Editar Usuario' : 'Crear Nuevo Usuario'}
-                        </h2>
-                        <form onSubmit={handleSaveUser} className="space-y-4">
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-[#1A1F2C] border border-white/10 p-6 md:p-8 rounded-2xl shadow-2xl w-full max-w-xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-white">
+                                {editingUser.id ? 'Editar Usuario' : 'Crear Nuevo Usuario'}
+                            </h2>
+                            <button onClick={() => setIsUserModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">✕</button>
+                        </div>
+                        
+                        <form onSubmit={handleSaveUser} className="space-y-5">
                             <div>
-                                <label className="block text-sm font-medium mb-1">Nombre</label>
-                                <input className="w-full border rounded p-2" required
+                                <label className="block text-sm font-medium text-gray-400 mb-1.5">Nombre</label>
+                                <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all text-sm" required
                                     value={editingUser.name}
                                     onChange={e => setEditingUser({...editingUser, name: e.target.value})}
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium mb-1">Email</label>
-                                <input className="w-full border rounded p-2 bg-gray-50" 
+                                <label className="block text-sm font-medium text-gray-400 mb-1.5">Email</label>
+                                <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all text-sm disabled:opacity-50" 
                                     required
                                     type="email"
-                                    readOnly={!!editingUser.id} // Solo editable al crear
+                                    readOnly={!!editingUser.id}
                                     value={editingUser.email} 
                                     onChange={e => setEditingUser({...editingUser, email: e.target.value})}
                                 />
@@ -531,8 +601,8 @@ function UsersListTab() {
 
                             {!editingUser.id && (
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Contraseña</label>
-                                    <input className="w-full border rounded p-2" 
+                                    <label className="block text-sm font-medium text-gray-400 mb-1.5">Contraseña</label>
+                                    <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all text-sm" 
                                         required
                                         type="password"
                                         placeholder="Min. 6 caracteres"
@@ -543,49 +613,49 @@ function UsersListTab() {
                             )}
                             
                             <div>
-                                <label className="block text-sm font-medium mb-1">Empresa</label>
-                                <select className="w-full border rounded p-2"
+                                <label className="block text-sm font-medium text-gray-400 mb-1.5">Empresa</label>
+                                <select className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all appearance-none text-sm"
                                     value={editingUser.companyId}
                                     onChange={e => setEditingUser({...editingUser, companyId: e.target.value, roleId: ''})}
                                 >
-                                    <option value="">-- Sin Empresa (Global) --</option>
+                                    <option value="" className="bg-[#1A1F2C]">-- Sin Empresa (Global) --</option>
                                     {companies.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                        <option key={c.id} value={c.id} className="bg-[#1A1F2C]">{c.name}</option>
                                     ))}
                                 </select>
-                                <p className="text-[10px] text-gray-400 mt-1">Asigna el usuario a una organización específica.</p>
+                                <p className="text-[11px] text-gray-500 mt-2">Asigna el usuario a una organización específica.</p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Tipo Acceso</label>
-                                    <select className="w-full border rounded p-2"
+                                    <label className="block text-sm font-medium text-gray-400 mb-1.5">Tipo Acceso</label>
+                                    <select className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all appearance-none text-sm"
                                         value={editingUser.roleLegacy}
                                         onChange={e => setEditingUser({...editingUser, roleLegacy: e.target.value})}
                                     >
-                                        <option value="USER">Usuario Normal</option>
-                                        <option value="ADMIN">Super Admin</option>
+                                        <option value="USER" className="bg-[#1A1F2C]">Usuario Normal</option>
+                                        <option value="ADMIN" className="bg-[#1A1F2C]">Super Admin</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Rol (Permisos)</label>
-                                    <select className="w-full border rounded p-2"
+                                    <label className="block text-sm font-medium text-gray-400 mb-1.5">Rol (Permisos)</label>
+                                    <select className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all appearance-none text-sm"
                                         value={editingUser.roleId}
                                         onChange={e => setEditingUser({...editingUser, roleId: e.target.value})}
                                     >
-                                        <option value="">-- Ninguno --</option>
+                                        <option value="" className="bg-[#1A1F2C]">-- Ninguno --</option>
                                         {availableRoles.map(r => (
-                                            <option key={r.id} value={r.id}>{r.name}</option>
+                                            <option key={r.id} value={r.id} className="bg-[#1A1F2C]">{r.name}</option>
                                         ))}
                                     </select>
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-2 pt-4">
-                                <button type="button" onClick={() => setIsUserModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">
+                            <div className="flex justify-end gap-3 pt-6 border-t border-white/5">
+                                <button type="button" onClick={() => setIsUserModalOpen(false)} className="px-5 py-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl font-medium transition-colors">
                                     Cancelar
                                 </button>
-                                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded font-medium">
+                                <button type="submit" className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 transition-all">
                                     {editingUser.id ? 'Guardar Cambios' : 'Crear Usuario'}
                                 </button>
                             </div>
@@ -595,4 +665,230 @@ function UsersListTab() {
             )}
         </div>
     )
+}
+
+// --- SUB-COMPONENT CATEGORÍAS DE GASTO ---
+interface ExpenseCategory {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+function ExpenseCategoriesTab() {
+  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCat, setEditingCat] = useState<Partial<ExpenseCategory> | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const fetchCategories = async () => {
+    try {
+      const data = await apiClient.get<ExpenseCategory[]>('/expense-categories');
+      setCategories(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchCategories(); }, []);
+
+  const handleOpenCreate = () => {
+    setEditingCat({ name: '', description: '', isActive: true });
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (cat: ExpenseCategory) => {
+    setEditingCat({ ...cat });
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCat?.name) return;
+    setSaving(true);
+    try {
+      await apiClient.post('/expense-categories', {
+        name: editingCat.name,
+        description: editingCat.description || '',
+      });
+      setIsModalOpen(false);
+      fetchCategories();
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      alert(`Error: ${error.message || 'No se pudo guardar. ¿Ya existe esta categoría?'}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const DEFAULT_CATEGORIES = [
+    'Servicios Públicos', 'Alquiler / Arrendamiento', 'Papelería y Útiles',
+    'Honorarios Profesionales', 'Fletes y Transporte', 'Mantenimiento',
+    'Publicidad y Marketing', 'Seguros', 'Alimentación y Viáticos',
+    'Combustible', 'Telecomunicaciones', 'Otros Gastos Operativos',
+  ];
+
+  const createDefaults = async () => {
+    if (!confirm(`¿Crear ${DEFAULT_CATEGORIES.length} categorías por defecto?`)) return;
+    setSaving(true);
+    let created = 0;
+    for (const name of DEFAULT_CATEGORIES) {
+      try {
+        await apiClient.post('/expense-categories', { name });
+        created++;
+      } catch {
+        // ignorar si ya existe (unique constraint)
+      }
+    }
+    setSaving(false);
+    alert(`✅ ${created} categorías creadas correctamente.`);
+    fetchCategories();
+  };
+
+  if (loading) return <div className="py-8 text-center text-gray-400">Cargando categorías...</div>;
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-gray-800">Categorías de Gasto</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Usadas en el registro de Compras Directas (servicios, alquileres, honorarios, etc.)
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {categories.length === 0 && (
+            <button
+              onClick={createDefaults}
+              disabled={saving}
+              className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-medium transition-colors">
+              ✨ Crear por Defecto
+            </button>
+          )}
+          <button
+            onClick={handleOpenCreate}
+            className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-lg font-medium transition-colors">
+            + Nueva Categoría
+          </button>
+        </div>
+      </div>
+
+      {/* Tabla */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <table className="w-full text-left text-sm text-gray-600">
+          <thead className="bg-gray-50 text-xs uppercase font-semibold text-gray-500">
+            <tr>
+              <th className="px-5 py-3">Nombre</th>
+              <th className="px-5 py-3">Descripción</th>
+              <th className="px-5 py-3 text-center">Estado</th>
+              <th className="px-5 py-3 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {categories.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="py-12 text-center text-gray-500">
+                  <div className="text-4xl mb-2">🗂️</div>
+                  <p className="font-medium">No hay categorías definidas aún.</p>
+                  <p className="text-xs mt-1 text-gray-400">Usa el botón &quot;Crear por Defecto&quot; para empezar rápido.</p>
+                </td>
+              </tr>
+            ) : categories.map((cat) => (
+              <tr key={cat.id} className="hover:bg-white/5 transition-colors">
+                <td className="px-5 py-4 font-medium text-gray-200">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-orange-400 shrink-0 shadow-[0_0_8px_rgba(2fb3ff,0.5)]" style={{backgroundColor: '#f97316', boxShadow: '0 0 8px rgba(249,115,22,0.5)'}} />
+                    {cat.name}
+                  </div>
+                </td>
+                <td className="px-5 py-4 text-gray-400 text-xs">{cat.description || '—'}</td>
+                <td className="px-5 py-4 text-center">
+                  <span className={`px-2 py-1 rounded-md text-xs font-medium border ${cat.isActive ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-white/5 text-gray-400 border-white/10'}`}>
+                    {cat.isActive ? 'Activa' : 'Inactiva'}
+                  </span>
+                </td>
+                <td className="px-5 py-4 text-right">
+                  <button
+                    onClick={() => handleOpenEdit(cat)}
+                    className="text-blue-400 hover:text-blue-300 font-medium mr-4 transition-colors">
+                    Editar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MODAL */}
+      {isModalOpen && editingCat !== null && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1F2C] border border-white/10 rounded-2xl shadow-2xl w-full max-w-md p-6 md:p-8">
+            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <Receipt size={22} className="text-orange-500" />
+              {editingCat.id ? 'Editar Categoría' : 'Nueva Categoría de Gasto'}
+            </h2>
+
+            <form onSubmit={handleSave} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1.5">
+                  Nombre <span className="text-orange-500">*</span>
+                </label>
+                <input
+                  required
+                  type="text"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/50 transition-all text-sm"
+                  placeholder="Ej: Servicios Públicos, Alquiler..."
+                  value={editingCat.name || ''}
+                  onChange={e => setEditingCat({ ...editingCat, name: e.target.value })}
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1.5">
+                  Descripción <span className="text-gray-500 font-normal">(opcional)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/50 transition-all text-sm resize-y custom-scrollbar"
+                  placeholder="Para qué aplica esta categoría..."
+                  value={editingCat.description || ''}
+                  onChange={e => setEditingCat({ ...editingCat, description: e.target.value })}
+                />
+              </div>
+
+              {editingCat.id && (
+                <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 text-xs text-orange-400">
+                  💡 Para modificar el nombre de manera segura, elimina esta categoría y crea una nueva (si aún no tiene gastos asociados).
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-6 border-t border-white/5">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-5 py-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl text-sm font-medium transition-colors">
+                  Cancelar
+                </button>
+                {!editingCat.id && (
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-6 py-2.5 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 disabled:opacity-50 text-white rounded-xl text-sm font-medium shadow-lg shadow-orange-500/20 transition-all">
+                    {saving ? 'Guardando...' : 'Crear Categoría'}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

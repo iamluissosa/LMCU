@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, UseGuards, Request, Delete, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  Delete,
+  Param,
+  Query,
+} from '@nestjs/common';
 import { PurchaseBillsService } from './purchase-bills.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -12,16 +22,39 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 export class PurchaseBillsController {
   constructor(private readonly billsService: PurchaseBillsService) {}
 
+  @Post('direct')
+  @Permissions('bills.create')
+  async createDirect(
+    @Request() req,
+    @Body()
+    data: import('./dto/create-direct-purchase.dto').CreateDirectPurchaseDto,
+  ): Promise<PurchaseBill> {
+    return this.billsService.createDirect(
+      req.user.companyId,
+      req.user.id,
+      data,
+    );
+  }
+
   @Post()
   @Permissions('bills.create')
-  async create(@Request() req, @Body() data: CreatePurchaseBillDto): Promise<PurchaseBill> {
+  async create(
+    @Request() req,
+    @Body() data: CreatePurchaseBillDto,
+  ): Promise<PurchaseBill> {
     return this.billsService.create(req.user.companyId, req.user.id, data);
   }
 
   @Get()
   @Permissions('bills.view')
-  async findAll(@Request() req, @Query() pagination: PaginationDto = new PaginationDto()) {
-    return this.billsService.findAll(req.user.companyId, pagination || new PaginationDto());
+  async findAll(
+    @Request() req,
+    @Query() pagination: PaginationDto = new PaginationDto(),
+  ) {
+    return this.billsService.findAll(
+      req.user.companyId,
+      pagination || new PaginationDto(),
+    );
   }
 
   @Delete(':id')

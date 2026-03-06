@@ -29,14 +29,19 @@ export class ProductsService {
   }
 
   // 2. LISTAR con paginación (Solo de mi empresa o TODO si es ADMIN)
-  async findAll(companyId: string, pagination: PaginationDto, role?: string): Promise<PaginatedResponse<any>> {
+  async findAll(
+    companyId: string,
+    pagination: PaginationDto,
+    role?: string,
+  ): Promise<PaginatedResponse<any>> {
     const { page = 1, limit = 20 } = pagination;
     const skip = (page - 1) * limit;
 
     if (!this.prisma.product) {
-       throw new BadRequestException('Prisma Client out of sync (Product model missing). Restart/Regenerate.');
+      throw new BadRequestException(
+        'Prisma Client out of sync (Product model missing). Restart/Regenerate.',
+      );
     }
-
 
     // Si es ADMIN real (no importa si tiene companyId o no, un Super Admin ve todo)
     if (role === 'ADMIN') {
@@ -49,7 +54,7 @@ export class ProductsService {
             company: { name: 'asc' }, // Ordenar por empresa y luego nombre
           },
         }),
-        this.prisma.product.count()
+        this.prisma.product.count(),
       ]);
 
       return {
@@ -58,12 +63,16 @@ export class ProductsService {
           page,
           limit,
           total,
-          totalPages: Math.ceil(total / limit)
-        }
+          totalPages: Math.ceil(total / limit),
+        },
       };
     }
 
-    if (!companyId) return { items: [], pagination: { page, limit, total: 0, totalPages: 0 } };
+    if (!companyId)
+      return {
+        items: [],
+        pagination: { page, limit, total: 0, totalPages: 0 },
+      };
 
     const [products, total] = await Promise.all([
       this.prisma.product.findMany({
@@ -72,7 +81,7 @@ export class ProductsService {
         take: limit,
         orderBy: { name: 'asc' },
       }),
-      this.prisma.product.count({ where: { companyId } })
+      this.prisma.product.count({ where: { companyId } }),
     ]);
 
     return {
@@ -81,8 +90,8 @@ export class ProductsService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 
