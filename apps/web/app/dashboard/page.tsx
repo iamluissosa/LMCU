@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { createClient } from '@/lib/supabase';
 import {
-  DollarSign, Package, Users, AlertTriangle, Activity, TrendingUp, Briefcase
+  DollarSign, Package, AlertTriangle, Activity, TrendingUp, Briefcase, Receipt, FileText, CheckCircle
 } from 'lucide-react';
 
 const supabase = createClient();
@@ -18,6 +18,10 @@ interface DashboardStats {
   lowStockCount?: number;
   totalUsers?: number;
   lowStockProducts?: { id: string; name: string; currentStock: number; priceBase: number }[];
+  accountsReceivable?: number;
+  invoicesIssuedCount?: number;
+  invoicesPaidCount?: number;
+  quotesStats?: { sent: number; expired: number; accepted: number; rejected: number };
 }
 
 export default function DashboardPage() {
@@ -30,11 +34,16 @@ export default function DashboardPage() {
     totalProducts: 0,
     lowStockCount: 0,
     totalUsers: 0,
-    lowStockProducts: []
+    lowStockProducts: [],
+    accountsReceivable: 0,
+    invoicesIssuedCount: 0,
+    invoicesPaidCount: 0,
+    quotesStats: { sent: 0, expired: 0, accepted: 0, rejected: 0 }
   });
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -44,6 +53,10 @@ export default function DashboardPage() {
         return;
       }
       try {
+        const user = await apiClient.get<any>('/users/me');
+        const userPerms = user.permissions || [];
+        setPermissions(userPerms);
+
         const data = await apiClient.get<DashboardStats>('/dashboard/stats');
         setStats(data);
       } catch (error: any) {
@@ -61,6 +74,8 @@ export default function DashboardPage() {
 
     fetchStats();
   }, []);
+
+  const hasPerm = (p: string) => permissions.includes(p) || permissions.includes('*');
 
   if (loading) return <div className="p-10 text-center text-gray-400 animate-pulse font-medium tracking-wide">Cargando métricas...</div>;
 
@@ -84,146 +99,197 @@ export default function DashboardPage() {
     );
   }
 
+  // --- Widgets Configuration ---
+  const showInventory = hasPerm('widget.inventory.view') || hasPerm('inventory.view');
+  const showLowStock = hasPerm('widget.low_stock.view');
+  const showSales = hasPerm('widget.sales.view');
+  const showFinance = hasPerm('widget.finance.view');
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* HEADER */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold text-white tracking-tight">Dashboard</h1>
-        <p className="text-sm text-gray-400">Vista consolidada de indicadores operativos</p>
+      <div className="flex justify-between items-end">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-3xl font-bold text-white tracking-tight">Dashboard</h1>
+            <p className="text-sm text-gray-400">Vista consolidada de indicadores según tu rol</p>
+          </div>
       </div>
 
-      {/* TARJETAS KPI (INDICADORES) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        
-        {/* Card 1: Valor Inventario */}
-        <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors">
-          <div className="flex justify-between items-start mb-4">
-            <p className="text-sm font-medium text-gray-400">Valor Inventario</p>
-            <div className="bg-emerald-500/20 p-2.5 rounded-xl text-emerald-400 group-hover:scale-110 transition-transform">
-              <DollarSign size={20} />
+      {/* ── MÓDULO DE INVENTARIO ── */}
+      {(showInventory || showLowStock) && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-gray-300 flex items-center gap-2">
+            <Package size={20} className="text-purple-400"/> Operaciones y Almacén
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            {showInventory && (
+              <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors">
+                <div className="flex justify-between items-start mb-4">
+                  <p className="text-sm font-medium text-gray-400">Valor Inventario</p>
+                  <div className="bg-emerald-500/20 p-2.5 rounded-xl text-emerald-400 group-hover:scale-110 transition-transform">
+                    <DollarSign size={20} />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-3xl font-bold text-white tracking-tight">
+                    ${stats?.inventoryValue?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </h3>
+                  <p className="text-xs text-emerald-400 font-medium mt-2 flex items-center gap-1">
+                     <TrendingUp size={12} /> Saldo monetario
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {showInventory && (
+              <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors">
+                <div className="flex justify-between items-start mb-4">
+                  <p className="text-sm font-medium text-gray-400">Total Productos</p>
+                  <div className="bg-purple-500/20 p-2.5 rounded-xl text-purple-400 group-hover:scale-110 transition-transform">
+                    <Package size={20} />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-3xl font-bold text-white tracking-tight">{stats?.totalProducts}</h3>
+                  <p className="text-xs text-purple-400 font-medium mt-2">En Catálogo Activo</p>
+                </div>
+              </div>
+            )}
+
+            {showLowStock && (
+              <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors">
+                <div className="flex justify-between items-start mb-4">
+                  <p className="text-sm font-medium text-gray-400">Stock Crítico</p>
+                  <div className="bg-orange-500/20 p-2.5 rounded-xl text-orange-400 group-hover:scale-110 transition-transform">
+                    <AlertTriangle size={20} />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-3xl font-bold text-white tracking-tight">{stats?.lowStockCount}</h3>
+                  <p className="text-xs text-orange-400 font-medium mt-2">Productos por agotarse</p>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ── MÓDULO DE FINANZAS / TESORERÍA ── */}
+      {showFinance && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-gray-300 flex items-center gap-2">
+            <Briefcase size={20} className="text-emerald-400"/> Tesorería
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors lg:col-span-2">
+              <div className="flex justify-between items-start mb-4">
+                <p className="text-sm font-medium text-gray-400">Cuentas por Cobrar (Facturas Emitidas vs Pagos)</p>
+                <div className="bg-blue-500/20 p-2.5 rounded-xl text-blue-400 group-hover:scale-110 transition-transform">
+                  <Briefcase size={20} />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-4xl font-bold text-white tracking-tight">
+                  ${stats?.accountsReceivable?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </h3>
+                <div className="flex gap-4 mt-3">
+                   <p className="text-xs text-emerald-400 font-medium flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-md">
+                      <CheckCircle size={12}/> {stats?.invoicesPaidCount} Cobradas (Mes)
+                   </p>
+                   <p className="text-xs text-blue-400 font-medium flex items-center gap-1 bg-blue-500/10 px-2.5 py-1 rounded-md">
+                      <Receipt size={12}/> {stats?.invoicesIssuedCount} Emitidas (Mes)
+                   </p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ── MÓDULO DE VENTAS ── */}
+      {showSales && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-gray-300 flex items-center gap-2">
+            <TrendingUp size={20} className="text-blue-400"/> Ventas
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors lg:col-span-2">
+              <div className="flex justify-between items-start mb-4">
+                <p className="text-sm font-medium text-gray-400">Túnel de Cotizaciones (Histórico)</p>
+                <div className="bg-indigo-500/20 p-2.5 rounded-xl text-indigo-400 group-hover:scale-110 transition-transform">
+                  <FileText size={20} />
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-4">
+                  <div className="bg-white/5 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-500 mb-1">Enviadas</p>
+                      <p className="text-xl font-bold text-blue-400">{stats?.quotesStats?.sent}</p>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-500 mb-1">Aceptadas</p>
+                      <p className="text-xl font-bold text-emerald-400">{stats?.quotesStats?.accepted}</p>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-500 mb-1">Vencidas</p>
+                      <p className="text-xl font-bold text-orange-400">{stats?.quotesStats?.expired}</p>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-500 mb-1">Rechazadas</p>
+                      <p className="text-xl font-bold text-red-400">{stats?.quotesStats?.rejected}</p>
+                  </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* SECCIÓN INFERIOR: TABLA RÁPIDA (Siempre visible si tiene perms de Stock) */}
+      {showLowStock && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-[#1A1F2C] rounded-2xl shadow-lg border border-white/5 overflow-hidden">
+            <div className="p-6 border-b border-white/5 flex justify-between items-center">
+              <h3 className="font-bold text-white flex items-center gap-2">
+                <Activity size={18} className="text-orange-400" /> Productos por Agotarse
+              </h3>
+              <span className="text-xs bg-orange-500/20 text-orange-400 px-2.5 py-1 rounded-full font-bold">Atención</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-gray-300">
+                <thead className="bg-white/5 text-gray-400 font-medium uppercase text-xs">
+                  <tr>
+                    <th className="px-6 py-4">Producto</th>
+                    <th className="px-6 py-4 text-center">Stock Actual</th>
+                    <th className="px-6 py-4 text-right">Precio Base</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {stats?.lowStockProducts?.length === 0 ? (
+                    <tr><td colSpan={3} className="p-8 text-center text-gray-500">Todo el inventario está saludable ✅</td></tr>
+                  ) : (
+                    stats?.lowStockProducts?.map((prod) => (
+                      <tr key={prod.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4 font-medium text-gray-200">{prod.name}</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2.5 py-1 rounded-full text-xs font-bold">
+                            {prod.currentStock} un.
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono text-gray-400">${Number(prod.priceBase).toFixed(2)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
-          <div>
-            <h3 className="text-3xl font-bold text-white tracking-tight">
-              ${stats?.inventoryValue?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </h3>
-            <p className="text-xs text-emerald-400 font-medium mt-2 flex items-center gap-1">
-               <TrendingUp size={12} /> Saldo de almacén
-            </p>
-          </div>
         </div>
-
-        {/* Card 2: Total Productos */}
-        <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors">
-          <div className="flex justify-between items-start mb-4">
-            <p className="text-sm font-medium text-gray-400">Productos</p>
-            <div className="bg-purple-500/20 p-2.5 rounded-xl text-purple-400 group-hover:scale-110 transition-transform">
-              <Package size={20} />
-            </div>
-          </div>
-          <div>
-            <h3 className="text-3xl font-bold text-white tracking-tight">{stats?.totalProducts}</h3>
-            <p className="text-xs text-purple-400 font-medium mt-2 flex items-center gap-1">
-               Catálogo activo
-            </p>
-          </div>
-        </div>
-
-        {/* Card 3: Equipo */}
-        <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors">
-          <div className="flex justify-between items-start mb-4">
-            <p className="text-sm font-medium text-gray-400">Equipo</p>
-            <div className="bg-blue-500/20 p-2.5 rounded-xl text-blue-400 group-hover:scale-110 transition-transform">
-              <Users size={20} />
-            </div>
-          </div>
-          <div>
-            <h3 className="text-3xl font-bold text-white tracking-tight">{stats?.totalUsers}</h3>
-            <p className="text-xs text-blue-400 font-medium mt-2 flex items-center gap-1">
-               Usuarios registrados
-            </p>
-          </div>
-        </div>
-
-        {/* Card 4: Alertas Stock */}
-        <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors">
-          <div className="flex justify-between items-start mb-4">
-            <p className="text-sm font-medium text-gray-400">Stock Crítico</p>
-            <div className="bg-orange-500/20 p-2.5 rounded-xl text-orange-400 group-hover:scale-110 transition-transform">
-              <AlertTriangle size={20} />
-            </div>
-          </div>
-          <div>
-            <h3 className="text-3xl font-bold text-white tracking-tight">{stats?.lowStockCount}</h3>
-            <p className="text-xs text-orange-400 font-medium mt-2 flex items-center gap-1">
-               Requieren atención
-            </p>
-          </div>
-        </div>
-        
-      </div>
-
-      {/* SECCIÓN INFERIOR: TABLA RÁPIDA */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Tabla de Alertas de Stock */}
-        <div className="lg:col-span-2 bg-[#1A1F2C] rounded-2xl shadow-lg border border-white/5 overflow-hidden">
-          <div className="p-6 border-b border-white/5 flex justify-between items-center">
-            <h3 className="font-bold text-white flex items-center gap-2">
-              <Activity size={18} className="text-orange-400" /> Productos por Agotarse
-            </h3>
-            <span className="text-xs bg-orange-500/20 text-orange-400 px-2.5 py-1 rounded-full font-bold">Atención</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-300">
-              <thead className="bg-white/5 text-gray-400 font-medium uppercase text-xs">
-                <tr>
-                  <th className="px-6 py-4">Producto</th>
-                  <th className="px-6 py-4 text-center">Stock Actual</th>
-                  <th className="px-6 py-4 text-right">Precio Base</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {stats?.lowStockProducts?.length === 0 ? (
-                  <tr><td colSpan={3} className="p-8 text-center text-gray-500">Todo el inventario está saludable ✅</td></tr>
-                ) : (
-                  stats?.lowStockProducts?.map((prod) => (
-                    <tr key={prod.id} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 font-medium text-gray-200">{prod.name}</td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2.5 py-1 rounded-full text-xs font-bold">
-                          {prod.currentStock} un.
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono text-gray-400">${Number(prod.priceBase).toFixed(2)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Banner Informativo (Placeholder) */}
-        <div className="bg-gradient-to-br from-indigo-600 to-purple-800 rounded-2xl shadow-lg p-8 text-white flex flex-col justify-between relative overflow-hidden group">
-          <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
-          <div className="relative z-10">
-            <div className="bg-white/10 w-fit p-3 rounded-xl mb-4">
-              <Briefcase size={24} className="text-white" />
-            </div>
-            <h3 className="text-2xl font-bold mb-3 tracking-tight">
-              Gestión Corporativa
-            </h3>
-            <p className="text-indigo-100 text-sm mb-8 leading-relaxed">
-              Administra todas las entidades de tu grupo desde un solo lugar. Optimiza recursos y analiza el progreso.
-            </p>
-          </div>
-          <button className="relative z-10 bg-white text-indigo-900 font-bold py-3 px-4 rounded-xl text-sm hover:bg-indigo-50 transition-colors shadow-lg shadow-black/20">
-            Ir a Configuración
-          </button>
-        </div>
-
-      </div>
+      )}
     </div>
   );
 }

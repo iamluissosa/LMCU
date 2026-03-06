@@ -101,10 +101,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try {
       setIsUserMenuOpen(false);
       await supabase.auth.signOut();
+      router.push('/');
+      router.refresh();
     } catch (err) {
       console.error("Error al cerrar sesión:", err);
-    } finally {
-      window.location.href = '/';
     }
   };
 
@@ -156,6 +156,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           name: 'Configuración', 
           icon: Settings, 
           children: [
+            { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/settings/general/dashboard', requiredPermission: 'settings.view' },
             { name: 'Usuarios', icon: UserCircle, path: '/dashboard/settings/general/users', requiredPermission: 'settings.view' },
             { name: 'Categorías de Serv.', icon: ClipboardCheck, path: '/dashboard/settings/general/service-categories', requiredPermission: 'settings.view' },
           ]

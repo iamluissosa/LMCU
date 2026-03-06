@@ -12,8 +12,8 @@ export class DashboardController {
   @Get('stats')
   @Permissions('dashboard.view')
   getStats(@Request() req) {
-    // req.user viene del Token JWT y contiene los datos del usuario logueado
     const user = req.user;
-    return this.dashboardService.getStats(user.companyId);
+    // Pass companyId and user permissions to selectively calculate heavy metrics
+    return this.dashboardService.getStats(user.companyId, user.permissions || []);
   }
 }

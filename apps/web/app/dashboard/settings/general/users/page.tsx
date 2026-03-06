@@ -102,6 +102,11 @@ export default function GeneralSettingsPage() {
     { id: 'sales.edit', label: 'Editar Estatus de Ventas' },
     { id: 'sales.invoice', label: 'Emitir Facturas de Venta y Cobros' },
     { id: 'sales.delete', label: 'Anular Documentos de Venta' },
+    // ── WIDGETS DASHBOARD ──────────────────────────
+    { id: 'widget.inventory.view', label: 'Dashboard: Ver Métricas de Inventario' },
+    { id: 'widget.low_stock.view', label: 'Dashboard: Ver Stock Crítico' },
+    { id: 'widget.sales.view', label: 'Dashboard: Ver Métricas de Ventas' },
+    { id: 'widget.finance.view', label: 'Dashboard: Ver Métricas de Finanzas' },
   ];
 
   const handleOpenModal = async (role?: any) => {
