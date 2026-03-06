@@ -98,8 +98,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/');
+    try {
+      setIsUserMenuOpen(false);
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Error al cerrar sesión:", err);
+    } finally {
+      window.location.href = '/';
+    }
   };
 
   const can = (permission: string) => {
