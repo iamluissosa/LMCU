@@ -4,10 +4,27 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { Receipt, ArrowLeft, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 
 interface Client { id: string; name: string; rif?: string; isIvaAgent: boolean; islrRate: number; }
 interface Product { id: string; name: string; code: string; isService: boolean; priceBase: number; }
 interface ServiceCategory { id: string; name: string; }
+
+interface SalesOrder {
+  id: string;
+  clientId: string;
+  currencyCode: string;
+  exchangeRate: number;
+  items: Array<{
+    productId?: string;
+    serviceCategoryId?: string;
+    description?: string;
+    quantity: number | string;
+    unitPrice: number | string;
+    taxRate: number | string;
+    discount: number | string;
+  }>;
+}
 
 interface InvoiceItem {
   type: 'product' | 'service';
@@ -42,17 +59,17 @@ function InvoiceNewContent() {
     setLoading(true);
     try {
       const [c, p, s] = await Promise.all([
-        apiClient.get<any>('/clients?limit=200').catch(() => ({ items: [] })),
-        apiClient.get<any>('/products?limit=500').catch(() => ({ items: [] })),
+        apiClient.get<{ items: Client[] }>('/clients?limit=200').catch(() => ({ items: [] })),
+        apiClient.get<{ items: Product[] }>('/products?limit=500').catch(() => ({ items: [] })),
         apiClient.get<ServiceCategory[]>('/service-categories').catch(() => []),
       ]);
-      setClients(c.items ?? c ?? []);
-      setProducts(p.items ?? p ?? []);
+      setClients(c.items ?? []);
+      setProducts(p.items ?? []);
       setServiceCategories(s ?? []);
 
       if (orderId) {
         // Pre-cargar datos del pedido
-        const order = await apiClient.get<any>(`/sales-orders/${orderId}`);
+        const order = await apiClient.get<SalesOrder>(`/sales-orders/${orderId}`);
         if (order) {
           setInvoiceForm(f => ({
             ...f,
@@ -60,12 +77,12 @@ function InvoiceNewContent() {
             currencyCode: order.currencyCode,
             exchangeRate: Number(order.exchangeRate),
           }));
-          const cl = (c.items ?? c ?? []).find((x: Client) => x.id === order.clientId) ?? null;
+          const cl = (c.items ?? []).find((x: Client) => x.id === order.clientId) ?? null;
           setSelectedClient(cl);
 
           if (order.items && order.items.length > 0) {
             setInvoiceItems(
-              order.items.map((it: any) => ({
+              order.items.map((it) => ({
                 type: it.productId ? 'product' : 'service',
                 productId: it.productId || '',
                 serviceCategoryId: it.serviceCategoryId || '',
@@ -79,8 +96,8 @@ function InvoiceNewContent() {
           }
         }
       }
-    } catch (e: any) {
-      alert(`Error cargando datos: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error cargando datos: ${e instanceof Error ? e.message : 'Error desconocido'}`);
     } finally {
       setLoading(false);
     }
@@ -110,31 +127,37 @@ function InvoiceNewContent() {
 
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!invoiceForm.clientId) return alert('Selecciona un cliente.');
+    if (!invoiceForm.clientId) return toast.error('Selecciona un cliente.');
     if (invoiceItems.some(i => (i.type === 'product' && !i.productId) || (i.type === 'service' && !i.serviceCategoryId))) {
-      return alert('Cada ítem debe tener un producto o un servicio seleccionado.');
+      return toast.error('Cada ítem debe tener un producto o un servicio seleccionado.');
     }
     setSaving(true);
     try {
       const parsedItems = invoiceItems.map(i => {
         const { type, ...rest } = i;
-        return {
-          ...rest,
-          productId: type === 'product' ? i.productId : null,
-          serviceCategoryId: type === 'service' ? i.serviceCategoryId : null,
-        };
+        const cleanedItem: Record<string, unknown> = { ...rest };
+        if (type === 'product' && i.productId) cleanedItem.productId = i.productId;
+        if (type === 'service' && i.serviceCategoryId) cleanedItem.serviceCategoryId = i.serviceCategoryId;
+        return cleanedItem;
       });
-      await apiClient.post('/sales-invoices', {
+
+      const dataToSend: Record<string, unknown> = {
         ...invoiceForm,
         exchangeRate: Number(invoiceForm.exchangeRate),
         items: parsedItems,
         retIvaRate: selectedClient?.isIvaAgent ? 75 : 0,
         retISLRRate: selectedClient ? Number(selectedClient.islrRate) : 0,
-      });
-      alert('Factura emitida exitosamente.');
+      };
+
+      if (!dataToSend.dueDate) delete dataToSend.dueDate;
+      if (!dataToSend.notes) delete dataToSend.notes;
+      if (!dataToSend.poNumber) delete dataToSend.poNumber;
+
+      await apiClient.post('/sales-invoices', dataToSend);
+      toast.success('Factura emitida exitosamente.');
       router.push('/dashboard/sales/invoices');
-    } catch (err: any) {
-      alert(`Error: ${err.message || 'Error desconocido'}`);
+    } catch (err: unknown) {
+      toast.error(`Error: ${err instanceof Error ? err.message : 'Error desconocido'}`);
     } finally { 
       setSaving(false); 
     }
@@ -152,58 +175,59 @@ function InvoiceNewContent() {
   if (loading) return <div className="p-10 text-center text-gray-500">Cargando asistente de facturación...</div>;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto pb-10">
       <div className="flex items-center gap-4">
         <Link href={orderId ? `/dashboard/sales/orders` : `/dashboard/sales/invoices`} 
-          className="p-2 bg-white border rounded-xl hover:bg-gray-50 text-gray-600 transition-colors">
+          className="p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 text-gray-400 hover:text-white transition-all shadow-lg shadow-black/20">
           <ArrowLeft size={20} />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <Receipt className="text-teal-600" /> Nueva Factura de Venta
+          <h1 className="text-2xl font-black text-white flex items-center gap-2">
+            <Receipt className="text-teal-400" /> Nueva Factura de Venta
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Registra facturas para generar cuentas por cobrar.</p>
+          <p className="text-sm text-gray-400 mt-1 uppercase tracking-tight font-medium">Registra facturas para generar cuentas por cobrar.</p>
         </div>
       </div>
 
-      <form onSubmit={handleCreateInvoice} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
+      <form onSubmit={handleCreateInvoice} className="bg-[#1A1F2C] rounded-2xl shadow-2xl border border-white/10 p-8 space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Cliente *</label>
-            <select required className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Cliente *</label>
+            <select required className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-teal-500/50 outline-none transition-all appearance-none cursor-pointer"
               value={invoiceForm.clientId} onChange={e => handleClientChange(e.target.value)}>
               <option value="">-- Seleccionar cliente --</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name} {c.rif ? `(${c.rif})` : ''}</option>)}
+              {clients.map(c => <option key={c.id} value={c.id} className="bg-[#1A1F2C]">{c.name} {c.rif ? `(${c.rif})` : ''}</option>)}
             </select>
             {selectedClient?.isIvaAgent && (
-              <p className="text-xs text-orange-600 mt-1">⚠️ Cliente agente de retención IVA (75% del IVA será retenido)</p>
+              <p className="text-[10px] font-bold text-orange-400 mt-2 uppercase tracking-tight">⚠️ Cliente agente de retención IVA (75% del IVA será retenido)</p>
             )}
             {selectedClient && Number(selectedClient.islrRate) > 0 && (
-              <p className="text-xs text-orange-600">⚠️ Retención ISLR: {selectedClient.islrRate}%</p>
+              <p className="text-[10px] font-bold text-orange-400 mt-1 uppercase tracking-tight">⚠️ Retención ISLR: {selectedClient.islrRate}%</p>
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">N° de Control (Fact. Física)</label>
-            <input className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">N° de Control (Fact. Física)</label>
+            <input className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-teal-500/50 outline-none placeholder:text-gray-600 transition-all font-mono"
               placeholder="Ej: 00-123456"
               value={invoiceForm.controlNumber} onChange={e => setInvoiceForm(f => ({ ...f, controlNumber: e.target.value }))} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Moneda</label>
-            <select className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Moneda</label>
+            <select className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-teal-500/50 outline-none appearance-none cursor-pointer"
               value={invoiceForm.currencyCode} onChange={e => setInvoiceForm(f => ({ ...f, currencyCode: e.target.value }))}>
-              <option value="USD">USD — Dólar</option>
-              <option value="VES">VES — Bolívar</option>
+              <option value="USD" className="bg-[#1A1F2C]">USD — Dólar</option>
+              <option value="VES" className="bg-[#1A1F2C]">VES — Bolívar</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Fecha de Vencimiento (opcional)</label>
-            <input type="date" className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Fecha de Vencimiento</label>
+            <input type="date" className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-teal-500/50 outline-none color-scheme-dark"
+              style={{ colorScheme: 'dark' }}
               value={invoiceForm.dueDate} onChange={e => setInvoiceForm(f => ({ ...f, dueDate: e.target.value }))} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">N° Pedido Interno (Referencia)</label>
-            <input className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none bg-gray-50"
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">N° Pedido Interno (Referencia)</label>
+            <input className="w-full bg-[#0B1120]/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-teal-400 focus:ring-2 focus:ring-teal-500/50 outline-none font-mono"
               readOnly={!!orderId} placeholder="ID del SalesOrder..."
               value={invoiceForm.salesOrderId} onChange={e => setInvoiceForm(f => ({ ...f, salesOrderId: e.target.value }))} />
           </div>
@@ -211,91 +235,91 @@ function InvoiceNewContent() {
 
         {/* Ítems */}
         <div>
-          <div className="flex items-center justify-between mb-3 border-b pb-2">
-            <h3 className="font-semibold text-gray-800 text-lg">Ítems de Factura</h3>
+          <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
+            <h3 className="font-bold text-white text-lg">Ítems de Factura</h3>
             <button type="button" onClick={addInvItem}
-              className="text-sm border border-teal-200 text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg px-3 py-1.5 font-medium flex items-center gap-1 transition-colors">
+              className="text-[10px] font-bold uppercase tracking-widest border border-teal-500/20 text-teal-400 bg-teal-500/10 hover:bg-teal-500/20 rounded-xl px-4 py-2 flex items-center gap-1.5 transition-all shadow-lg shadow-teal-500/5">
               <Plus size={15} /> Agregar línea
             </button>
           </div>
-          <div className="border rounded-xl mx-auto w-full overflow-x-auto">
+          <div className="border border-white/10 rounded-2xl overflow-hidden bg-white/5 shadow-inner">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+              <thead className="bg-white/5 text-[10px] text-gray-500 uppercase font-black tracking-widest">
                 <tr>
-                  <th className="px-3 py-3 text-left w-24">Tipo</th>
-                  <th className="px-3 py-3 text-left w-[35%]">Producto / Servicio</th>
-                  <th className="px-3 py-3 text-right w-20">Cant.</th>
-                  <th className="px-3 py-3 text-right w-24">Precio</th>
-                  <th className="px-3 py-3 text-right w-20">IVA %</th>
-                  <th className="px-3 py-3 text-right w-20">Desc %</th>
-                  <th className="px-3 py-3 text-right w-28">Total</th>
-                  <th className="px-2 py-3 w-10"></th>
+                  <th className="px-4 py-4 text-left w-28">Tipo</th>
+                  <th className="px-4 py-4 text-left w-[35%]">Producto / Servicio</th>
+                  <th className="px-4 py-4 text-right w-24">Cant.</th>
+                  <th className="px-4 py-4 text-right w-32">Precio</th>
+                  <th className="px-4 py-4 text-right w-24">IVA %</th>
+                  <th className="px-4 py-4 text-right w-24">Desc %</th>
+                  <th className="px-4 py-4 text-right w-32">Total</th>
+                  <th className="px-3 py-4 w-12"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-white/5">
                 {invoiceItems.map((item, i) => (
-                  <tr key={i} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-2 py-2">
-                       <select className="w-full border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
+                  <tr key={i} className="hover:bg-white/5 transition-colors group">
+                    <td className="px-3 py-3">
+                       <select className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-2 py-2 text-xs text-white focus:ring-2 focus:ring-teal-500/50 outline-none transition-all appearance-none cursor-pointer"
                          value={item.type} onChange={e => {
                            updateInvItem(i, 'type', e.target.value);
                            updateInvItem(i, 'productId', '');
                            updateInvItem(i, 'serviceCategoryId', '');
                          }}>
-                         <option value="product">Producto</option>
-                         <option value="service">Servicio</option>
+                         <option value="product" className="bg-[#1A1F2C]">Producto</option>
+                         <option value="service" className="bg-[#1A1F2C]">Servicio</option>
                        </select>
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-3 py-3">
                       {item.type === 'product' ? (
-                        <select required className="w-full border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
+                        <select required className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-teal-500/50 outline-none transition-all appearance-none cursor-pointer"
                           value={item.productId || ''} onChange={e => updateInvItem(i, 'productId', e.target.value)}>
-                          <option value="">-- Seleccionar --</option>
+                          <option value="" className="bg-[#1A1F2C]">-- Seleccionar --</option>
                           {products.map(p => (
-                            <option key={p.id} value={p.id}>{p.isService ? '🔧 ' : '📦 '}{p.name}</option>
+                            <option key={p.id} value={p.id} className="bg-[#1A1F2C]">{p.isService ? '🔧 ' : '📦 '}{p.name}</option>
                           ))}
                         </select>
                       ) : (
-                        <select required className="w-full border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
+                        <select required className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-teal-500/50 outline-none transition-all appearance-none cursor-pointer"
                           value={item.serviceCategoryId || ''} onChange={e => updateInvItem(i, 'serviceCategoryId', e.target.value)}>
-                          <option value="">-- Seleccionar Servicio --</option>
+                          <option value="" className="bg-[#1A1F2C]">-- Seleccionar Servicio --</option>
                           {serviceCategories.map(s => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
+                            <option key={s.id} value={s.id} className="bg-[#1A1F2C]">{s.name}</option>
                           ))}
                         </select>
                       )}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-3 py-3 text-right">
                       <input type="number" min="0.01" step="0.01" required
-                        className="w-full border rounded-lg px-2 py-2 text-sm text-right focus:ring-2 focus:ring-teal-300 outline-none"
+                        className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-xs text-white text-right focus:ring-2 focus:ring-teal-500/50 outline-none font-mono"
                         value={item.quantity} onChange={e => updateInvItem(i, 'quantity', Number(e.target.value))} />
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-3 py-3 text-right">
                       <input type="number" min="0" step="0.01" required
-                        className="w-full border rounded-lg px-2 py-2 text-sm text-right focus:ring-2 focus:ring-teal-300 outline-none"
+                        className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-xs text-white text-right focus:ring-2 focus:ring-teal-500/50 outline-none font-mono"
                         value={item.unitPrice} onChange={e => updateInvItem(i, 'unitPrice', Number(e.target.value))} />
                     </td>
-                    <td className="px-2 py-2">
-                      <select className="w-full border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
+                    <td className="px-3 py-3 text-right">
+                      <select className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-teal-500/50 outline-none appearance-none cursor-pointer"
                         value={item.taxRate} onChange={e => updateInvItem(i, 'taxRate', Number(e.target.value))}>
-                        <option value={16}>16%</option>
-                        <option value={8}>8%</option>
-                        <option value={0}>0% (Exento)</option>
+                        <option value={16} className="bg-[#1A1F2C]">16%</option>
+                        <option value={8} className="bg-[#1A1F2C]">8%</option>
+                        <option value={0} className="bg-[#1A1F2C]">0% (Exento)</option>
                       </select>
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-3 py-3 text-right">
                       <input type="number" min="0" max="100"
-                        className="w-full border rounded-lg px-2 py-2 text-sm text-right focus:ring-2 focus:ring-teal-300 outline-none"
+                        className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-xs text-white text-right focus:ring-2 focus:ring-teal-500/50 outline-none font-mono"
                         value={item.discount} onChange={e => updateInvItem(i, 'discount', Number(e.target.value))} />
                     </td>
-                    <td className="px-2 py-2 text-right font-semibold text-gray-800 bg-white">
+                    <td className="px-4 py-3 text-right font-black text-white bg-white/5 transition-all">
                       {fmt(calcLine(item), invoiceForm.currencyCode)}
                     </td>
-                    <td className="px-1 py-2 text-center">
+                    <td className="px-2 py-3 text-center">
                       <button type="button" onClick={() => removeInvItem(i)} 
                         disabled={invoiceItems.length === 1}
-                        className="text-red-400 hover:text-red-600 disabled:opacity-30 disabled:hover:text-red-400 p-1.5 hover:bg-red-50 rounded-lg">
-                        ×
+                        className="text-red-500/60 hover:text-red-400 disabled:opacity-30 p-2 hover:bg-red-500/10 rounded-xl transition-all">
+                        <Plus className="rotate-45" size={18} />
                       </button>
                     </td>
                   </tr>
@@ -304,12 +328,12 @@ function InvoiceNewContent() {
             </table>
           </div>
 
-          <div className="flex justify-end mt-4">
-            <div className="bg-teal-50/50 border border-teal-100 rounded-xl px-6 py-4 text-right min-w-[250px]">
-              <p className="text-sm text-gray-500 mb-1">Total Factura</p>
-              <p className="text-3xl font-bold text-teal-800">{fmt(totalInvoice, invoiceForm.currencyCode)}</p>
+          <div className="flex justify-end mt-6">
+            <div className="bg-white/5 border border-white/10 rounded-2xl px-8 py-6 text-right min-w-[300px] shadow-xl">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Total Factura</p>
+              <p className="text-4xl font-black text-teal-400">{fmt(totalInvoice, invoiceForm.currencyCode)}</p>
               {selectedClient?.isIvaAgent && (
-                <p className="text-xs text-orange-600 mt-2 font-medium">
+                <p className="text-[10px] font-bold text-orange-400 mt-2 uppercase tracking-widest border-t border-white/5 pt-2">
                   Ret. IVA (75%): -{fmt(totalInvoice * 0.16 * 0.75, invoiceForm.currencyCode)}
                 </p>
               )}
@@ -317,12 +341,12 @@ function InvoiceNewContent() {
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 pt-6 border-t mt-6">
-          <button type="button" onClick={() => router.back()} className="px-6 py-3 text-gray-600 hover:bg-gray-100 font-medium rounded-xl text-sm transition-colors">
+        <div className="flex justify-end gap-3 pt-8 border-t border-white/10 mt-6">
+          <button type="button" onClick={() => router.back()} className="px-8 py-3 text-gray-400 hover:text-white hover:bg-white/5 font-bold uppercase tracking-widest rounded-xl text-[10px] transition-all">
             Cancelar
           </button>
           <button type="submit" disabled={saving || invoiceItems.length === 0}
-            className="px-8 py-3 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm shadow-sm transition-colors">
+            className="px-10 py-3 bg-teal-600 hover:bg-teal-500 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-teal-500/20 transition-all">
             {saving ? 'Procesando...' : '✓ Emitir Factura'}
           </button>
         </div>

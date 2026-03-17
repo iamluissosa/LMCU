@@ -5,14 +5,22 @@ import {
   Package, Search, Plus, RefreshCw, X, Save, 
   Pencil, Trash2 
 } from 'lucide-react';
+import { toast } from 'sonner';
+
+interface Product {
+  id: string;
+  code: string;
+  name: string;
+  priceBase: number | string;
+  currentStock: number;
+}
 
 export default function InventoryPage() {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Stats
-  const [stats, setStats] = useState({ total: 0, lowStock: 0, value: 0 });
+
 
   // Estados del Modal y Edición
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,12 +39,11 @@ export default function InventoryPage() {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get<{ items: any[]; pagination: any }>('/products');
+      const response = await apiClient.get<{ items: Product[]; pagination: Record<string, unknown> }>('/products');
       setProducts(response.items || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching products (full):', err);
-      console.error('Error message:', err.message);
-      alert(`Error: ${err.message || 'Error al cargar inventario'}`);
+      toast.error(`Error: ${err instanceof Error ? err.message : 'Error al cargar inventario'}`);
     } finally {
       setLoading(false);
     }
@@ -45,7 +52,7 @@ export default function InventoryPage() {
   useEffect(() => { fetchProducts(); }, []);
 
   // --- 2. PREPARAR EDICIÓN ---
-  const handleEdit = (product: any) => {
+  const handleEdit = (product: Product) => {
     setEditingId(product.id);
     setFormData({
       code: product.code,
@@ -91,10 +98,10 @@ export default function InventoryPage() {
 
       setIsModalOpen(false);
       fetchProducts();
-      alert(editingId ? '✅ Producto actualizado' : '✅ Producto creado');
+      toast.success(editingId ? 'Producto actualizado' : 'Producto creado');
 
-    } catch (error: any) {
-      alert(`❌ Error: ${error.message}`);
+    } catch (error: unknown) {
+      toast.error(`❌ Error: ${error instanceof Error ? error.message : 'Desconocido'}`);
     } finally {
       setIsSaving(false);
     }
@@ -109,7 +116,7 @@ export default function InventoryPage() {
       fetchProducts();
     } catch (error) {
       console.error(error);
-      alert('❌ Error eliminando producto');
+      toast.error('❌ Error eliminando producto');
     }
   };
 
@@ -118,10 +125,10 @@ export default function InventoryPage() {
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <Package className="text-blue-600" /> Inventario
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Package className="text-blue-500" /> Inventario
           </h1>
-          <p className="text-gray-500 text-sm">Gestiona tus productos y existencias</p>
+          <p className="text-gray-400 text-sm">Gestiona tus productos y existencias</p>
         </div>
         <button 
           onClick={handleOpenCreate} 
@@ -132,13 +139,15 @@ export default function InventoryPage() {
       </div>
 
       {/* BARRA DE BÚSQUEDA */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+      <div className="bg-[#1A1F2C] p-4 rounded-xl shadow-lg border border-white/10 flex items-center justify-between">
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input 
             type="text" 
             placeholder="Buscar por nombre o código..." 
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <button onClick={fetchProducts} className="p-2 text-gray-500 hover:text-blue-600 transition-colors">
@@ -147,13 +156,13 @@ export default function InventoryPage() {
       </div>
 
       {/* TABLA DE PRODUCTOS (CORREGIDA) */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-[#1A1F2C] rounded-xl shadow-lg border border-white/10 overflow-hidden">
         {products.length === 0 && !loading ? (
           <div className="p-10 text-center text-gray-500">No hay productos registrados.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-600">
-              <thead className="bg-gray-50 text-gray-900 font-semibold uppercase text-xs border-b border-gray-200">
+            <table className="w-full text-left text-sm text-gray-400">
+              <thead className="bg-white/5 text-gray-400 font-semibold uppercase text-xs border-b border-white/10">
                 <tr>
                   <th className="px-6 py-4">Código</th>
                   <th className="px-6 py-4">Producto</th>
@@ -163,27 +172,29 @@ export default function InventoryPage() {
                   <th className="px-6 py-4 text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {products.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-mono text-blue-600 font-medium">{product.code}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">{product.name}</td>
+              <tbody className="divide-y divide-white/5">
+                {products
+                  .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.code.toLowerCase().includes(searchTerm.toLowerCase()))
+                  .map((product) => (
+                  <tr key={product.id} className="hover:bg-white/5 transition-colors">
+                    <td className="px-6 py-4 font-mono text-blue-400 font-medium">{product.code}</td>
+                    <td className="px-6 py-4 font-medium text-gray-200">{product.name}</td>
                     <td className="px-6 py-4 text-right">${Number(product.priceBase).toFixed(2)}</td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        product.currentStock > 10 ? 'bg-green-100 text-green-700' : 
-                        product.currentStock > 0 ? 'bg-yellow-100 text-yellow-700' : 
-                        'bg-red-100 text-red-700'
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold border ${
+                        product.currentStock > 10 ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
+                        product.currentStock > 0 ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 
+                        'bg-red-500/10 text-red-400 border-red-500/20'
                       }`}>
                         {product.currentStock}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center text-green-600 text-xs">● Activo</td>
+                    <td className="px-6 py-4 text-center text-green-400 text-xs">● Activo</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
                         <button 
                           onClick={() => handleEdit(product)}
-                          className="p-2 text-gray-500 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+                          className="p-2 text-gray-500 hover:bg-blue-500/10 hover:text-blue-400 rounded-lg transition-colors"
                           title="Editar"
                         >
                           <Pencil size={16} />
@@ -208,50 +219,50 @@ export default function InventoryPage() {
       {/* MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="text-lg font-bold text-gray-800">
+          <div className="bg-[#1A1F2C] border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+              <h3 className="text-lg font-bold text-white">
                 {editingId ? '✏️ Editar Producto' : '✨ Nuevo Producto'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-red-500">
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-red-400">
                 <X size={20} />
               </button>
             </div>
             
             <form onSubmit={handleSave} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Código</label>
+                <label className="block text-sm font-medium text-gray-200 mb-1">Código</label>
                 <input 
                   autoFocus required type="text" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   value={formData.code}
                   onChange={e => setFormData({...formData, code: e.target.value})}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                <label className="block text-sm font-medium text-gray-200 mb-1">Nombre</label>
                 <input 
                   required type="text" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   value={formData.name}
                   onChange={e => setFormData({...formData, name: e.target.value})}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Precio ($)</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">Precio ($)</label>
                   <input 
                     required type="text" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.priceBase}
                     onChange={e => setFormData({...formData, priceBase: e.target.value})}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">Stock</label>
                   <input 
                     required type="number" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.currentStock}
                     onChange={e => setFormData({...formData, currentStock: e.target.value})}
                   />
@@ -259,7 +270,7 @@ export default function InventoryPage() {
               </div>
 
               <div className="pt-4 flex justify-end gap-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium">Cancelar</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-400 hover:bg-white/5 rounded-lg font-medium transition-colors">Cancelar</button>
                 <button 
                   type="submit" disabled={isSaving}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"

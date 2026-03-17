@@ -5,23 +5,44 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 type RequestMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT';
 
+let cachedAccessToken: string | null = null;
+let isTokenListenerInitialized = false;
+
+// Initialize listener to keep token fresh in memory (Browser only)
+if (typeof window !== 'undefined') {
+  const supabase = createClient();
+  supabase.auth.getSession().then(({ data }) => {
+    cachedAccessToken = data.session?.access_token || null;
+  });
+  supabase.auth.onAuthStateChange((_event, session) => {
+    cachedAccessToken = session?.access_token || null;
+  });
+  isTokenListenerInitialized = true;
+}
+
 async function request<T>(
   endpoint: string,
   method: RequestMethod = 'GET',
-  body?: any,
+  body?: unknown,
   headers?: Record<string, string>
 ): Promise<T> {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  let token = cachedAccessToken;
+
+  // Si estamos en el lado del servidor, o no se ha inicializado el token en cliente, debemos buscarlo fresh.
+  if (typeof window === 'undefined' || !isTokenListenerInitialized) {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      token = session?.access_token || null;
+  }
 
   const config: RequestInit = {
     method,
     headers: {
       'Content-Type': 'application/json',
-      ...(session?.access_token && { Authorization: `Bearer ${session.access_token}` }),
+      ...(token && { Authorization: `Bearer ${token}` }),
       ...headers,
     },
-    ...(body && { body: JSON.stringify(body) }),
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   };
 
   try {
@@ -41,15 +62,16 @@ async function request<T>(
 
     const response: ApiResponse<T> = await res.json();
     return response.data; // Unpack data
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const e = err as Record<string, unknown>;
     // Si el error ya es tipo ApiError, lo relanzamos
-    if (err.statusCode) {
+    if (e && typeof e === 'object' && 'statusCode' in e) {
       throw err;
     }
     // Si es error de red u otro
     throw {
       statusCode: 500,
-      message: err.message || 'Error de conexión',
+      message: e instanceof Error ? e.message : 'Error de conexión',
       error: 'Network Error',
       timestamp: new Date().toISOString(),
       path: endpoint,
@@ -61,10 +83,10 @@ export const apiClient = {
   get: <T>(endpoint: string, headers?: Record<string, string>) => 
     request<T>(endpoint, 'GET', undefined, headers),
 
-  post: <T>(endpoint: string, body: any, headers?: Record<string, string>) => 
+  post: <T>(endpoint: string, body: unknown, headers?: Record<string, string>) => 
     request<T>(endpoint, 'POST', body, headers),
 
-  patch: <T>(endpoint: string, body: any, headers?: Record<string, string>) => 
+  patch: <T>(endpoint: string, body: unknown, headers?: Record<string, string>) => 
     request<T>(endpoint, 'PATCH', body, headers),
 
   delete: <T>(endpoint: string, headers?: Record<string, string>) => 

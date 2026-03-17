@@ -2,8 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
 import {
-  FileText, Plus, ChevronRight, Search, RefreshCw,
-  CheckCircle, XCircle, Clock, Send, Eye, ArrowRight,
+  FileText, Plus, RefreshCw, XCircle, Send, Eye, ArrowRight,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -28,18 +27,20 @@ interface Quote {
 
 // ── HELPERS ──────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  DRAFT:     { label: 'Borrador',  color: 'bg-gray-100 text-gray-600' },
-  SENT:      { label: 'Enviada',   color: 'bg-blue-100 text-blue-700' },
-  ACCEPTED:  { label: 'Aceptada', color: 'bg-green-100 text-green-700' },
-  REJECTED:  { label: 'Rechazada', color: 'bg-red-100 text-red-600' },
-  EXPIRED:   { label: 'Vencida',  color: 'bg-orange-100 text-orange-600' },
-  CANCELLED: { label: 'Anulada',  color: 'bg-gray-200 text-gray-500' },
+  DRAFT:     { label: 'Borrador',  color: 'bg-gray-500/10 text-gray-400 border border-gray-500/20' },
+  SENT:      { label: 'Enviada',   color: 'bg-blue-500/10 text-blue-400 border border-blue-500/20' },
+  ACCEPTED:  { label: 'Aceptada', color: 'bg-green-500/10 text-green-400 border border-green-500/20' },
+  REJECTED:  { label: 'Rechazada', color: 'bg-red-500/10 text-red-400 border border-red-500/20' },
+  EXPIRED:   { label: 'Vencida',  color: 'bg-orange-500/10 text-orange-400 border border-orange-500/20' },
+  CANCELLED: { label: 'Anulada',  color: 'bg-white/5 text-gray-500 border border-white/10' },
 };
 
 const fmt = (n: number, cur = 'USD') =>
   new Intl.NumberFormat('es-VE', { style: 'currency', currency: cur, minimumFractionDigits: 2 }).format(n);
 
 // ── COMPONENTE PRINCIPAL ─────────────────────────────────
+import { toast } from 'sonner';
+
 export default function QuotesPage() {
   const router = useRouter();
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -57,7 +58,7 @@ export default function QuotesPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     clientId: '', currencyCode: 'USD', exchangeRate: 1,
-    expiresAt: '', notes: '',
+    expiresAt: '', notes: '', internalNote: '',
   });
   const [items, setItems] = useState<QuoteItem[]>([
     { type: 'product', productId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 16, discount: 0 },
@@ -84,9 +85,11 @@ export default function QuotesPage() {
       apiClient.get<{ items: Product[] }>('/products?limit=500').catch(() => ({ items: [] })),
       apiClient.get<ServiceCategory[]>('/service-categories').catch(() => []),
     ]);
-    setClients((c as any).items ?? c ?? []);
-    setProducts((p as any).items ?? p ?? []);
-    setServiceCategories((s as any) ?? []);
+    const clientsRes = c as { items?: Client[] };
+    const productsRes = p as { items?: Product[] };
+    setClients(clientsRes.items ?? (Array.isArray(c) ? c : []));
+    setProducts(productsRes.items ?? (Array.isArray(p) ? p : []));
+    setServiceCategories(Array.isArray(s) ? s : []);
   };
 
   const openModal = async () => {
@@ -94,7 +97,7 @@ export default function QuotesPage() {
     
     let rate = 1;
     try {
-      const data = await apiClient.get<any>('/exchange-rates/latest');
+      const data = await apiClient.get<{ rate?: number | string }>('/exchange-rates/latest');
       if (data && data.rate) rate = Number(data.rate);
     } catch (e) {
       console.error('Error cargando tasa BCV', e);
@@ -102,7 +105,7 @@ export default function QuotesPage() {
     setCurrentBcvRate(rate);
     setForm({
       clientId: '', currencyCode: 'USD', exchangeRate: rate,
-      expiresAt: '', notes: '',
+      expiresAt: '', notes: '', internalNote: '',
     });
     setItems([{ type: 'product', productId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 16, discount: 0 }]);
     setShowModal(true);
@@ -137,45 +140,42 @@ export default function QuotesPage() {
   // ── GUARDAR ────────────────────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.clientId) return alert('Selecciona un cliente.');
+    if (!form.clientId) return toast.error('Selecciona un cliente.');
     if (items.some(i => (i.type === 'product' && !i.productId) || (i.type === 'service' && !i.serviceCategoryId))) {
-      return alert('Cada ítem debe tener un producto o un servicio seleccionado.');
+      return toast.error('Cada ítem debe tener un producto o un servicio seleccionado.');
     }
     setSaving(true);
     try {
-      const parsedItems = items.map(i => {
+      const parsedItems = items.map((i: QuoteItem) => {
         const { type, ...rest } = i;
-        return {
-          ...rest,
-          productId: type === 'product' ? i.productId : null,
-          serviceCategoryId: type === 'service' ? i.serviceCategoryId : null,
-        };
+        const cleanedItem: Record<string, string | number | undefined | null> = { ...rest };
+        if (type === 'product' && i.productId) cleanedItem.productId = i.productId;
+        if (type === 'service' && i.serviceCategoryId) cleanedItem.serviceCategoryId = i.serviceCategoryId;
+        return cleanedItem;
       });
-      const dataToSend: any = {
-        ...form,
+      
+      const dataToSend: Record<string, unknown> = {
+        clientId: form.clientId,
+        currencyCode: form.currencyCode,
         exchangeRate: Number(form.exchangeRate),
         items: parsedItems,
       };
 
-      // Sanear strings vacíos para evitar que fallen los validadores @IsDateString() e @IsString()
-      if (!dataToSend.expiresAt) delete dataToSend.expiresAt;
-      if (!dataToSend.notes) delete dataToSend.notes;
-      if (!dataToSend.internalNote) delete dataToSend.internalNote;
+      if (form.expiresAt) dataToSend.expiresAt = form.expiresAt;
+      if (form.notes) dataToSend.notes = form.notes;
+      if (form.internalNote) dataToSend.internalNote = form.internalNote;
 
       console.log('Enviando datos de cotización:', JSON.stringify(dataToSend, null, 2));
       await apiClient.post('/quotes', dataToSend);
+      toast.success('Cotización guardada exitosamente');
       setShowModal(false);
       setItems([{ type: 'product', productId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 16, discount: 0 }]);
-      setForm({ clientId: '', currencyCode: 'USD', exchangeRate: 1, expiresAt: '', notes: '' });
+      setForm({ clientId: '', currencyCode: 'USD', exchangeRate: 1, expiresAt: '', notes: '', internalNote: '' });
       fetchQuotes();
     } catch (err: unknown) {
       console.error('Error al guardar cotización - Raw error:', err);
-      console.error('Error type:', typeof err);
-      console.error('Error keys:', err && typeof err === 'object' ? Object.keys(err) : 'No keys');
-      console.error('Error message:', (err as any)?.message || 'No message');
-      console.error('Error statusCode:', (err as any)?.statusCode || 'No statusCode');
       const e = err as { message?: string };
-      alert(`Error: ${e.message ?? 'No se pudo guardar'}`);
+      toast.error(`Error: ${e.message ?? 'No se pudo guardar la cotización'}`);
     } finally { setSaving(false); }
   };
 
@@ -210,14 +210,14 @@ export default function QuotesPage() {
       {/* HEADER */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <FileText className="text-blue-600" /> Cotizaciones
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <FileText className="text-blue-400" /> Cotizaciones
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Gestión del pipeline de ventas · Flujo: Cotización → Pedido → Factura</p>
+          <p className="text-sm text-gray-400 mt-1">Gestión del pipeline de ventas · Flujo: Cotización → Pedido → Factura</p>
         </div>
         <button
           onClick={openModal}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 transition-colors shadow-sm">
+          className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 transition-colors shadow-lg shadow-blue-500/20">
           <Plus size={18} /> Nueva Cotización
         </button>
       </div>
@@ -230,21 +230,21 @@ export default function QuotesPage() {
             onClick={() => { setFilterStatus(s); setPage(1); }}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filterStatus === s
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                : 'bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10'
             }`}>
             {s === '' ? 'Todas' : STATUS_CONFIG[s]?.label ?? s}
           </button>
         ))}
-        <button onClick={fetchQuotes} className="ml-auto p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">
+        <button onClick={fetchQuotes} className="ml-auto p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
 
       {/* TABLA */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-[#1A1F2C] rounded-xl shadow-xl border border-white/10 overflow-hidden">
         <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold">
+          <thead className="bg-white/5 text-xs uppercase text-gray-400 font-semibold border-b border-white/10">
             <tr>
               <th className="px-5 py-3">N° Cotización</th>
               <th className="px-5 py-3">Cliente</th>
@@ -255,44 +255,44 @@ export default function QuotesPage() {
               <th className="px-5 py-3 text-right">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-white/5">
             {loading ? (
-              <tr><td colSpan={7} className="py-12 text-center text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={7} className="py-12 text-center text-gray-500">Cargando...</td></tr>
             ) : quotes.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-12 text-center text-gray-400">
-                  <FileText size={32} className="mx-auto mb-2 text-gray-300" />
+                <td colSpan={7} className="py-12 text-center text-gray-500">
+                  <FileText size={32} className="mx-auto mb-2 text-gray-600" />
                   <p>No hay cotizaciones. ¡Crea la primera!</p>
                 </td>
               </tr>
             ) : quotes.map(q => {
-              const st = STATUS_CONFIG[q.status] ?? { label: q.status, color: 'bg-gray-100 text-gray-600' };
+              const st = STATUS_CONFIG[q.status] ?? { label: q.status, color: 'bg-white/5 text-gray-400' };
               return (
-                <tr key={q.id} className="hover:bg-blue-50/30 transition-colors cursor-pointer"
+                <tr key={q.id} className="hover:bg-white/5 transition-colors cursor-pointer group"
                   onClick={() => router.push(`/dashboard/sales/quotes/${q.id}`)}>
-                  <td className="px-5 py-3 font-mono font-semibold text-blue-600">{q.quoteNumber}</td>
+                  <td className="px-5 py-3 font-mono font-semibold text-blue-400">{q.quoteNumber}</td>
                   <td className="px-5 py-3">
-                    <p className="font-medium text-gray-800">{q.client.name}</p>
-                    <p className="text-xs text-gray-400">{q.client.rif ?? '—'}</p>
+                    <p className="font-medium text-white">{q.client.name}</p>
+                    <p className="text-xs text-gray-500">{q.client.rif ?? '—'}</p>
                   </td>
-                  <td className="px-5 py-3 text-gray-500">{new Date(q.issueDate).toLocaleDateString('es-VE')}</td>
-                  <td className="px-5 py-3 text-gray-500">
+                  <td className="px-5 py-3 text-gray-400">{new Date(q.issueDate).toLocaleDateString('es-VE')}</td>
+                  <td className="px-5 py-3 text-gray-400">
                     {q.expiresAt ? new Date(q.expiresAt).toLocaleDateString('es-VE') : '—'}
                   </td>
-                  <td className="px-5 py-3 text-right font-semibold text-gray-800">
+                  <td className="px-5 py-3 text-right font-semibold text-white">
                     {fmt(Number(q.totalAmount), q.currencyCode)}
                   </td>
                   <td className="px-5 py-3 text-center">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>{st.label}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${st.color}`}>{st.label}</span>
                   </td>
                   <td className="px-5 py-3 text-right" onClick={e => e.stopPropagation()}>
-                    <div className="flex justify-end gap-1">
+                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {/* Marcar como Enviada */}
                       {q.status === 'DRAFT' && (
                         <button
                           onClick={() => handleStatusChange(q.id, 'SENT')}
                           title="Marcar como Enviada"
-                          className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg">
+                          className="p-1.5 text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors">
                           <Send size={15} />
                         </button>
                       )}
@@ -301,7 +301,7 @@ export default function QuotesPage() {
                         <button
                           onClick={(e) => handleConvert(q.id, e)}
                           title="Convertir a Pedido de Venta"
-                          className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg">
+                          className="p-1.5 text-green-400 hover:bg-green-400/10 rounded-lg transition-colors">
                           <ArrowRight size={15} />
                         </button>
                       )}
@@ -310,12 +310,12 @@ export default function QuotesPage() {
                         <button
                           onClick={() => handleStatusChange(q.id, 'REJECTED')}
                           title="Rechazar"
-                          className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg">
+                          className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-lg transition-colors">
                           <XCircle size={15} />
                         </button>
                       )}
                       <Link href={`/dashboard/sales/quotes/${q.id}`} title="Ver detalle"
-                        className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg">
+                        className="p-1.5 text-gray-400 hover:bg-white/10 rounded-lg transition-colors">
                         <Eye size={15} />
                       </Link>
                     </div>
@@ -332,7 +332,7 @@ export default function QuotesPage() {
         <div className="flex justify-center gap-2">
           {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
             <button key={p} onClick={() => setPage(p)}
-              className={`w-9 h-9 rounded-lg text-sm font-medium ${page === p ? 'bg-blue-600 text-white' : 'bg-white border text-gray-600 hover:bg-gray-50'}`}>
+              className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${page === p ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10'}`}>
               {p}
             </button>
           ))}
@@ -341,35 +341,35 @@ export default function QuotesPage() {
 
       {/* ── MODAL CREAR COTIZACIÓN ─────────────────────────── */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1F2C] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto border border-white/10">
             {/* Modal Header */}
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between rounded-t-2xl">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <FileText size={20} className="text-blue-600" /> Nueva Cotización
+            <div className="sticky top-0 bg-[#1A1F2C]/80 backdrop-blur-md border-b border-white/10 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <FileText size={20} className="text-blue-400" /> Nueva Cotización
               </h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-white transition-colors text-xl font-bold">✕</button>
             </div>
 
             <form onSubmit={handleSave} className="p-6 space-y-6">
               {/* Cabecera */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Cliente *</label>
-                  <select required className="w-full border rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-300 outline-none"
+                  <label className="block text-sm font-medium text-gray-400 mb-1.5">Cliente *</label>
+                  <select required className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
                     value={form.clientId} onChange={e => setForm({ ...form, clientId: e.target.value })}>
                     <option value="">-- Seleccionar cliente --</option>
                     {clients.map(c => <option key={c.id} value={c.id}>{c.name} {c.rif ? `(${c.rif})` : ''}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Válida hasta</label>
-                  <input type="date" className="w-full border rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-300 outline-none"
+                  <label className="block text-sm font-medium text-gray-400 mb-1.5">Válida hasta</label>
+                  <input type="date" className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
                     value={form.expiresAt} onChange={e => setForm({ ...form, expiresAt: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Moneda</label>
-                  <select className="w-full border rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-300 outline-none"
+                  <label className="block text-sm font-medium text-gray-400 mb-1.5">Moneda</label>
+                  <select className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
                     value={form.currencyCode} onChange={e => {
                       const newCurr = e.target.value;
                       setForm({ 
@@ -383,14 +383,14 @@ export default function QuotesPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Tasa de cambio</label>
-                  <input type="number" step="0.01" className="w-full border rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-300 outline-none"
+                  <label className="block text-sm font-medium text-gray-400 mb-1.5">Tasa de cambio</label>
+                  <input type="number" step="0.01" className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
                     value={form.exchangeRate} onChange={e => setForm({ ...form, exchangeRate: Number(e.target.value) })} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Observaciones</label>
+                  <label className="block text-sm font-medium text-gray-400 mb-1.5">Observaciones</label>
                   <input type="text" placeholder="Términos y condiciones..."
-                    className="w-full border rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-300 outline-none"
+                    className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none placeholder-gray-600"
                     value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
                 </div>
               </div>
@@ -398,16 +398,16 @@ export default function QuotesPage() {
               {/* Ítems */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-gray-700">Ítems</h3>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Ítems de la Cotización</h3>
                   <button type="button" onClick={addItem}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
-                    <Plus size={15} /> Agregar línea
+                    className="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 transition-colors">
+                    <Plus size={14} /> AGREGAR LÍNEA
                   </button>
                 </div>
 
-                <div className="border rounded-xl overflow-hidden">
+                <div className="border border-white/10 rounded-xl overflow-hidden bg-[#0B1120]">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                    <thead className="bg-white/5 text-[10px] text-gray-400 uppercase font-bold border-b border-white/10">
                       <tr>
                         <th className="px-3 py-2 text-left w-24">Tipo</th>
                         <th className="px-3 py-2 text-left w-[35%]">Ítem</th>
@@ -420,11 +420,11 @@ export default function QuotesPage() {
                         <th className="px-2 py-2 w-8"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-white/5">
                       {items.map((item, i) => (
-                        <tr key={i} className="hover:bg-gray-50">
+                        <tr key={i} className="hover:bg-white/5 transition-colors">
                           <td className="px-2 py-2">
-                            <select className="w-full border rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-300 outline-none"
+                            <select className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-blue-500 outline-none appearance-none"
                               value={item.type} onChange={e => {
                                 updateItem(i, 'type', e.target.value);
                                 updateItem(i, 'productId', '');
@@ -436,7 +436,7 @@ export default function QuotesPage() {
                           </td>
                           <td className="px-2 py-2">
                             {item.type === 'product' ? (
-                              <select required className="w-full border rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-300 outline-none"
+                              <select required className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-blue-500 outline-none appearance-none"
                                 value={item.productId || ''} onChange={e => updateItem(i, 'productId', e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
                                 {products.map(p => (
@@ -446,7 +446,7 @@ export default function QuotesPage() {
                                 ))}
                               </select>
                             ) : (
-                              <select required className="w-full border rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-300 outline-none"
+                              <select required className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-blue-500 outline-none appearance-none"
                                 value={item.serviceCategoryId || ''} onChange={e => updateItem(i, 'serviceCategoryId', e.target.value)}>
                                 <option value="">-- Seleccionar Servicio --</option>
                                 {serviceCategories.map(s => (
@@ -456,22 +456,22 @@ export default function QuotesPage() {
                             )}
                           </td>
                           <td className="px-2 py-2">
-                            <input className="w-full border rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-300 outline-none"
+                            <input className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-blue-500 outline-none placeholder-gray-600"
                               placeholder="Descripción adicional..."
                               value={item.description} onChange={e => updateItem(i, 'description', e.target.value)} />
                           </td>
                           <td className="px-2 py-2">
                             <input type="number" min="0.01" step="0.01"
-                              className="w-full border rounded-lg px-2 py-1.5 text-xs text-right focus:ring-1 focus:ring-blue-300 outline-none"
+                              className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-right text-white focus:ring-1 focus:ring-blue-500 outline-none"
                               value={item.quantity} onChange={e => updateItem(i, 'quantity', Number(e.target.value))} />
                           </td>
                           <td className="px-2 py-2">
                             <input type="number" min="0" step="0.01"
-                              className="w-full border rounded-lg px-2 py-1.5 text-xs text-right focus:ring-1 focus:ring-blue-300 outline-none"
+                              className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-right text-white focus:ring-1 focus:ring-blue-500 outline-none"
                               value={item.unitPrice} onChange={e => updateItem(i, 'unitPrice', Number(e.target.value))} />
                           </td>
                           <td className="px-2 py-2">
-                            <select className="w-full border rounded-lg px-1.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-300 outline-none"
+                            <select className="w-full bg-white/5 border border-white/10 rounded-lg px-1.5 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-blue-500 outline-none appearance-none"
                               value={item.taxRate} onChange={e => updateItem(i, 'taxRate', Number(e.target.value))}>
                               <option value={16}>16%</option>
                               <option value={8}>8%</option>
@@ -480,10 +480,10 @@ export default function QuotesPage() {
                           </td>
                           <td className="px-2 py-2">
                             <input type="number" min="0" max="100" step="0.5"
-                              className="w-full border rounded-lg px-2 py-1.5 text-xs text-right focus:ring-1 focus:ring-blue-300 outline-none"
+                              className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-right text-white focus:ring-1 focus:ring-blue-500 outline-none"
                               value={item.discount} onChange={e => updateItem(i, 'discount', Number(e.target.value))} />
                           </td>
-                          <td className="px-2 py-2 text-right font-medium text-gray-700 text-xs">
+                          <td className="px-2 py-2 text-right font-medium text-white text-[11px]">
                             {fmt(calcLine(item))}
                           </td>
                           <td className="px-1 py-2 text-center">
@@ -500,21 +500,21 @@ export default function QuotesPage() {
 
                 {/* Totales */}
                 <div className="flex justify-end mt-3">
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-3 text-right">
-                    <p className="text-xs text-gray-500 mb-1">Total Cotización</p>
-                    <p className="text-2xl font-bold text-blue-700">{fmt(total, form.currencyCode)}</p>
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-5 py-3 text-right">
+                    <p className="text-[10px] text-blue-400/70 mb-1 font-bold uppercase tracking-wider">Total Cotización</p>
+                    <p className="text-2xl font-bold text-blue-400">{fmt(total, form.currencyCode)}</p>
                   </div>
                 </div>
               </div>
 
               {/* Botones */}
-              <div className="flex justify-end gap-3 pt-2 border-t">
+              <div className="flex justify-end gap-3 pt-2 border-t border-white/10">
                 <button type="button" onClick={() => setShowModal(false)}
-                  className="px-5 py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl text-sm">
+                  className="px-5 py-2.5 text-gray-400 hover:bg-white/5 rounded-xl text-sm transition-colors font-medium">
                   Cancelar
                 </button>
                 <button type="submit" disabled={saving}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl font-medium text-sm transition-colors">
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 text-white rounded-xl font-bold text-sm transition-colors shadow-lg shadow-blue-500/20">
                   {saving ? 'Guardando...' : '✓ Crear Cotización'}
                 </button>
               </div>

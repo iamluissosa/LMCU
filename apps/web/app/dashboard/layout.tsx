@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase';
 import { apiClient } from '@/lib/api-client';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { 
   LayoutDashboard, Package, Settings, LogOut, 
   Menu, Building2, UserCircle, Truck, ShoppingCart, ClipboardCheck, 
@@ -88,10 +89,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try {
         const data = await apiClient.post<ExchangeRateResponse>('/exchange-rates/sync', {});
         setBcvRate(Number(data.rate));
-        alert(`Tasa actualizada: ${data.rate}`);
+        toast.success(`Tasa actualizada: ${data.rate}`);
     } catch (error) {
         console.error(error);
-        alert("Error actualizando tasa");
+        toast.error("Error actualizando tasa");
     } finally {
         setLoadingRate(false);
     }

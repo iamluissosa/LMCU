@@ -16,12 +16,12 @@ interface SalesOrder {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  CONFIRMED:  { label: 'Confirmado',  color: 'bg-blue-100 text-blue-700',   icon: <CheckCircle size={12} /> },
-  PROCESSING: { label: 'En Proceso',  color: 'bg-yellow-100 text-yellow-700', icon: <Package size={12} /> },
-  SHIPPED:    { label: 'Despachado', color: 'bg-purple-100 text-purple-700', icon: <Truck size={12} /> },
-  DELIVERED:  { label: 'Entregado',  color: 'bg-green-100 text-green-700',  icon: <CheckCircle size={12} /> },
-  INVOICED:   { label: 'Facturado',  color: 'bg-teal-100 text-teal-700',    icon: <FileText size={12} /> },
-  CANCELLED:  { label: 'Cancelado',  color: 'bg-red-100 text-red-600',      icon: <XCircle size={12} /> },
+  CONFIRMED:  { label: 'Confirmado',  color: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',   icon: <CheckCircle size={12} /> },
+  PROCESSING: { label: 'En Proceso',  color: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20', icon: <Package size={12} /> },
+  SHIPPED:    { label: 'Despachado', color: 'bg-purple-500/10 text-purple-400 border border-purple-500/20', icon: <Truck size={12} /> },
+  DELIVERED:  { label: 'Entregado',  color: 'bg-green-500/10 text-green-400 border border-green-500/20',  icon: <CheckCircle size={12} /> },
+  INVOICED:   { label: 'Facturado',  color: 'bg-teal-500/10 text-teal-400 border border-teal-500/20',    icon: <FileText size={12} /> },
+  CANCELLED:  { label: 'Cancelado',  color: 'bg-white/5 text-gray-500 border border-white/10',      icon: <XCircle size={12} /> },
 };
 
 const FLOW = ['CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
@@ -87,13 +87,13 @@ export default function SalesOrdersPage() {
       {/* HEADER */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <ShoppingCart className="text-green-600" /> Pedidos de Venta
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <ShoppingCart className="text-green-500" /> Pedidos de Venta
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Stock comprometido al confirmar · Repuesto al cancelar</p>
+          <p className="text-sm text-gray-400 mt-1 uppercase tracking-tight font-medium">Stock comprometido al confirmar · Repuesto al cancelar</p>
         </div>
         <Link href="/dashboard/sales/quotes"
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 transition-colors shadow-sm text-sm">
+          className="bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-green-500/20 text-xs">
           <Plus size={18} /> Desde Cotización
         </Link>
       </div>
@@ -107,102 +107,109 @@ export default function SalesOrdersPage() {
             <button
               key={st}
               onClick={() => setFilterStatus(filterStatus === st ? '' : st)}
-              className={`p-4 rounded-xl border-2 text-left transition-all ${
-                filterStatus === st ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-white hover:border-gray-300'
+              className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                filterStatus === st 
+                  ? 'border-green-500/50 bg-green-500/10 shadow-lg shadow-green-500/5' 
+                  : 'border-white/5 bg-[#1A1F2C] hover:border-white/10'
               }`}>
-              <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mb-2 ${cfg?.color ?? 'bg-gray-100 text-gray-600'}`}>
+              <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 ${cfg?.color ?? 'bg-white/5 text-gray-400 border border-white/10'}`}>
                 {cfg?.icon} {cfg?.label ?? st}
               </div>
-              <p className="text-2xl font-bold text-gray-800">{data?.count ?? 0}</p>
-              <p className="text-xs text-gray-500 mt-1">{fmt(Number(data?.total ?? 0))}</p>
+              <p className="text-3xl font-black text-white">{data?.count ?? 0}</p>
+              <p className="text-xs text-gray-500 font-mono mt-1">{fmt(Number(data?.total ?? 0))}</p>
             </button>
           );
         })}
       </div>
 
       {/* FILTROS */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap items-center">
         {['', ...Object.keys(STATUS_CONFIG)].map(s => (
           <button key={s} onClick={() => { setFilterStatus(s); setPage(1); }}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filterStatus === s ? 'bg-green-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+              filterStatus === s 
+                ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' 
+                : 'bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white'
             }`}>
             {s === '' ? 'Todos' : STATUS_CONFIG[s]?.label ?? s}
           </button>
         ))}
-        <button onClick={fetchOrders} className="ml-auto p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+        <button onClick={fetchOrders} className="ml-auto p-2.5 text-gray-500 hover:bg-white/5 hover:text-white rounded-xl transition-colors border border-transparent hover:border-white/10">
+          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
 
       {/* TABLA */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-[#1A1F2C] rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
         <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold">
+          <thead className="bg-white/5 text-[10px] uppercase text-gray-500 font-black tracking-widest">
             <tr>
-              <th className="px-5 py-3">N° Pedido</th>
-              <th className="px-5 py-3">Cliente</th>
-              <th className="px-5 py-3">Fecha</th>
-              <th className="px-5 py-3 text-right">Total</th>
-              <th className="px-5 py-3 text-center">Estado</th>
-              <th className="px-5 py-3 text-right">Acciones</th>
+              <th className="px-6 py-4">N° Pedido</th>
+              <th className="px-6 py-4">Cliente</th>
+              <th className="px-6 py-4">Fecha</th>
+              <th className="px-6 py-4 text-right">Total</th>
+              <th className="px-6 py-4 text-center">Estado</th>
+              <th className="px-6 py-4 text-right">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-white/5">
             {loading ? (
-              <tr><td colSpan={6} className="py-12 text-center text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={6} className="py-20 text-center text-gray-500 font-medium">Cargando pedidos...</td></tr>
             ) : orders.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-gray-400">
-                  <ShoppingCart size={32} className="mx-auto mb-2 text-gray-300" />
-                  <p>No hay pedidos{filterStatus ? ` en estado "${STATUS_CONFIG[filterStatus]?.label}"` : ''}.</p>
+                <td colSpan={6} className="py-20 text-center text-gray-500">
+                  <ShoppingCart size={40} className="mx-auto mb-4 text-gray-700" />
+                  <p className="text-lg font-bold text-gray-400">No hay pedidos registrados</p>
+                  <p className="text-sm text-gray-600 mt-1">{filterStatus ? `En estado "${STATUS_CONFIG[filterStatus]?.label}"` : 'Empieza creando una cotización'}.</p>
                 </td>
               </tr>
             ) : orders.map(o => {
-              const st = STATUS_CONFIG[o.status] ?? { label: o.status, color: 'bg-gray-100 text-gray-600', icon: null };
+              const st = STATUS_CONFIG[o.status] ?? { label: o.status, color: 'bg-white/5 text-gray-400', icon: null };
               const flowIdx = FLOW.indexOf(o.status);
               const nextStatus = flowIdx >= 0 && flowIdx < FLOW.length - 1 ? FLOW[flowIdx + 1]! : null;
               const canAdvance = nextStatus !== null;
               const canCancel = o.status !== 'CANCELLED' && o.status !== 'INVOICED';
               return (
-                <tr key={o.id} className="hover:bg-green-50/30 transition-colors cursor-pointer"
+                <tr key={o.id} className="group hover:bg-white/5 transition-all cursor-pointer"
                   onClick={() => router.push(`/dashboard/sales/orders/${o.id}`)}>
-                  <td className="px-5 py-3 font-mono font-semibold text-green-700">{o.orderNumber}</td>
-                  <td className="px-5 py-3 font-medium text-gray-800">{o.client.name}</td>
-                  <td className="px-5 py-3 text-gray-500">{new Date(o.orderDate).toLocaleDateString('es-VE')}</td>
-                  <td className="px-5 py-3 text-right font-semibold text-gray-800">
+                  <td className="px-6 py-4 font-mono font-bold text-green-400">{o.orderNumber}</td>
+                  <td className="px-6 py-4">
+                    <p className="font-bold text-gray-200 group-hover:text-white transition-colors">{o.client.name}</p>
+                  </td>
+                  <td className="px-6 py-4 text-gray-400 font-medium">{new Date(o.orderDate).toLocaleDateString('es-VE')}</td>
+                  <td className="px-6 py-4 text-right font-black text-gray-200 group-hover:text-white transition-colors">
                     {fmt(Number(o.totalAmount), o.currencyCode)}
                   </td>
-                  <td className="px-5 py-3 text-center">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
+                  <td className="px-6 py-4 text-center">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${st.color}`}>
                       {st.icon} {st.label}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-right" onClick={e => e.stopPropagation()}>
-                    <div className="flex justify-end gap-1">
+                  <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
+                    <div className="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       {canAdvance && nextStatus && (
                         <button onClick={(e) => advanceStatus(o.id, o.status, e)}
                           title={`Avanzar a ${STATUS_CONFIG[nextStatus]?.label ?? nextStatus}`}
-                          className="px-2 py-1 text-xs bg-green-50 text-green-700 hover:bg-green-100 rounded-lg font-medium border border-green-200">
+                          className="px-3 py-1.5 text-[10px] bg-green-500/10 text-green-400 hover:bg-green-500/20 rounded-xl font-bold uppercase tracking-wider border border-green-500/20 transition-all shadow-lg shadow-green-500/5">
                           → {STATUS_CONFIG[nextStatus]?.label ?? nextStatus}
                         </button>
                       )}
                       {o.status === 'DELIVERED' && (
                         <Link href={`/dashboard/sales/invoices/new?orderId=${o.id}`}
-                          className="px-2 py-1 text-xs bg-teal-50 text-teal-700 hover:bg-teal-100 rounded-lg font-medium border border-teal-200">
+                          className="px-3 py-1.5 text-[10px] bg-teal-500/10 text-teal-400 hover:bg-teal-500/20 rounded-xl font-bold uppercase tracking-wider border border-teal-500/20 transition-all shadow-lg shadow-teal-500/5">
                           Facturar
                         </Link>
                       )}
                       {canCancel && (
                         <button onClick={(e) => cancelOrder(o.id, e)}
                           title="Cancelar pedido"
-                          className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg">
-                          <XCircle size={15} />
+                          className="p-2 text-red-500/60 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all border border-transparent hover:border-red-500/20">
+                          <XCircle size={16} />
                         </button>
                       )}
                       <Link href={`/dashboard/sales/orders/${o.id}`}
-                        className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg">
-                        <Eye size={15} />
+                        className="p-2 text-gray-500 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-transparent hover:border-white/10">
+                        <Eye size={16} />
                       </Link>
                     </div>
                   </td>
@@ -215,10 +222,14 @@ export default function SalesOrdersPage() {
 
       {/* PAGINACIÓN */}
       {totalPages > 1 && (
-        <div className="flex justify-center gap-2">
+        <div className="flex justify-center gap-2 pt-4">
           {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
             <button key={p} onClick={() => setPage(p)}
-              className={`w-9 h-9 rounded-lg text-sm font-medium ${page === p ? 'bg-green-600 text-white' : 'bg-white border text-gray-600 hover:bg-gray-50'}`}>
+              className={`w-10 h-10 rounded-xl text-xs font-bold transition-all border ${
+                page === p 
+                  ? 'bg-green-600 text-white border-green-500 shadow-lg shadow-green-600/20' 
+                  : 'bg-[#1A1F2C] border-white/10 text-gray-400 hover:bg-white/5 hover:border-white/20'
+              }`}>
               {p}
             </button>
           ))}

@@ -1,0 +1,5 @@
+﻿src/app.controller.spec.ts(19,28): error TS2339: Property 'getHello' does not exist on type 'AppController'.
+src/modules/payments-out/payments-out.service.ts(32,11): error TS2322: Type 'string' is not assignable to type 'PaymentMethod'.
+undefined
+C:\LMCU\erp-lmcu\apps\api:
+ÔÇëERR_PNPM_RECURSIVE_EXEC_FIRST_FAILÔÇë Command failed with exit code 1: tsc --noEmit

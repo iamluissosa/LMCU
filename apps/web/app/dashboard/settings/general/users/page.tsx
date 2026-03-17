@@ -3,10 +3,37 @@ import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { Settings, Save, Shield, Hash, Receipt } from 'lucide-react';
 
+interface Company {
+  id: string;
+  name: string;
+}
+
+interface Role {
+  id: string;
+  name: string;
+  permissions?: string[];
+  companyId?: string;
+  company?: Company;
+  isDefault?: boolean;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  roleId?: string;
+  roleLegacy?: string;
+  companyId?: string;
+  isActive?: boolean;
+  role?: Role;
+  company?: Company;
+  [key: string]: unknown;
+}
+
 export default function GeneralSettingsPage() {
   const [activeTab, setActiveTab] = useState('correlatives');
-  const [settings, setSettings] = useState<any>({});
-  const [roles, setRoles] = useState<any[]>([]);
+  const [settings, setSettings] = useState<Record<string, string | number>>({});
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Cargar datos
@@ -16,7 +43,7 @@ export default function GeneralSettingsPage() {
     // Separamos las llamadas para poder aislar errores individuales
     try {
       const settingsData = await apiClient
-        .get<any>('/settings/general')
+        .get<Record<string, string | number>>('/settings/general')
         .catch((err) => {
           console.error('Error cargando configuración general:',
             JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
@@ -24,12 +51,12 @@ export default function GeneralSettingsPage() {
         });
 
       const rolesData = await apiClient
-        .get<any[]>('/settings/roles')
+        .get<Role[]>('/settings/roles')
         .catch((err) => {
           console.error('Error cargando roles:',
             JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
           // devolvemos arreglo vacío para evitar paquetes nulos
-          return [] as any[];
+          return [] as Role[];
         });
 
       if (settingsData) setSettings(settingsData);
@@ -58,8 +85,7 @@ export default function GeneralSettingsPage() {
   const [currentRole, setCurrentRole] = useState<{id?: string, name: string, permissions: string[], companyId?: string}>({
     name: '', permissions: []
   });
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
 
   const ALL_PERMISSIONS = [
     { id: 'dashboard.view', label: 'Ver Dashboard' },
@@ -109,16 +135,15 @@ export default function GeneralSettingsPage() {
     { id: 'widget.finance.view', label: 'Dashboard: Ver Métricas de Finanzas' },
   ];
 
-  const handleOpenModal = async (role?: any) => {
+  const handleOpenModal = async (role?: Role) => {
     // Cargar empresas si aún no están cargadas
     if (companies.length === 0) {
         try {
-             const data = await apiClient.get<any[]>('/companies');
+             const data = await apiClient.get<Company[]>('/companies');
              if(data) {
                  setCompanies(data);
-                 setIsAdmin(true); 
              }
-        } catch (error) {
+        } catch {
              console.error('No se pudieron cargar empresas, usuario no es admin global o error red');
         }
     }
@@ -296,7 +321,7 @@ export default function GeneralSettingsPage() {
                   </thead>
                   <tbody className="divide-y divide-white/5">
                     {roles.length === 0 ? <tr><td colSpan={4} className="p-8 text-center text-gray-500">No hay roles personalizados.</td></tr> : 
-                    roles.map((rol: any) => (
+                    roles.map((rol: Role) => (
                       <tr key={rol.id} className="hover:bg-white/5 transition-colors">
                         <td className="px-5 py-4 text-gray-500 text-xs">{rol.company?.name || 'Local'}</td>
                         <td className="px-5 py-4 font-bold text-gray-200">{rol.name}</td>
@@ -413,23 +438,33 @@ export default function GeneralSettingsPage() {
 }
 
 // --- SUB-COMPONENT PARA USUARIOS ---
+interface EditingUser {
+    id: string | null;
+    name: string;
+    email: string;
+    password?: string;
+    roleLegacy: string;
+    roleId: string;
+    companyId: string;
+}
+
 function UsersListTab() {
-    const [users, setUsers] = useState<any[]>([]);
-    const [roles, setRoles] = useState<any[]>([]);
-    const [companies, setCompanies] = useState<any[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
+    const [roles, setRoles] = useState<Role[]>([]);
+    const [companies, setCompanies] = useState<Company[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Modal State
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-    const [editingUser, setEditingUser] = useState<any>(null); // null = Create Mode
+    const [editingUser, setEditingUser] = useState<EditingUser | null>(null); // null = Create Mode
 
     // Cargar Usuarios, Roles y Empresas
     const fetchData = async () => {
         try {
             const [usersData, rolesData, companiesData] = await Promise.all([
-                apiClient.get<any[]>('/users'),
-                apiClient.get<any[]>('/settings/roles'),
-                apiClient.get<any[]>('/companies').catch(() => []) // Puede fallar si no es admin
+                apiClient.get<User[]>('/users'),
+                apiClient.get<Role[]>('/settings/roles'),
+                apiClient.get<Company[]>('/companies').catch(() => []) // Puede fallar si no es admin
             ]);
 
             if (usersData) setUsers(usersData);
@@ -458,7 +493,7 @@ function UsersListTab() {
         setIsUserModalOpen(true);
     };
 
-    const handleEditUser = (user: any) => {
+    const handleEditUser = (user: User) => {
         setEditingUser({
             id: user.id,
             name: user.name || '',
@@ -484,6 +519,7 @@ function UsersListTab() {
 
     const handleSaveUser = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!editingUser) return;
 
         try {
             if (editingUser.id) {
@@ -507,9 +543,10 @@ function UsersListTab() {
             }
             setIsUserModalOpen(false);
             fetchData();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            alert(`Error: ${error.message || 'Error al guardar usuario'}`);
+            const msg = error instanceof Error ? error.message : 'Error al guardar usuario';
+            alert(`Error: ${msg}`);
         }
     };
 
@@ -544,7 +581,7 @@ function UsersListTab() {
                   </thead>
                   <tbody className="divide-y divide-white/5">
                     {users.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-gray-500">No hay usuarios.</td></tr> : 
-                    users.map((u: any) => (
+                    users.map((u: User) => (
                       <tr key={u.id} className="hover:bg-white/5 transition-colors">
                         <td className="px-5 py-4 font-bold text-gray-200 cursor-pointer hover:text-blue-400" onClick={() => handleEditUser(u)}>
                             {u.name || 'Sin Nombre'}

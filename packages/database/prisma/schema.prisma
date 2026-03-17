@@ -240,6 +240,7 @@ model Supplier {
 
   retentionISLR Decimal @default(0) @db.Decimal(5, 2)
   paymentTerms  Int     @default(0)
+  currencyPref  String  @default("MULTI") // 'USD', 'VES', 'MULTI'
 
   company        Company         @relation(fields: [companyId], references: [id])
   purchaseOrders PurchaseOrder[]
@@ -436,7 +437,14 @@ model PurchaseBillItem {
   unitPrice Decimal @db.Decimal(12, 2)
   taxRate   Decimal @default(0) @db.Decimal(5, 2)
   islrRate  Decimal @default(0) @db.Decimal(5, 2)
-  totalLine Decimal @db.Decimal(12, 2)
+
+  // DESCUENTO POR LÍNEA
+  // discountType: 'PERCENT' | 'FIXED_USD' | 'FIXED_VES'
+  discountType   String?  // Tipo de descuento
+  discountValue  Decimal? @db.Decimal(12, 2) // Valor tal como lo ingresó el usuario
+  discountAmount Decimal  @default(0) @db.Decimal(12, 2) // Equivalente en USD (calculado)
+
+  totalLine Decimal @db.Decimal(12, 2) // Base neta (sin IVA, después del descuento)
 }
 
 // CATEGORÍAS DE GASTO (para Compras Directas)

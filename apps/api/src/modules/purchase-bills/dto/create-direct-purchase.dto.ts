@@ -8,6 +8,7 @@ import {
   ValidateNested,
   Min,
   IsUUID,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -36,9 +37,19 @@ export class DirectPurchaseItemDto {
   @IsOptional()
   islrRate?: number; // Retención ISLR si aplica
 
+  @IsString()
+  @IsOptional()
+  @IsIn(['PERCENT', 'FIXED_USD', 'FIXED_VES'])
+  discountType?: 'PERCENT' | 'FIXED_USD' | 'FIXED_VES'; // Tipo de descuento
+
   @IsNumber()
   @IsOptional()
-  totalLine?: number; // Calculado: quantity * unitPrice
+  @Min(0)
+  discountValue?: number; // Valor ingresado por el usuario
+
+  @IsNumber()
+  @IsOptional()
+  totalLine?: number; // Calculado: (quantity * unitPrice) - descuento
 }
 
 export class CreateDirectPurchaseDto {
@@ -73,6 +84,10 @@ export class CreateDirectPurchaseDto {
   @IsNumber()
   @IsOptional()
   exchangeRate?: number;
+
+  @IsString()
+  @IsOptional()
+  currencyCode?: string; // Múltiples monedas (USD o VES)
 
   @IsArray()
   @ValidateNested({ each: true })

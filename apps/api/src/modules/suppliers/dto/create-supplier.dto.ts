@@ -41,4 +41,8 @@ export class CreateSupplierDto {
   @IsOptional()
   @Min(0)
   retentionISLR?: number;
+
+  @IsString()
+  @IsOptional()
+  currencyPref?: string;
 }

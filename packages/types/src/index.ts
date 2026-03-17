@@ -15,6 +15,7 @@ export interface Supplier {
   paymentTerms: number;
   companyId: string;
   contactName?: string; // Editado T-01
+  currencyPref?: 'USD' | 'VES' | 'MULTI';
 }
 
 export interface Product {
@@ -32,6 +33,10 @@ export interface PurchaseBillItem {
   unitPrice: number;
   taxRate: number;
   islrRate: number;
+  // Descuento
+  discountType?: 'PERCENT' | 'FIXED_USD' | 'FIXED_VES';
+  discountValue?: number;
+  discountAmount?: number;
   totalLine: number;
 }
 

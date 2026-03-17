@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, LayoutDashboard, ShieldAlert, Save } from 'lucide-react';
+import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase';
 import { apiClient } from '@/lib/api-client';
 
@@ -63,7 +64,7 @@ export default function DashboardSettingsPage() {
 
     } catch (error) {
       console.error('Error al cargar configuración del dashboard:', error);
-      alert('Error al cargar la configuración');
+      toast.error('Error al cargar la configuración');
       setHasPermission(false);
     } finally {
       setIsLoading(false);
@@ -79,7 +80,7 @@ export default function DashboardSettingsPage() {
       }
     } catch (error) {
       console.error('Error fetching roles:', error);
-      alert('Error al cargar los roles');
+      toast.error('Error al cargar los roles');
     }
   };
 
@@ -112,12 +113,12 @@ export default function DashboardSettingsPage() {
         permissions: selectedRole.permissions,
       });
       
-      alert(`Configuración guardada para el rol ${selectedRole.name}`);
+      toast.success(`Configuración guardada para el rol ${selectedRole.name}`);
       // Actualizar la lista en memoria
       setRoles(roles.map(r => r.id === selectedRole.id ? selectedRole : r));
     } catch (error) {
       console.error('Error al guardar configuración:', error);
-      alert('Ocurrió un error al guardar');
+      toast.error('Ocurrió un error al guardar');
     } finally {
       setIsSaving(false);
     }

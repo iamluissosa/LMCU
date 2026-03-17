@@ -1,5 +1,6 @@
 import './globals.css'; // Asegúrate de que este archivo exista, si no, borra esta línea.
 import type { Metadata } from 'next';
+import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
   title: 'LMCU ERP',
@@ -15,6 +16,7 @@ export default function RootLayout({
     <html lang="es">
       <body className="bg-background text-foreground min-h-screen">
         {children}
+        <Toaster theme="dark" richColors position="top-right" />
       </body>
     </html>
   );

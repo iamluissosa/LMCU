@@ -37,13 +37,13 @@ export default function BillsPage() {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const response = await apiClient.get<{ items: PurchaseOrder[]; pagination: any }>('/purchase-orders');
+        const response = await apiClient.get<{ items: PurchaseOrder[]; pagination: unknown }>('/purchase-orders');
         // Filtramos solo las que tienen algo recibido (status != OPEN)
         setOrders(response.items.filter((o) => o.status === 'PARTIALLY_RECEIVED' || o.status === 'RECEIVED'));
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error fetching orders (full):', error);
-        console.error('Error message:', error.message);
-        alert(`Error: ${error.message || 'Error al cargar órdenes'}`);
+        const e = error as { message?: string };
+        alert(`Error: ${e.message || 'Error al cargar órdenes'}`);
       }
     };
     fetchOrders();
@@ -117,8 +117,9 @@ export default function BillsPage() {
 
       alert("✅ Factura registrada y conciliada correctamente.");
       window.location.reload();
-    } catch (e: any) {
-      console.error('Error completo:', JSON.stringify(e, null, 2));
+    } catch (err: unknown) {
+      console.error('Error completo:', err);
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
       const errorMessage = e.response?.data?.message || e.message || 'Error desconocido';
       alert(`❌ Error de Conciliación: ${errorMessage}`);
     }
@@ -127,12 +128,15 @@ export default function BillsPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <DollarSign className="text-green-600" /> Registro de Facturas (Cuentas por Pagar)
-        </h1>
+        <div>
+          <h1 className="text-2xl font-black text-white flex items-center gap-2">
+            <DollarSign className="text-green-500" /> Registro de Facturas
+          </h1>
+          <p className="text-sm text-gray-400 mt-1 uppercase tracking-tight font-medium">Cuentas por Pagar a Proveedores</p>
+        </div>
         <button 
           onClick={() => router.push('/dashboard/accounting/bills/direct')} 
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow transition-colors"
+          className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-blue-500/20 transition-all"
         >
           + Nueva Compra Directa
         </button>
@@ -140,160 +144,176 @@ export default function BillsPage() {
 
       {/* PASO 1: ELEGIR ORDEN PARA CRUZAR */}
       {step === 1 && (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h2 className="text-lg font-semibold mb-4">Órdenes con Recepción Pendiente de Pago</h2>
+        <div className="bg-[#1A1F2C] p-8 rounded-2xl shadow-2xl border border-white/10">
+          <h2 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-6">Órdenes con Recepción Pendiente de Pago</h2>
           <div className="grid gap-4">
             {orders.map((order) => (
               <div key={order.id} onClick={() => handleSelectOrder(order)}
-                   className="flex justify-between items-center p-4 border rounded-lg hover:border-green-500 cursor-pointer transition-colors bg-gray-50 hover:bg-white">
-                <div>
-                  <div className="font-bold text-gray-800">{order.orderNumber}</div>
-                  <div className="text-sm text-gray-500">{order.supplier?.name || 'Proveedor Desconocido'}</div>
+                   className="flex justify-between items-center p-5 border border-white/5 rounded-2xl hover:border-green-500/50 cursor-pointer transition-all bg-white/5 hover:bg-white/10 group shadow-lg shadow-black/20">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-green-500/10 rounded-xl text-green-400 group-hover:scale-110 transition-transform">
+                    <FileText size={24} />
+                  </div>
+                  <div>
+                    <div className="font-black text-white text-lg tracking-tight">{order.orderNumber}</div>
+                    <div className="text-xs text-gray-400 font-medium uppercase tracking-tight">{order.supplier?.name || 'Proveedor Desconocido'}</div>
+                  </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-full mb-1">
+                  <div className="text-[10px] font-black text-green-400 bg-green-500/10 px-3 py-1 rounded-full mb-2 uppercase tracking-widest border border-green-500/20">
                     {order.status}
                   </div>
-                  <div className="text-sm font-mono text-gray-600">Total Est: ${order.totalAmount}</div>
+                  <div className="text-sm font-black text-white font-mono tracking-tighter">TOTAL EST: ${order.totalAmount}</div>
                 </div>
               </div>
             ))}
-            {orders.length === 0 && <p className="text-gray-400">No hay recepciones pendientes por facturar.</p>}
+            {orders.length === 0 && (
+              <div className="py-12 text-center">
+                <FileText size={48} className="mx-auto text-gray-700 mb-4" />
+                <p className="text-gray-500 font-bold">No hay recepciones pendientes por facturar.</p>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* PASO 2: INGRESAR DATOS DE FACTURA */}
       {step === 2 && selectedOrder && (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-in fade-in">
-          <div className="flex justify-between mb-6 border-b pb-4">
-            <h2 className="text-lg font-bold text-gray-800">Facturando Orden {selectedOrder.orderNumber}</h2>
-            <button onClick={() => setStep(1)} className="text-sm text-gray-500 underline">Cambiar</button>
+        <div className="bg-[#1A1F2C] p-8 rounded-2xl shadow-2xl border border-white/10 animate-in fade-in zoom-in duration-300">
+          <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-6">
+            <h2 className="text-xl font-black text-white tracking-tight uppercase">Facturando Orden <span className="text-green-400 font-mono">#{selectedOrder.orderNumber}</span></h2>
+            <button onClick={() => setStep(1)} className="text-[10px] font-bold text-gray-500 hover:text-white uppercase tracking-widest transition-colors">Volver a la lista</button>
           </div>
 
           {/* Datos Fiscales */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div>
-              <label className="block text-sm font-medium text-gray-700">N° Factura</label>
-              <input type="text" className="w-full border rounded p-2" placeholder="Ej: 000451"
+              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">N° Factura Física</label>
+              <input type="text" className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-green-500/50 outline-none placeholder:text-gray-600 transition-all font-mono" placeholder="Ej: 000451"
                 value={invoiceData.invoiceNumber} onChange={e => setInvoiceData({...invoiceData, invoiceNumber: e.target.value})} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">N° Control</label>
-              <input type="text" className="w-full border rounded p-2" placeholder="Ej: 00-..."
+              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">N° de Control</label>
+              <input type="text" className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-green-500/50 outline-none placeholder:text-gray-600 transition-all font-mono" placeholder="Ej: 00-..."
                 value={invoiceData.controlNumber} onChange={e => setInvoiceData({...invoiceData, controlNumber: e.target.value})} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Fecha Emisión</label>
-              <input type="date" className="w-full border rounded p-2"
+              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Fecha de Emisión</label>
+              <input type="date" className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-green-500/50 outline-none transition-all color-scheme-dark"
+                style={{ colorScheme: 'dark' }}
                 value={invoiceData.issueDate} onChange={e => setInvoiceData({...invoiceData, issueDate: e.target.value})} />
             </div>
           </div>
 
           {/* Tabla de Conciliación */}
-          <table className="w-full text-sm text-left mb-6">
-            <thead className="bg-gray-100 uppercase text-xs">
-              <tr>
-                <th className="px-4 py-2">Producto</th>
-                <th className="px-4 py-2 text-center">Recibido (Max)</th>
-                <th className="px-4 py-2 w-32">Cant. Facturada</th>
-                <th className="px-4 py-2 w-32">Precio Unit.</th>
-                <th className="px-4 py-2 w-32">Alícuota IVA</th>
-                <th className="px-4 py-2 w-24">Ret. ISLR %</th>
-                <th className="px-4 py-2 text-right">Subtotal + IVA</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {billItems.map((item, idx) => (
-                <tr key={idx}>
-                  <td className="px-4 py-2 font-medium">{item.productName}</td>
-                  <td className="px-4 py-2 text-center text-gray-500 bg-gray-50">{item.received}</td>
-                  <td className="px-4 py-2">
-                    <input type="number" className="w-full border rounded p-1 text-center font-bold"
-                      max={item.received}
-                      value={item.quantity}
-                        onChange={(e) => {
-                        const val = Number(e.target.value);
-                        // Validación visual rápida
-                        if(val > item.received) alert("¡No puedes facturar más de lo recibido!");
-                        const newItems = [...billItems];
-                        if (newItems[idx]) {
-                           newItems[idx].quantity = val;
-                           setBillItems(newItems);
-                        }
-                      }}
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input type="number" className="w-full border rounded p-1 text-right"
-                      value={item.unitPrice}
-                      onChange={(e) => {
-                        const newItems = [...billItems];
-                        if (newItems[idx]) {
-                           newItems[idx].unitPrice = Number(e.target.value);
-                           setBillItems(newItems);
-                        }
-                      }}
-                    />
-                  </td>
-                  {/* SELECTOR DE IVA */}
-                  <td className="px-4 py-2">
-                     <select className="w-full border rounded p-1 text-xs"
-                        value={item.taxRate}
-                        onChange={(e) => {
-                            const newItems = [...billItems];
-                            if (newItems[idx]) {
-                               newItems[idx].taxRate = Number(e.target.value);
-                               setBillItems(newItems);
-                            }
-                        }}
-                     >
-                        <option value={16}>16% (G)</option>
-                        <option value={8}>8% (R)</option>
-                        <option value={31}>31% (L)</option>
-                        <option value={0}>Exento (E)</option>
-                     </select>
-                  </td>
-                  {/* RETENCION ISLR MANUAL */}
-                  <td className="px-4 py-2">
-                     <input type="number" className="w-full border rounded p-1 text-center"
-                        value={item.islrRate}
-                        onChange={(e) => {
-                            const newItems = [...billItems];
-                            if (newItems[idx]) {
-                               newItems[idx].islrRate = Number(e.target.value);
-                               setBillItems(newItems);
-                            }
-                        }}
-                     />
-                  </td>
-                  <td className="px-4 py-2 text-right font-mono text-gray-800">
-                    {/* Subtotal Línea + IVA Línea */}
-                    ${((item.quantity * item.unitPrice) * (1 + (item.taxRate/100))).toFixed(2)}
-                  </td>
+          <div className="border border-white/10 rounded-2xl overflow-hidden bg-white/5 shadow-inner mb-8">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-white/5 text-[10px] uppercase text-gray-500 font-black tracking-widest">
+                <tr>
+                  <th className="px-5 py-4">Producto / Servicio</th>
+                  <th className="px-5 py-4 text-center">Recibido (MAX)</th>
+                  <th className="px-5 py-4 w-32">Cant. Facturada</th>
+                  <th className="px-5 py-4 w-36">Precio Unit. ($)</th>
+                  <th className="px-5 py-4 w-32">IVA (%)</th>
+                  <th className="px-5 py-4 w-28 text-center">Ret. ISLR %</th>
+                  <th className="px-5 py-4 text-right">Subtotal + IVA</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {billItems.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-white/5 transition-colors group">
+                    <td className="px-5 py-4 font-bold text-gray-200 group-hover:text-white transition-colors">{item.productName}</td>
+                    <td className="px-5 py-4 text-center">
+                      <span className="bg-white/5 text-gray-400 px-3 py-1 rounded-lg font-mono text-xs border border-white/5 group-hover:border-white/10 transition-all">
+                        {item.received}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <input type="number" className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-center font-black text-green-400 focus:ring-2 focus:ring-green-500/50 outline-none transition-all"
+                        max={item.received}
+                        value={item.quantity}
+                          onChange={(e) => {
+                          const val = Number(e.target.value);
+                          if(val > item.received) alert("¡No puedes facturar más de lo recibido!");
+                          const newItems = [...billItems];
+                          if (newItems[idx]) {
+                             newItems[idx].quantity = val;
+                             setBillItems(newItems);
+                          }
+                        }}
+                      />
+                    </td>
+                    <td className="px-5 py-4">
+                      <input type="number" className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-right text-gray-200 font-mono focus:ring-2 focus:ring-green-500/50 outline-none transition-all"
+                        value={item.unitPrice}
+                        onChange={(e) => {
+                          const newItems = [...billItems];
+                          if (newItems[idx]) {
+                             newItems[idx].unitPrice = Number(e.target.value);
+                             setBillItems(newItems);
+                          }
+                        }}
+                      />
+                    </td>
+                    <td className="px-5 py-4">
+                       <select className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-xs text-gray-300 focus:ring-2 focus:ring-green-500/50 outline-none transition-all appearance-none cursor-pointer"
+                          value={item.taxRate}
+                          onChange={(e) => {
+                              const newItems = [...billItems];
+                              if (newItems[idx]) {
+                                 newItems[idx].taxRate = Number(e.target.value);
+                                 setBillItems(newItems);
+                              }
+                          }}
+                       >
+                          <option value={16} className="bg-[#1A1F2C]">16% (G)</option>
+                          <option value={8} className="bg-[#1A1F2C]">8% (R)</option>
+                          <option value={31} className="bg-[#1A1F2C]">31% (L)</option>
+                          <option value={0} className="bg-[#1A1F2C]">Exento (E)</option>
+                       </select>
+                    </td>
+                    <td className="px-5 py-4">
+                       <input type="number" className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-center text-orange-400 font-bold focus:ring-2 focus:ring-orange-500/50 outline-none transition-all"
+                          value={item.islrRate}
+                          onChange={(e) => {
+                              const newItems = [...billItems];
+                              if (newItems[idx]) {
+                                 newItems[idx].islrRate = Number(e.target.value);
+                                 setBillItems(newItems);
+                              }
+                          }}
+                       />
+                    </td>
+                    <td className="px-5 py-4 text-right font-black text-white bg-white/5 transition-all">
+                      ${((item.quantity * item.unitPrice) * (1 + (item.taxRate/100))).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-          <div className="flex justify-end pt-4 border-t">
-            <div className="w-full max-w-sm space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Subtotal (Base Imponible):</span>
-                <span className="font-mono font-medium">${billItems.reduce((acc, i) => acc + (Number(i.quantity) * Number(i.unitPrice)), 0).toFixed(2)}</span>
+          <div className="flex justify-end pt-8 border-t border-white/10">
+            <div className="w-full max-w-sm space-y-4">
+              <div className="flex justify-between items-center bg-white/5 p-4 rounded-xl border border-white/5">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Base Imponible</p>
+                  <p className="font-mono font-black text-xl text-white">${billItems.reduce((acc, i) => acc + (Number(i.quantity) * Number(i.unitPrice)), 0).toFixed(2)}</p>
+                </div>
+                <div className="text-right space-y-1">
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">IVA Estimado</p>
+                  <p className="font-mono font-black text-xl text-teal-400">${billItems.reduce((acc, i) => acc + ((Number(i.quantity) * Number(i.unitPrice)) * (Number(i.taxRate)/100)), 0).toFixed(2)}</p>
+                </div>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Total Impuestos (IVA):</span>
-                <span className="font-mono font-medium">${billItems.reduce((acc, i) => acc + ((Number(i.quantity) * Number(i.unitPrice)) * (Number(i.taxRate)/100)), 0).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center text-xl font-bold text-gray-800 border-t pt-3">
-                <span>Total a Pagar:</span>
-                <span className="text-green-600">${calculateTotal().toFixed(2)}</span>
+
+              <div className="flex justify-between items-center p-6 bg-green-500/5 rounded-2xl border border-green-500/10 shadow-xl shadow-green-500/5">
+                <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Saldo Total a Pagar</span>
+                <span className="text-4xl font-black text-green-400 tracking-tighter">${calculateTotal().toFixed(2)}</span>
               </div>
               
-              <div className="pt-4 flex justify-end">
-                <button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 font-bold w-full justify-center">
-                  <FileText size={20} /> Registrar Cuenta por Pagar
+              <div className="pt-6">
+                <button onClick={handleSubmit} className="bg-green-600 hover:bg-green-500 text-white p-5 rounded-2xl flex items-center gap-3 font-black uppercase tracking-widest text-xs w-full justify-center shadow-lg shadow-green-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                  <FileText size={22} /> Registrar Cuenta por Pagar
                 </button>
               </div>
             </div>

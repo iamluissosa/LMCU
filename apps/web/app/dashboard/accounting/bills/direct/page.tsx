@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { Receipt, DollarSign, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { Receipt, DollarSign, Plus, Trash2, AlertCircle, Tag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Supplier } from '@erp/types';
 
@@ -11,6 +11,8 @@ interface ExpenseCategory {
   description?: string;
 }
 
+type DiscountType = 'PERCENT' | 'FIXED_USD' | 'FIXED_VES';
+
 interface ExpenseItem {
   expenseCategoryId: string;
   description: string;
@@ -18,6 +20,9 @@ interface ExpenseItem {
   unitPrice: number;
   taxRate: number;
   islrRate: number;
+  // Descuento
+  discountType: DiscountType;
+  discountValue: number;
 }
 
 export default function DirectPurchasePage() {
@@ -34,14 +39,16 @@ export default function DirectPurchasePage() {
     invoiceNumber: '',
     controlNumber: '',
     issueDate: new Date().toISOString().split('T')[0],
+    exchangeRate: 1, // Tasa de cambio Bs/USD — necesaria para descuentos en VES
+    currencyCode: 'USD', // Por defecto USD, cambia según proveedor
   });
 
   // Ítems de gasto
   const [items, setItems] = useState<ExpenseItem[]>([]);
 
-  // Cargar catálogos
+  // Cargar catálogos y tasa BCV
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       try {
         const [supRes, catRes] = await Promise.all([
           apiClient.get<{ items: Supplier[] }>('/suppliers'),
@@ -52,8 +59,18 @@ export default function DirectPurchasePage() {
       } catch (err) {
         console.error('Error cargando catálogos:', err);
       }
+
+      // Cargar tasa BCV del día
+      try {
+        const rateData = await apiClient.get<{ rate: number }>('/exchange-rates/latest');
+        if (rateData?.rate) {
+          setInvoiceData(prev => ({ ...prev, exchangeRate: Number(rateData.rate) }));
+        }
+      } catch {
+        // Si no hay tasa disponible, se quedará en 1
+      }
     };
-    fetch();
+    fetchData();
   }, []);
 
   const addLine = () => {
@@ -64,6 +81,8 @@ export default function DirectPurchasePage() {
       unitPrice: 0,
       taxRate: 16,
       islrRate: 0,
+      discountType: 'PERCENT',
+      discountValue: 0,
     }]);
   };
 
@@ -77,12 +96,48 @@ export default function DirectPurchasePage() {
     setItems(items.filter((_, i) => i !== idx));
   };
 
-  const calcSubtotal = (item: ExpenseItem) => Number(item.quantity) * Number(item.unitPrice);
-  const calcTax = (item: ExpenseItem) => calcSubtotal(item) * (Number(item.taxRate) / 100);
-  const calcTotal = () => items.reduce((acc, i) => acc + calcSubtotal(i) + calcTax(i), 0);
-  const calcTotalBase = () => items.reduce((acc, i) => acc + calcSubtotal(i), 0);
-  const calcTotalTax = () => items.reduce((acc, i) => acc + calcTax(i), 0);
+  // ─── Funciones de Cálculo ────────────────────────────────────────────────
+  /** Monto bruto de la línea antes del descuento */
+  const calcBruto = (item: ExpenseItem) =>
+    Number(item.quantity) * Number(item.unitPrice);
 
+  /** Descuento en USD según el tipo */
+  const calcDiscount = (item: ExpenseItem): number => {
+    const bruto = calcBruto(item);
+    const val = Number(item.discountValue);
+    if (!val || val <= 0) return 0;
+    switch (item.discountType) {
+      case 'PERCENT':   return bruto * (val / 100);
+      case 'FIXED_USD': return val;
+      case 'FIXED_VES': return invoiceData.exchangeRate > 0
+        ? val / invoiceData.exchangeRate
+        : 0;
+      default: return 0;
+    }
+  };
+
+  /** Base neta de la línea (después del descuento, sin IVA) */
+  const calcBase = (item: ExpenseItem) =>
+    Math.max(0, calcBruto(item) - calcDiscount(item));
+
+  /** IVA sobre la base neta */
+  const calcTax = (item: ExpenseItem) =>
+    calcBase(item) * (Number(item.taxRate) / 100);
+
+  /** Total de la línea (base + IVA) */
+  const calcLineTotal = (item: ExpenseItem) => calcBase(item) + calcTax(item);
+
+  // Totales globales
+  const calcTotalBase    = () => items.reduce((acc, i) => acc + calcBase(i), 0);
+  const calcTotalTax     = () => items.reduce((acc, i) => acc + calcTax(i), 0);
+  const calcTotalDiscount= () => items.reduce((acc, i) => acc + calcDiscount(i), 0);
+  const calcTotal        = () => items.reduce((acc, i) => acc + calcLineTotal(i), 0);
+
+  // ─── Label visual del tipo de descuento ─────────────────────────────────
+  const discountLabel = (type: DiscountType) =>
+    ({ PERCENT: '%', FIXED_USD: 'USD', FIXED_VES: 'VES' })[type];
+
+  // ─── Submit ──────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!invoiceData.supplierId) return alert('Selecciona un proveedor');
     if (!invoiceData.invoiceNumber) return alert('Ingresa el N° de Factura');
@@ -92,18 +147,26 @@ export default function DirectPurchasePage() {
     setLoading(true);
     try {
       const payload = {
-        ...invoiceData,
+        supplierId:    invoiceData.supplierId,
+        invoiceNumber: invoiceData.invoiceNumber,
+        controlNumber: invoiceData.controlNumber,
+        issueDate:     invoiceData.issueDate,
+        exchangeRate:  invoiceData.exchangeRate,
+        currencyCode:  invoiceData.currencyCode,
+        // Totales calculados post-descuento
         taxableAmount: calcTotalBase(),
-        taxAmount: calcTotalTax(),
-        totalAmount: calcTotal(),
+        taxAmount:     calcTotalTax(),
+        totalAmount:   calcTotal(),
         items: items.map(i => ({
           expenseCategoryId: i.expenseCategoryId || undefined,
-          description: i.description,
-          quantity: Number(i.quantity),
-          unitPrice: Number(i.unitPrice),
-          taxRate: Number(i.taxRate),
-          islrRate: Number(i.islrRate),
-          totalLine: calcSubtotal(i),
+          description:       i.description,
+          quantity:          Number(i.quantity),
+          unitPrice:         Number(i.unitPrice),
+          taxRate:           Number(i.taxRate),
+          islrRate:          Number(i.islrRate),
+          discountType:      i.discountValue > 0 ? i.discountType : undefined,
+          discountValue:     i.discountValue > 0 ? Number(i.discountValue) : undefined,
+          totalLine:         calcBase(i), // Base neta (sin IVA)
         })),
       };
 
@@ -120,146 +183,261 @@ export default function DirectPurchasePage() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-6 max-w-6xl mx-auto pb-10">
       {/* HEADER */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <Receipt className="text-orange-500" /> Registro de Gasto (Compra Directa)
+          <h1 className="text-2xl font-black text-white flex items-center gap-2">
+            <Receipt className="text-orange-400" /> Registro de Gasto
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Servicios, suministros y gastos operativos — <strong>No afecta el inventario</strong></p>
+          <p className="text-gray-400 text-sm mt-1 uppercase tracking-tight font-medium">
+            Compra Directa · Servicios y Suministros · <strong className="text-orange-400/80">No afecta inventario</strong>
+          </p>
         </div>
         <button onClick={() => router.push('/dashboard/accounting/bills')}
-          className="text-gray-500 hover:text-gray-700 text-sm underline">
+          className="text-[10px] font-bold text-gray-500 hover:text-white uppercase tracking-widest transition-all">
           Volver a Facturas
         </button>
       </div>
 
       {/* AVISO */}
-      <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm text-orange-800">
-        <AlertCircle size={18} className="mt-0.5 shrink-0 text-orange-500" />
+      <div className="flex items-start gap-4 bg-orange-500/5 border border-orange-500/10 rounded-2xl p-5 text-sm text-orange-200 shadow-xl shadow-orange-500/5">
+        <AlertCircle size={22} className="mt-0.5 shrink-0 text-orange-400" />
         <div>
-          <strong>Compra de Gastos:</strong> Esta factura registra un gasto operativo (alquiler, servicios, honorarios, papelería, etc.).
-          El stock del almacén <strong>no se modifica</strong>. Para mercancía que entra al inventario, usa el flujo de Orden de Compra.
+          <strong className="text-orange-400 uppercase tracking-widest text-[10px] block mb-1">Nota Importante:</strong>
+          Esta factura registra un gasto operativo (alquiler, servicios, honorarios, etc.).
+          El stock del almacén <strong className="text-white">no se modificará</strong>.
+          Para mercancía de inventario, usa el flujo de Orden de Compra.
         </div>
       </div>
 
       {/* CABECERA */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-        <h2 className="font-bold text-gray-700 mb-4 text-sm uppercase tracking-wide">Datos de la Factura</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="col-span-2 md:col-span-1">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Proveedor *</label>
-            <select className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-orange-300 outline-none"
-              value={invoiceData.supplierId}
-              onChange={e => setInvoiceData({ ...invoiceData, supplierId: e.target.value })}>
+      <div className="bg-[#1A1F2C] p-8 rounded-2xl shadow-2xl border border-white/10">
+        <h2 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6 border-b border-white/5 pb-4">
+          Datos Fiscales de la Factura
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <div className="md:col-span-1">
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Proveedor *</label>
+            <select
+              className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-orange-500/50 outline-none appearance-none cursor-pointer transition-all"
+              onChange={e => {
+                const suppId = e.target.value;
+                const supplier = suppliers.find(s => s.id === suppId);
+                // Predeterminar moneda según preferencia del proveedor
+                let newCurrency = invoiceData.currencyCode;
+                if (supplier) {
+                  if (supplier.currencyPref === 'USD') newCurrency = 'USD';
+                  else if (supplier.currencyPref === 'VES') newCurrency = 'VES';
+                  else if (supplier.currencyPref === 'MULTI') newCurrency = 'USD'; // default
+                }
+                setInvoiceData({ ...invoiceData, supplierId: suppId, currencyCode: newCurrency });
+              }}>
               <option value="">Selecciona...</option>
-              {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {suppliers.map(s => <option key={s.id} value={s.id} className="bg-[#1A1F2C]">{s.name}</option>)}
+            </select>
+          </div>
+          <div className="md:col-span-1">
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Moneda Factura *</label>
+            <select
+              className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-orange-500/50 outline-none appearance-none cursor-pointer transition-all"
+              value={invoiceData.currencyCode}
+              onChange={e => setInvoiceData({ ...invoiceData, currencyCode: e.target.value })}>
+              <option value="USD" className="bg-[#1A1F2C]">Dólares (USD)</option>
+              <option value="VES" className="bg-[#1A1F2C]">Bolívares (VES)</option>
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">N° Factura *</label>
-            <input type="text" className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-orange-300 outline-none"
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">N° Factura *</label>
+            <input type="text"
+              className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-orange-500/50 outline-none placeholder:text-gray-600 transition-all font-mono"
               placeholder="Ej: 000451"
               value={invoiceData.invoiceNumber}
               onChange={e => setInvoiceData({ ...invoiceData, invoiceNumber: e.target.value })} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">N° Control</label>
-            <input type="text" className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-orange-300 outline-none"
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">N° Control</label>
+            <input type="text"
+              className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-orange-500/50 outline-none placeholder:text-gray-600 transition-all font-mono"
               placeholder="00-..."
               value={invoiceData.controlNumber}
               onChange={e => setInvoiceData({ ...invoiceData, controlNumber: e.target.value })} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Fecha Emisión *</label>
-            <input type="date" className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-orange-300 outline-none"
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Fecha Emisión *</label>
+            <input type="date"
+              className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-orange-500/50 outline-none transition-all"
+              style={{ colorScheme: 'dark' }}
               value={invoiceData.issueDate}
               onChange={e => setInvoiceData({ ...invoiceData, issueDate: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+              Tasa Bs/USD
+              <span className="bg-emerald-500/10 text-emerald-400 text-[8px] px-1.5 py-0.5 rounded-full font-black ml-1">BCV</span>
+            </label>
+            <input type="number" step="0.01" min="0"
+              className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-emerald-400 font-mono font-black focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all"
+              placeholder="Ej: 88.50"
+              value={invoiceData.exchangeRate}
+              onChange={e => setInvoiceData({ ...invoiceData, exchangeRate: Number(e.target.value) })} />
+            <p className="text-[9px] text-gray-600 mt-1 font-medium">Requerida para descuentos en Bs.</p>
           </div>
         </div>
       </div>
 
       {/* TABLA DE GASTOS */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="flex justify-between items-center p-5 border-b border-gray-100">
-          <h2 className="font-bold text-gray-700">Detalle de Gastos</h2>
+      <div className="bg-[#1A1F2C] rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+        <div className="flex justify-between items-center p-6 border-b border-white/5">
+          <h2 className="text-lg font-black text-white tracking-tight uppercase flex items-center gap-2">
+            Detalle de Gastos
+          </h2>
           <button onClick={addLine}
-            className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors">
-            <Plus size={16} /> Añadir Gasto
+            className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all shadow-lg shadow-orange-600/20">
+            <Plus size={16} /> Añadir Línea
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-600 font-semibold">
+        <div className="overflow-x-auto pb-4">
+          <table className="w-full text-sm text-left min-w-[1050px]">
+            <thead className="bg-white/5 text-[10px] uppercase text-gray-500 font-black tracking-widest">
               <tr>
-                <th className="px-4 py-3">Categoría</th>
-                <th className="px-4 py-3">Descripción</th>
-                <th className="px-4 py-3 w-20">Cant.</th>
-                <th className="px-4 py-3 w-28">Precio ($)</th>
-                <th className="px-4 py-3 w-28">Alíc. IVA</th>
-                <th className="px-4 py-3 text-right w-28">Subtotal</th>
-                <th className="px-4 py-3 w-10"></th>
+                <th className="px-3 py-4 w-[15%]">Categoría</th>
+                <th className="px-3 py-4 w-[25%]">Descripción del Gasto</th>
+                <th className="px-3 py-4 w-[8%] text-center">Cant.</th>
+                <th className="px-3 py-4 w-[15%] text-right">Precio ({invoiceData.currencyCode === 'VES' ? 'Bs' : '$'})</th>
+                <th className="px-3 py-4 w-[10%] text-center">IVA (%)</th>
+                <th className="px-3 py-4 w-[17%]">
+                  <span className="flex items-center gap-1 justify-center text-amber-400/80">
+                    <Tag size={11} /> Descuento
+                  </span>
+                </th>
+                <th className="px-3 py-4 text-right w-[10%]">Subtotal</th>
+                <th className="px-2 py-4 w-[5%]"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.map((item, idx) => (
-                <tr key={idx} className="hover:bg-gray-50">
-                  <td className="px-4 py-2">
-                    <select
-                      className="w-full border rounded p-1 text-xs focus:ring-1 focus:ring-orange-300 outline-none min-w-[140px]"
-                      value={item.expenseCategoryId}
-                      onChange={e => updateLine(idx, 'expenseCategoryId', e.target.value)}>
-                      <option value="">Sin categoría</option>
-                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      className="w-full border rounded p-1 text-xs focus:ring-1 focus:ring-orange-300 outline-none min-w-[180px]"
-                      placeholder="Ej: Pago CORPOELEC Febrero 2026"
-                      value={item.description}
-                      onChange={e => updateLine(idx, 'description', e.target.value)} />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input type="number" min="0.01" step="any"
-                      className="w-full border rounded p-1 text-center font-bold focus:ring-1 focus:ring-orange-300 outline-none"
-                      value={item.quantity}
-                      onChange={e => updateLine(idx, 'quantity', e.target.value)} />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input type="number" min="0" step="any"
-                      className="w-full border rounded p-1 text-right focus:ring-1 focus:ring-orange-300 outline-none"
-                      value={item.unitPrice}
-                      onChange={e => updateLine(idx, 'unitPrice', e.target.value)} />
-                  </td>
-                  <td className="px-4 py-2">
-                    <select className="w-full border rounded p-1 text-xs focus:ring-1 focus:ring-orange-300 outline-none"
-                      value={item.taxRate}
-                      onChange={e => updateLine(idx, 'taxRate', Number(e.target.value))}>
-                      <option value={16}>16% (G)</option>
-                      <option value={8}>8% (R)</option>
-                      <option value={0}>Exento</option>
-                    </select>
-                  </td>
-                  <td className="px-4 py-2 text-right font-mono text-gray-800 font-medium">
-                    ${(calcSubtotal(item) + calcTax(item)).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2 text-center">
-                    <button onClick={() => removeLine(idx)}
-                      className="text-red-400 hover:text-red-600 transition-colors">
-                      <Trash2 size={15} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-white/5">
+              {items.map((item, idx) => {
+                const bruto    = calcBruto(item);
+                const discount = calcDiscount(item);
+                const lineTotal = calcLineTotal(item);
+
+                return (
+                  <tr key={idx} className="hover:bg-white/[0.02] group transition-colors">
+                    {/* Categoría */}
+                    <td className="px-3 py-3">
+                      <select
+                        className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:ring-1 focus:ring-orange-500/50 outline-none appearance-none cursor-pointer"
+                        value={item.expenseCategoryId}
+                        onChange={e => updateLine(idx, 'expenseCategoryId', e.target.value)}>
+                        <option value="" className="bg-[#1A1F2C]">Sin categoría</option>
+                        {categories.map(c => <option key={c.id} value={c.id} className="bg-[#1A1F2C]">{c.name}</option>)}
+                      </select>
+                    </td>
+                    {/* Descripción */}
+                    <td className="px-3 py-3">
+                      <input type="text"
+                        className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-gray-700 focus:ring-1 focus:ring-orange-500/50 outline-none transition-all"
+                        placeholder="Ej: Pago CORPOELEC"
+                        value={item.description}
+                        onChange={e => updateLine(idx, 'description', e.target.value)} />
+                    </td>
+                    {/* Cantidad - UI Mejorada */}
+                    <td className="px-3 py-3">
+                      <div className="bg-[#242b3d] border border-white/20 hover:border-orange-500/50 focus-within:border-orange-500/80 focus-within:ring-2 focus-within:ring-orange-500/20 rounded-xl overflow-hidden transition-all shadow-inner">
+                        <input type="number" min="0.01" step="any"
+                          className="w-full bg-transparent px-2 py-2 text-center font-black text-orange-400 outline-none transition-all"
+                          value={item.quantity}
+                          onChange={e => updateLine(idx, 'quantity', e.target.value)} />
+                      </div>
+                    </td>
+                    {/* Precio - UI Mejorada */}
+                    <td className="px-3 py-3">
+                      <div className="bg-[#242b3d] border border-white/20 hover:border-orange-500/50 focus-within:border-orange-500/80 focus-within:ring-2 focus-within:ring-orange-500/20 rounded-xl overflow-hidden transition-all shadow-inner flex items-center pr-2">
+                        <span className="pl-3 text-xs text-gray-400 font-bold shrink-0 w-8">{invoiceData.currencyCode === 'VES' ? 'Bs' : '$'}</span>
+                        <input type="number" min="0" step="any"
+                          className="w-full bg-transparent px-2 py-2 text-right text-white font-mono outline-none transition-all"
+                          value={item.unitPrice}
+                          onChange={e => updateLine(idx, 'unitPrice', e.target.value)} />
+                      </div>
+                    </td>
+                    {/* IVA */}
+                    <td className="px-3 py-3">
+                      <select
+                        className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-2 py-2 text-xs text-gray-300 focus:ring-1 focus:ring-orange-500/50 outline-none appearance-none cursor-pointer transition-all min-w-[70px] text-center"
+                        value={item.taxRate}
+                        onChange={e => updateLine(idx, 'taxRate', Number(e.target.value))}>
+                        <option value={16} className="bg-[#1A1F2C]">16%</option>
+                        <option value={8}  className="bg-[#1A1F2C]">8%</option>
+                        <option value={0}  className="bg-[#1A1F2C]">0%</option>
+                      </select>
+                    </td>
+                    {/* ─── DESCUENTO ─── */}
+                    <td className="px-3 py-3">
+                      <div className="flex items-stretch gap-1">
+                        {/* Selector de tipo */}
+                        <select
+                          className="bg-[#0B1120] border border-amber-500/20 rounded-xl px-2 py-2 text-[10px] text-amber-400 font-black focus:ring-1 focus:ring-amber-500/50 outline-none appearance-none cursor-pointer transition-all w-16 text-center"
+                          value={item.discountType}
+                          onChange={e => updateLine(idx, 'discountType', e.target.value as DiscountType)}
+                          title="Tipo de descuento">
+                          <option value="PERCENT"   className="bg-[#1A1F2C]">%</option>
+                          <option value="FIXED_USD" className="bg-[#1A1F2C]">$</option>
+                          <option value="FIXED_VES" className="bg-[#1A1F2C]">Bs</option>
+                        </select>
+                        {/* Input del valor */}
+                        <div className="flex-1 bg-[#0B1120] border border-amber-500/20 hover:border-amber-500/50 focus-within:border-amber-500/80 focus-within:ring-2 focus-within:ring-amber-500/20 rounded-xl overflow-hidden transition-all shadow-inner">
+                          <input type="number" min="0" step="any"
+                            className="w-full h-full bg-transparent px-2 py-2 text-xs text-amber-300 font-mono outline-none transition-all text-center min-w-[50px]"
+                            placeholder="0"
+                            value={item.discountValue === 0 ? '' : item.discountValue}
+                            onChange={e => updateLine(idx, 'discountValue', e.target.value)} />
+                        </div>
+                      </div>
+                      {/* Indicador del descuento calculado */}
+                      {discount > 0 && (
+                        <div className="mt-1 text-center">
+                          <span className="text-[9px] text-amber-400/70 font-mono">
+                            -{discount.toFixed(2)} USD
+                            {item.discountType === 'PERCENT' && (
+                              <span className="text-gray-600 ml-1">
+                                de {invoiceData.currencyCode === 'VES' ? 'Bs' : '$'}{bruto.toFixed(2)}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {/* Advertencia si el tipo es VES y la tasa no está configurada */}
+                      {item.discountType === 'FIXED_VES' && item.discountValue > 0 && invoiceData.exchangeRate <= 0 && (
+                        <p className="text-[9px] text-red-400 mt-1 text-center font-bold">
+                          ⚠ Ingresa la tasa Bs/USD
+                        </p>
+                      )}
+                    </td>
+                    {/* Subtotal */}
+                    <td className="px-5 py-3 text-right font-black text-white bg-white/5 transition-all">
+                      <div className="text-sm">{invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{lineTotal.toFixed(2)}</div>
+                      {discount > 0 && (
+                        <div className="text-[9px] text-gray-600 font-mono line-through">
+                          {invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{(bruto * (1 + Number(item.taxRate) / 100)).toFixed(2)}
+                        </div>
+                      )}
+                    </td>
+                    {/* Eliminar */}
+                    <td className="px-3 py-3 text-center">
+                      <button onClick={() => removeLine(idx)}
+                        className="text-red-500/60 hover:text-red-400 p-2 hover:bg-red-500/10 rounded-xl transition-all border border-transparent hover:border-red-500/10">
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-gray-400 text-sm">
-                    <DollarSign size={28} className="mx-auto mb-2 text-gray-300" />
-                    Añade gastos para comenzar...
+                  <td colSpan={8} className="text-center py-20 bg-white/5">
+                    <DollarSign size={40} className="mx-auto mb-4 text-gray-700" />
+                    <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Añade gastos para comenzar el registro</p>
                   </td>
                 </tr>
               )}
@@ -269,31 +447,70 @@ export default function DirectPurchasePage() {
 
         {/* TOTALES */}
         {items.length > 0 && (
-          <div className="p-5 border-t border-gray-100 flex justify-end">
-            <div className="w-64 space-y-2 text-sm">
-              <div className="flex justify-between text-gray-600">
-                <span>Base Imponible:</span>
-                <span className="font-mono">${calcTotalBase().toFixed(2)}</span>
+          <div className="p-8 border-t border-white/10 flex justify-end">
+            <div className="w-96 space-y-3">
+
+              {/* Descuento (solo si hay alguno) */}
+              {calcTotalDiscount() > 0 && (
+                <div className="flex justify-between items-center px-4 py-3 bg-amber-500/5 rounded-xl border border-amber-500/10">
+                  <div className="flex items-center gap-2">
+                    <Tag size={14} className="text-amber-400" />
+                    <span className="text-[10px] font-black text-amber-400/80 uppercase tracking-widest">Descuento Total en USD</span>
+                  </div>
+                  <span className="font-mono font-black text-amber-400">-${calcTotalDiscount().toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* Base + IVA */}
+              <div className="flex justify-between items-center bg-white/5 p-4 rounded-xl border border-white/5">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Base Imponible</p>
+                  <p className="font-mono font-black text-xl text-white">{invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{calcTotalBase().toFixed(2)}</p>
+                </div>
+                <div className="text-right space-y-1">
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">IVA Estimado</p>
+                  <p className="font-mono font-black text-xl text-orange-400">{invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{calcTotalTax().toFixed(2)}</p>
+                </div>
               </div>
-              <div className="flex justify-between text-gray-600">
-                <span>IVA:</span>
-                <span className="font-mono">${calcTotalTax().toFixed(2)}</span>
+
+              <div className="flex justify-between items-center p-6 bg-orange-600/5 rounded-2xl border border-orange-600/10 shadow-xl shadow-orange-600/5">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total a Pagar</span>
+                <span className="text-4xl font-black text-orange-400 tracking-tighter">{invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{calcTotal().toFixed(2)}</span>
               </div>
-              <div className="flex justify-between font-bold text-gray-800 text-base border-t pt-2">
-                <span>Total Gasto:</span>
-                <span className="font-mono text-orange-600">${calcTotal().toFixed(2)}</span>
-              </div>
+
+              {/* Equivalente en Bolívares (Solo visible si la factura es en dólares) */}
+              {invoiceData.exchangeRate > 1 && invoiceData.currencyCode === 'USD' && (
+                <div className="flex justify-between items-center px-4 py-3 bg-white/5 rounded-xl border border-white/5">
+                  <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Equivalente Bs.</span>
+                  <span className="font-mono font-black text-gray-500">
+                    Bs. {(calcTotal() * invoiceData.exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
+              {/* Equivalente en Dólares (Solo visible si la factura es en bolívares) */}
+              {invoiceData.exchangeRate > 1 && invoiceData.currencyCode === 'VES' && (
+                <div className="flex justify-between items-center px-4 py-3 bg-white/5 rounded-xl border border-white/5">
+                  <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Equivalente USD</span>
+                  <span className="font-mono font-black text-gray-500">
+                    $ {(calcTotal() / invoiceData.exchangeRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
 
       {/* BOTÓN GUARDAR */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-3 pt-6">
+        <button onClick={() => router.push('/dashboard/accounting/bills')}
+          className="px-8 py-4 text-gray-500 hover:text-white hover:bg-white/5 font-black uppercase tracking-widest text-[10px] rounded-2xl transition-all">
+          Cancelar
+        </button>
         <button onClick={handleSubmit} disabled={loading}
-          className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white font-bold px-6 py-3 rounded-xl shadow-md transition-all active:scale-95">
-          <Receipt size={18} />
-          {loading ? 'Registrando...' : 'Registrar Gasto'}
+          className="flex items-center gap-3 bg-orange-600 hover:bg-orange-500 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest text-xs px-10 py-4 rounded-2xl shadow-xl shadow-orange-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
+          <Receipt size={20} />
+          {loading ? 'Procesando...' : 'Registrar Gasto Directo'}
         </button>
       </div>
     </div>

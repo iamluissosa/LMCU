@@ -213,21 +213,79 @@ export class PurchaseBillsService {
   // Los ítems son gastos operativos (servicios, suministros, etc.)
   // NO se crea recepción ni se modifica el stock.
   // ---------------------------------------------------------
+
+  /**
+   * Calcula el monto de descuento en USD dado el tipo y valor ingresado.
+   * @param type     'PERCENT' | 'FIXED_USD' | 'FIXED_VES'
+   * @param value    Valor ingresado por el usuario
+   * @param bruto    Monto bruto de la línea (qty × unitPrice) en USD
+   * @param tcambio  Tasa de cambio Bs/USD (solo relevante para FIXED_VES)
+   */
+  private calcDiscountAmount(
+    type: string | undefined,
+    value: number | undefined,
+    bruto: number,
+    tcambio: number,
+  ): number {
+    if (!type || !value || value <= 0) return 0;
+    switch (type) {
+      case 'PERCENT':
+        return bruto * (value / 100);
+      case 'FIXED_USD':
+        return value;
+      case 'FIXED_VES':
+        return tcambio > 0 ? value / tcambio : 0;
+      default:
+        return 0;
+    }
+  }
+
   async createDirect(
     companyId: string,
     userId: string,
     data: CreateDirectPurchaseDto,
   ): Promise<PurchaseBill> {
     const { supplierId, invoiceNumber, controlNumber, issueDate, items } = data;
+    const exchangeRate = data.exchangeRate ?? 1;
 
     try {
       const result = await this.prisma.$transaction(
         async (tx) => {
-          // Calcular subtotal de los ítems de gasto
-          let calculatedSubtotal = 0;
-          for (const item of items) {
-            calculatedSubtotal += item.quantity * item.unitPrice;
-          }
+          // Calcular totales de los ítems de gasto (después del descuento)
+          let calculatedBase = 0;   // Base imponible total (sin IVA)
+          let calculatedTax  = 0;   // IVA total
+          let calculatedTotal = 0;  // Total factura (base + IVA)
+
+          const itemsToCreate = items.map((i) => {
+            const bruto = Number(i.quantity) * Number(i.unitPrice);
+            const discountAmount = this.calcDiscountAmount(
+              i.discountType,
+              i.discountValue,
+              bruto,
+              exchangeRate,
+            );
+            // Base neta de la línea (lo que se guarda en totalLine)
+            const base = bruto - discountAmount;
+            const tax  = base * (Number(i.taxRate ?? 0) / 100);
+
+            calculatedBase  += base;
+            calculatedTax   += tax;
+            calculatedTotal += base + tax;
+
+            return {
+              expenseCategoryId: i.expenseCategoryId ?? null,
+              description:       i.description ?? null,
+              quantity:          i.quantity,
+              unitPrice:         i.unitPrice,
+              taxRate:           i.taxRate  ?? 0,
+              islrRate:          i.islrRate ?? 0,
+              discountType:      i.discountType  ?? null,
+              discountValue:     i.discountValue ?? null,
+              discountAmount,
+              // totalLine es la base neta (sin IVA) — coincide con el resto del sistema
+              totalLine:         i.totalLine ?? base,
+            };
+          });
 
           // 1. Crear la Factura de Gasto (PurchaseBill con isExpense = true)
           const bill = await tx.purchaseBill.create({
@@ -239,25 +297,14 @@ export class PurchaseBillsService {
               issueDate: new Date(issueDate),
               status: 'UNPAID',
               isExpense: true, // ← Marca la factura como GASTO, no inventario
-              totalAmount: data.totalAmount ?? calculatedSubtotal,
-              taxableAmount: data.taxableAmount ?? 0,
-              taxAmount: data.taxAmount ?? 0,
-              exchangeRate: data.exchangeRate ?? 1,
-              currencyCode: 'USD',
+              totalAmount:   data.totalAmount   ?? calculatedTotal,
+              taxableAmount: data.taxableAmount ?? calculatedBase,
+              taxAmount:     data.taxAmount     ?? calculatedTax,
+              exchangeRate,
+              currencyCode:  data.currencyCode || 'USD',
               userId,
               createdById: userId,
-              items: {
-                create: items.map((i) => ({
-                  // Gastos: usan expenseCategoryId + description (sin productId)
-                  expenseCategoryId: i.expenseCategoryId ?? null,
-                  description: i.description ?? null,
-                  quantity: i.quantity,
-                  unitPrice: i.unitPrice,
-                  taxRate: i.taxRate ?? 0,
-                  islrRate: i.islrRate ?? 0,
-                  totalLine: i.totalLine ?? i.quantity * i.unitPrice,
-                })),
-              },
+              items: { create: itemsToCreate },
             },
           });
 

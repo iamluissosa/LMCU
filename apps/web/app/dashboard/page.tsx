@@ -53,14 +53,14 @@ export default function DashboardPage() {
         return;
       }
       try {
-        const user = await apiClient.get<any>('/users/me');
+        const user = await apiClient.get<{ permissions?: string[] }>('/users/me');
         const userPerms = user.permissions || [];
         setPermissions(userPerms);
 
         const data = await apiClient.get<DashboardStats>('/dashboard/stats');
         setStats(data);
-      } catch (error: any) {
-        const msg = error.message || 'Error desconocido';
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Error desconocido';
         console.error('Error cargando dashboard:', msg);
         if (msg.includes('Access Denied')) {
           setError('No tienes permisos para ver las estadísticas o tu registro está incompleto.');
