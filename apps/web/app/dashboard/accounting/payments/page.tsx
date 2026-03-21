@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { 
   CreditCard, Search, 
@@ -8,20 +8,47 @@ import {
 import Link from 'next/link';
 import { toast } from 'sonner';
 
-interface CompanyBase { name: string; rif: string; address: string; }
+interface DocFormats {
+  retentionLegalText: string;
+  retentionProvidencia: string;
+  retentionFooterText: string;
+  retentionAgentLabel: string;
+  retentionSubjectLabel: string;
+  retentionSignatureUrl: string | null;
+}
+
+const DOC_DEFAULTS: DocFormats = {
+  retentionLegalText: 'Ley de IVA Art. 11.',
+  retentionProvidencia: 'Providencia Administrativa Nº SNAT/2025/0054 del 01/08/2025',
+  retentionFooterText: 'Este comprobante se emite en función a lo establecido en el artículo 16 de la Providencia Administrativa Nº SNAT/2025/0054',
+  retentionAgentLabel: 'Firma del agente de retención',
+  retentionSubjectLabel: 'Firma del Beneficiario del Pago Fecha de entrega',
+  retentionSignatureUrl: null,
+};
+
+interface CompanyBase { name: string; rif: string; address: string; logoUrl?: string; }
 interface SupplierBase { name: string; rif: string; address?: string; }
 interface PurchaseBillBase { invoiceNumber: string; purchaseOrderId?: string | null; supplier: SupplierBase; retentionIVA: string | number; receiptRetIVA?: string; exchangeRate: string | number; totalAmount: string | number; taxableAmount: string | number; taxAmount: string | number; issueDate: string; controlNumber?: string; taxRate: string | number; }
 interface PaymentDetail { id: string; amountApplied: string | number; purchaseBill: PurchaseBillBase; }
-interface PaymentOut { id: string; paymentNumber: string; paymentDate: string; method: string; bankName?: string; reference?: string; notes?: string; amountPaid: string | number; exchangeRate: string | number; details: PaymentDetail[]; company?: CompanyBase; }
+interface PaymentOut { id: string; paymentNumber: string; paymentDate: string; method: string; bankName?: string; reference?: string; notes?: string; amountPaid: string | number; exchangeRate: string | number; currencyCode?: string; details: PaymentDetail[]; company?: CompanyBase; }
 
 export default function PaymentsOutPage() {
   const [payments, setPayments] = useState<PaymentOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [docFormats, setDocFormats] = useState<DocFormats>(DOC_DEFAULTS);
 
+  // Cargar configuración de formatos al montar
+  const fetchDocFormats = useCallback(async () => {
+    try {
+      const data = await apiClient.get<DocFormats>('/settings/document-formats');
+      setDocFormats(data);
+    } catch {
+      // Fallback silencioso a valores por defecto
+    }
+  }, []);
 
-
-
+  useEffect(() => { fetchDocFormats(); }, [fetchDocFormats]);
 
   useEffect(() => {
     const fetchPayments = async () => {
@@ -169,7 +196,7 @@ export default function PaymentsOutPage() {
                   {/* COL 4: Monto */}
                   <td className="px-6 py-5 text-right">
                     <div className="text-xl font-black text-white tracking-tighter">
-                      ${Number(pay.amountPaid).toFixed(2)}
+                      {pay.currencyCode === 'VES' ? 'Bs.' : pay.currencyCode === 'EUR' ? '€' : '$'}{Number(pay.amountPaid).toFixed(2)}
                     </div>
                     {Number(pay.exchangeRate) > 1 && (
                       <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">
@@ -217,7 +244,7 @@ export default function PaymentsOutPage() {
                         </div>
                         <div className="space-y-1">
                             <span className="block text-[10px] font-black text-gray-500 uppercase tracking-widest">Monto Egreso</span>
-                            <span className="font-black text-green-400 text-lg tracking-tighter">${Number(selectedPayment.amountPaid).toFixed(2)}</span>
+                            <span className="font-black text-green-400 text-lg tracking-tighter">{selectedPayment.currencyCode === 'VES' ? 'Bs.' : selectedPayment.currencyCode === 'EUR' ? '€' : '$'}{Number(selectedPayment.amountPaid).toFixed(2)}</span>
                         </div>
                     </div>
 
@@ -239,7 +266,7 @@ export default function PaymentsOutPage() {
                                     <p className="text-[10px] text-gray-600 font-mono mt-0.5">RIF: {d.purchaseBill.supplier.rif}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="font-black text-white text-lg tracking-tighter">${Number(d.amountApplied).toFixed(2)}</p>
+                                    <p className="font-black text-white text-lg tracking-tighter">{selectedPayment.currencyCode === 'VES' ? 'Bs.' : selectedPayment.currencyCode === 'EUR' ? '€' : '$'}{Number(d.amountApplied).toFixed(2)}</p>
                                     {Number(d.purchaseBill.retentionIVA) > 0 && (
                                         <div className="flex flex-col items-end mt-1">
                                           <p className="text-[10px] text-red-400/80 font-bold uppercase tracking-tighter">RET. IVA APLICADA</p>
@@ -271,112 +298,257 @@ export default function PaymentsOutPage() {
         </div>
       )}
 
+      {/* ESTILOS PARA IMPRESIÓN */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          @page { size: landscape; margin: 10mm; }
+          body { 
+            -webkit-print-color-adjust: exact; 
+            print-color-adjust: exact;
+            background: white; 
+          }
+          /* Ocultar scrollbars o avisos genéricos */
+          ::-webkit-scrollbar { display: none; }
+        }
+      `}} />
+
       {/* COMPROBANTE DE RETENCIÓN (SOLO IMPRESIÓN) */}
-      <div className="hidden print:block p-8 font-serif text-black bg-white h-screen w-full absolute top-0 left-0 z-[9999]">
-         {selectedPayment && selectedPayment.details.map((d: PaymentDetail, index: number) => (
-             <div key={index} className="mb-8 break-after-page">
-                 {/* ENCABEZADO */}
-                 <div className="text-center mb-6">
-                     <h1 className="text-xl font-bold uppercase">Comprobante de Retención de Impuesto al Valor Agregado</h1>
-                     <div className="flex justify-between items-center px-20 mt-2">
-                        <p className="text-lg font-bold">Nº: {d.purchaseBill.receiptRetIVA || 'PENDIENTE'}</p>
-                        <p className="text-sm font-bold">FECHA: {new Date(selectedPayment.paymentDate).toLocaleDateString()}</p>
-                     </div>
-                     <p className="text-sm mt-2">Conforme al Artículo 11 de la Ley de IVA</p>
-                 </div>
+      <div className="hidden print:block font-sans text-black bg-white w-full absolute top-0 left-0 z-[9999] px-4 py-2">
+         {selectedPayment && (() => {
+           // Calcular periodo (AAAA-MM) y fecha
+           const paymentDateObj = new Date(selectedPayment.paymentDate);
+           const periodStr = `${paymentDateObj.getFullYear()}-${String(paymentDateObj.getMonth() + 1).padStart(2, '0')}`;
+           const dateStr = paymentDateObj.toLocaleDateString('es-VE');
 
-                 {/* DATOS DEL AGENTE (NOSOTROS) */}
-                 <div className="border border-black p-4 mb-4 text-xs">
-                     <h3 className="font-bold border-b border-black mb-2 pb-1">DATOS DEL AGENTE DE RETENCIÓN</h3>
-                     <div className="grid grid-cols-2 gap-4">
-                         <div>
-                             <span className="block font-bold">NOMBRE O RAZÓN SOCIAL:</span>
-                             <span>{selectedPayment.company?.name || 'NOMBRE NO REGISTRADO'}</span> 
-                         </div>
-                         <div>
-                             <span className="block font-bold">RIF:</span>
-                             <span>{selectedPayment.company?.rif || 'N/A'}</span>
-                         </div>
-                         <div className="col-span-2">
-                             <span className="block font-bold">DIRECCIÓN FISCAL:</span>
-                             <span>{selectedPayment.company?.address || 'Dirección no registrada'}</span>
-                         </div>
-                     </div>
-                 </div>
+           // Sacar recibo de retención si existe, o usar Payment Number como ref
+           let retentionNumber = '';
+           if (selectedPayment.details.length > 0) {
+             retentionNumber = selectedPayment.details[0].purchaseBill.receiptRetIVA || selectedPayment.paymentNumber;
+           }
 
-                 {/* DATOS DEL SUJETO RETENIDO (PROVEEDOR) */}
-                 <div className="border border-black p-4 mb-6 text-xs">
-                     <h3 className="font-bold border-b border-black mb-2 pb-1">DATOS DEL SUJETO RETENIDO</h3>
-                     <div className="grid grid-cols-2 gap-4">
-                         <div>
-                             <span className="block font-bold">NOMBRE O RAZÓN SOCIAL:</span>
-                             <span>{d.purchaseBill.supplier.name}</span>
-                         </div>
-                         <div>
-                             <span className="block font-bold">RIF:</span>
-                             <span>{d.purchaseBill.supplier.rif}</span>
-                         </div>
-                         <div className="col-span-2">
-                             <span className="block font-bold">DIRECCIÓN FISCAL:</span>
-                             <span>{d.purchaseBill.supplier.address || 'No registrada'}</span>
-                         </div>
-                     </div>
-                 </div>
+           // Proveedor (Sujeto retenido) asumiendo que un pago es a un solo proveedor
+           const firstDetail = selectedPayment.details && selectedPayment.details.length > 0 ? selectedPayment.details[0] : null;
+           const supplierName = firstDetail?.purchaseBill?.supplier?.name || 'N/A';
+           const supplierRif = firstDetail?.purchaseBill?.supplier?.rif || 'N/A';
+           const supplierAddress = firstDetail?.purchaseBill?.supplier?.address || 'NO REGISTRADA';
 
-                 {/* TABLA DE CÁLCULOS */}
-                 <table className="w-full text-xs border-collapse border border-black mb-6">
-                     <thead>
-                         <tr className="bg-gray-200">
-                             <th className="border border-black p-2">Fecha Factura</th>
-                             <th className="border border-black p-2">N° Factura</th>
-                             <th className="border border-black p-2">N° Control</th>
-                             <th className="border border-black p-2 text-right">Total Factura (Bs.)</th>
-                             <th className="border border-black p-2 text-right">Base Imponible (Bs.)</th>
-                             <th className="border border-black p-2 text-center">% Alic.</th>
-                             <th className="border border-black p-2 text-right">Impuesto IVA (Bs.)</th>
-                             <th className="border border-black p-2 text-right">IVA Retenido (Bs.)</th>
-                         </tr>
+           // Formateador de moneda
+           const fm = (val: number) => val.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+           // Totales globales para pie de tabla
+           let sumMontoTotal = 0;
+           let sumExento = 0;
+           let sumBase = 0;
+           let sumIvaCausado = 0;
+           let sumIvaRetenido = 0;
+           let sumTotalPagar = 0;
+
+           selectedPayment.details.forEach(d => {
+              const tasa = Number(d.purchaseBill.exchangeRate) || 1;
+              const totalBs = Number(d.purchaseBill.totalAmount) * tasa;
+              const baseBs = Number(d.purchaseBill.taxableAmount) * tasa;
+              const ivaBs = Number(d.purchaseBill.taxAmount) * tasa;
+              const retBsFinal = Number(d.purchaseBill.retentionIVA) * tasa;
+              const exentoBs = Math.max(0, totalBs - baseBs - ivaBs);
+              const pagarBs = totalBs - retBsFinal;
+
+              sumMontoTotal += totalBs;
+              sumExento += exentoBs;
+              sumBase += baseBs;
+              sumIvaCausado += ivaBs;
+              sumIvaRetenido += retBsFinal;
+              sumTotalPagar += pagarBs;
+           });
+
+           return (
+             <div className="w-full">
+               
+               {/* ENCABEZADO: Logo + Texto + Títulos */}
+               <div className="flex flex-col mb-4 relative">
+                  <div className="w-full flex justify-between items-start">
+                     {/* Logo izq */}
+                     <div className="w-48 flex-shrink-0">
+                        {selectedPayment.company?.logoUrl && (
+                           // eslint-disable-next-line @next/next/no-img-element
+                           <img src={selectedPayment.company.logoUrl} alt="Logo empresa" className="h-16 object-contain" />
+                        )}
+                     </div>
+
+                     {/* Texto Legal Centro */}
+                     <div className="flex-1 text-center px-4 pt-1">
+                        <p className="text-[10px] sm:text-[11px] font-medium leading-[1.2] text-gray-800 tracking-tight">
+                          {docFormats.retentionLegalText}
+                        </p>
+                     </div>
+
+                     {/* Espacio vacío a derecha para balancear logo */}
+                     <div className="w-48 flex-shrink-0"></div>
+                  </div>
+
+                  {/* Títulos Centrales */}
+                  <div className="text-center mt-2 space-y-0.5">
+                     <h1 className="text-lg font-black tracking-widest text-[#1a1a1a]">COMPROBANTE DE RETENCION DE I.V.A.</h1>
+                     <p className="text-[11px] font-medium text-gray-800">{docFormats.retentionProvidencia}</p>
+                  </div>
+
+                  {/* Número de comprobante y Fecha/Periodo */}
+                  <div className="mt-4 flex w-full relative h-[40px]">
+                      {/* Centro (Absoluto) N° Comprobante */}
+                      <div className="absolute left-1/2 -translate-x-1/2 top-0 w-2/5 border border-black h-8 flex items-center justify-center bg-[#fafafa]">
+                          <span className="font-bold text-xs uppercase tracking-tight">N° DE COMPROBANTE </span>
+                          <span className="font-black text-sm ml-2 tracking-tighter">{retentionNumber}</span>
+                      </div>
+
+                      {/* Derecha (Absoluto) Fecha y Periodo */}
+                      <div className="absolute right-0 top-0 w-48 space-y-2">
+                          <div className="border border-black text-center text-[10px]">
+                              <div className="border-b border-black font-semibold uppercase tracking-wider bg-gray-50 py-0.5">FECHA</div>
+                              <div className="font-bold py-1 text-xs">{dateStr}</div>
+                          </div>
+                      </div>
+                  </div>
+               </div>
+
+               {/* RECUADROS AGENTE */}
+               <div className="mt-8">
+                   <div className="flex gap-2 w-[calc(100%-12.5rem)]">
+                       <div className="border border-black flex-1 text-center flex flex-col justify-center py-1">
+                          <span className="text-[8px] font-bold uppercase tracking-tight text-gray-700">NOMBRE O RAZON SOCIAL DEL AGENTE DE RETENCION:</span>
+                          <span className="text-xs font-bold leading-tight">{selectedPayment.company?.name || 'N/A'}</span>
+                       </div>
+                       <div className="border border-black flex-1 text-center flex flex-col justify-center py-1">
+                          <span className="text-[8px] font-bold uppercase tracking-tight text-gray-700">REGISTRO DE INFORMACION FISCAL (RIF) DEL AGENTE DE RETENCION:</span>
+                          <span className="text-xs font-bold leading-tight w-full truncate px-1">{selectedPayment.company?.rif || 'N/A'}</span>
+                       </div>
+                   </div>
+
+                   <div className="flex gap-2 w-full mt-2">
+                       <div className="w-[calc(100%-12.5rem)] border border-black text-center flex flex-col justify-center py-1">
+                          <span className="text-[8px] font-bold uppercase tracking-tight text-gray-700">DIRECCION DEL AGENTE DE RETENCION:</span>
+                          <span className="text-[10px] font-medium leading-tight truncate px-2">{selectedPayment.company?.address || 'N/A'}</span>
+                       </div>
+                       <div className="w-48 flex-none border border-black text-center text-[10px] -mt-10 self-start">
+                          <div className="border-b border-black font-semibold uppercase tracking-wider bg-gray-50 py-0.5">PERIODO FISCAL</div>
+                          <div className="font-bold py-1 text-xs">{periodStr}</div>
+                       </div>
+                   </div>
+               </div>
+
+               {/* RECUADROS SUJETO */}
+               <div className="flex gap-2 w-full mt-2">
+                       <div className="border border-black flex-[1.5] text-center flex flex-col justify-center py-1 overflow-hidden">
+                          <span className="text-[8px] font-bold uppercase tracking-tight text-gray-700 truncate w-full px-1">NOMBRE O RAZON SOCIAL DEL SUJETO A RETENCION:</span>
+                          <span className="text-[11px] uppercase font-bold leading-tight truncate px-1">{supplierName}</span>
+                       </div>
+                       <div className="border border-black flex-1 text-center flex flex-col justify-center py-1">
+                          <span className="text-[8px] font-bold uppercase tracking-tight text-gray-700 truncate w-full px-1">REGISTRO DE INFORMACION FISCAL (RIF) DEL SUJETO:</span>
+                          <span className="text-[11px] uppercase font-bold leading-tight truncate px-1">{supplierRif}</span>
+                       </div>
+                       <div className="border border-black flex-[2] text-center flex flex-col justify-center py-1">
+                          <span className="text-[8px] font-bold uppercase tracking-tight text-gray-700">DIRECCION DEL SUJETO A RETENCION:</span>
+                          <span className="text-[9px] uppercase font-medium leading-tight truncate px-2">{supplierAddress}</span>
+                       </div>
+               </div>
+
+               {/* TABLA PRINCIPAL */}
+               <div className="mt-4">
+                  <table className="w-full text-black border-collapse align-middle" style={{fontSize: '9px', lineHeight: '1.1'}}>
+                     <thead className="text-center font-bold tracking-tighter">
+                        <tr>
+                           <th className="border border-black py-1 px-0.5 w-6">N° de Oper.</th>
+                           <th className="border border-black py-1 px-1 w-16">Fecha del Documento</th>
+                           <th className="border border-black py-1 px-1 w-20">N° Factura</th>
+                           <th className="border border-black py-1 px-1 w-20">N° Control</th>
+                           <th className="border border-black py-1 px-1 w-16">N° de Nota de Debito</th>
+                           <th className="border border-black py-1 px-1 w-16">N° de Nota de Credito</th>
+                           <th className="border border-black py-1 px-1 w-16">Clase de Operación</th>
+                           <th className="border border-black py-1 px-1 w-14">N° factura Afectada</th>
+                           <th className="border border-black py-1 px-1 w-20">Monto Total del documento</th>
+                           <th className="border border-black py-1 px-1 w-16 leading-none">Monto exento, exonerado o no sujeto</th>
+                           <th className="border border-black py-1 px-1 w-20 leading-none">Monto gravado Base Imponible</th>
+                           <th className="border border-black py-1 px-0.5 w-10">% Alicuota</th>
+                           <th className="border border-black py-1 px-1 w-20">IVA Causado</th>
+                           <th className="border border-black py-1 px-1 w-20">IVA Retenido</th>
+                           <th className="border border-black py-1 px-0.5 w-8">% Ret.</th>
+                           <th className="border border-black py-1 px-1 w-20">Total a Pagar</th>
+                        </tr>
                      </thead>
-                     <tbody>
-                         {/* Convertimos a Bs usando la tasa de la factura */}
-                         {(() => {
+                     <tbody className="text-right">
+                        {selectedPayment.details.map((d: PaymentDetail, index: number) => {
                             const tasa = Number(d.purchaseBill.exchangeRate) || 1;
                             const totalBs = Number(d.purchaseBill.totalAmount) * tasa;
                             const baseBs = Number(d.purchaseBill.taxableAmount) * tasa;
                             const ivaBs = Number(d.purchaseBill.taxAmount) * tasa;
-                            // REVISIÓN: En schema.prisma, retentionIVA es Decimal. En payments-out logic, calculamos en base a la moneda.
-                            // Si la factura es en USD, los montos base son USD. Hay que convertir a BS para el comprobante FISCAL en Venezuela.
-                            // Asumiremos que retentionIVA guardado en DB está en la moneda de la factura (USD normalmente en este sistema).
                             const retBsFinal = Number(d.purchaseBill.retentionIVA) * tasa;
+                            const exentoBs = Math.max(0, totalBs - baseBs - ivaBs);
+                            const pagarBs = totalBs - retBsFinal;
+                            const porcRet = ivaBs > 0 ? Math.round((retBsFinal / ivaBs) * 100) : 0;
+                            const dateInvoice = new Date(d.purchaseBill.issueDate).toLocaleDateString('es-VE');
 
                             return (
-                                <tr>
-                                    <td className="border border-black p-2 text-center">{new Date(d.purchaseBill.issueDate).toLocaleDateString()}</td>
-                                    <td className="border border-black p-2 text-center">{d.purchaseBill.invoiceNumber}</td>
-                                    <td className="border border-black p-2 text-center">{d.purchaseBill.controlNumber || 'N/A'}</td>
-                                    <td className="border border-black p-2 text-right">{totalBs.toLocaleString('es-VE', {minimumFractionDigits: 2})}</td>
-                                    <td className="border border-black p-2 text-right">{baseBs.toLocaleString('es-VE', {minimumFractionDigits: 2})}</td>
-                                    <td className="border border-black p-2 text-center">{Number(d.purchaseBill.taxRate)}%</td>
-                                    <td className="border border-black p-2 text-right">{ivaBs.toLocaleString('es-VE', {minimumFractionDigits: 2})}</td>
-                                    <td className="border border-black p-2 text-right font-bold">{retBsFinal.toLocaleString('es-VE', {minimumFractionDigits: 2})}</td>
+                                <tr key={d.id} className="h-6">
+                                    <td className="border border-black py-1 px-1 text-center">{index + 1}</td>
+                                    <td className="border border-black py-1 px-1 text-center">{dateInvoice}</td>
+                                    <td className="border border-black py-1 px-1 text-center">{d.purchaseBill.invoiceNumber}</td>
+                                    <td className="border border-black py-1 px-1 text-center">{d.purchaseBill.controlNumber || '-'}</td>
+                                    <td className="border border-black py-1 px-1 text-center">-</td>
+                                    <td className="border border-black py-1 px-1 text-center">-</td>
+                                    <td className="border border-black py-1 px-1 text-center">01 Registro</td>
+                                    <td className="border border-black py-1 px-1 text-center">-</td>
+                                    <td className="border border-black py-1 px-1.5">{fm(totalBs)}</td>
+                                    <td className="border border-black py-1 px-1.5">{fm(exentoBs)}</td>
+                                    <td className="border border-black py-1 px-1.5">{fm(baseBs)}</td>
+                                    <td className="border border-black py-1 px-1 text-center">{Number(d.purchaseBill.taxRate)}</td>
+                                    <td className="border border-black py-1 px-1.5">{fm(ivaBs)}</td>
+                                    <td className="border border-black py-1 px-1.5">{fm(retBsFinal)}</td>
+                                    <td className="border border-black py-1 px-1 text-center">{porcRet}</td>
+                                    <td className="border border-black py-1 px-1.5">{fm(pagarBs)}</td>
                                 </tr>
                             );
-                         })()}
-                     </tbody>
-                 </table>
+                        })}
 
-                 {/* TOTALES Y FIRMAS */}
-                 <div className="flex justify-between mt-12 text-xs">
-                     <div className="text-center border-t border-black w-1/3 pt-2">
-                         <p className="font-bold">Firma y Sello Agente de Retención</p>
-                     </div>
-                     <div className="text-center border-t border-black w-1/3 pt-2">
-                         <p className="font-bold">Firma y Sello Sujeto Retenido</p>
-                         <p>Fecha de Recepción: ____/____/_______</p>
-                     </div>
-                 </div>
+                        {/* Fila de Totales */}
+                        <tr className="bg-gray-100 font-bold">
+                            <td className="border border-black py-1 px-1" colSpan={8}></td>
+                            <td className="border border-black py-1 px-1.5">{fm(sumMontoTotal)}</td>
+                            <td className="border border-black py-1 px-1.5">{fm(sumExento)}</td>
+                            <td className="border border-black py-1 px-1.5">{fm(sumBase)}</td>
+                            <td className="border border-black py-1 px-1"></td>
+                            <td className="border border-black py-1 px-1.5">{fm(sumIvaCausado)}</td>
+                            <td className="border border-black py-1 px-1.5 bg-gray-200">{fm(sumIvaRetenido)}</td>
+                            <td className="border border-black py-1 px-1"></td>
+                            <td className="border border-black py-1 px-1.5">{fm(sumTotalPagar)}</td>
+                        </tr>
+                     </tbody>
+                  </table>
+               </div>
+
+               {/* FOOTER (Texto providencia al pie de la tabla) */}
+               <div className="text-center mt-2">
+                   <span className="text-[10px] font-bold text-gray-800 tracking-tight">{docFormats.retentionFooterText}</span>
+               </div>
+
+               {/* BLOQUES DE FIRMAS FINALES */}
+               <div className="mt-8 flex justify-center gap-12 sm:gap-24 px-12">
+                   {/* Firma Izquierda (Vacia / Con Sello del Agente si hay en config) */}
+                   <div className="w-[300px] border border-black relative">
+                       {docFormats.retentionSignatureUrl && (
+                           // eslint-disable-next-line @next/next/no-img-element
+                           <img src={docFormats.retentionSignatureUrl} alt="Sello y Firma Agente" className="w-[180px] h-[75px] object-contain absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-125" />
+                       )}
+                       {/* Un recuadro grande en blanco vacío. Le daremos altura explícita. */}
+                       <div className="h-28 flex flex-col items-center justify-end pb-1 opacity-0 pointer-events-none text-[8px] border-t border-black px-4 mx-4 hidden">
+                          {/* El recuadro real (Veneventos imagen) solo muestra lineas o cajas en blanco. */}
+                       </div>
+                   </div>
+
+                   {/* Firma Derecha (Vacía total) */}
+                   <div className="w-[300px] border border-black h-28"></div>
+               </div>
+               
              </div>
-         ))}
+           );
+         })()}
       </div>
     </div>
   );

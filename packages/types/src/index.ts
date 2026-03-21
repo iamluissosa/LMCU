@@ -2,6 +2,7 @@ export interface Company {
   id: string;
   name: string;
   rif?: string;
+  address?: string;
 }
 
 export interface Supplier {
@@ -49,6 +50,7 @@ export interface PurchaseBill {
   totalAmount: number;
   taxableAmount: number;
   taxAmount: number;
+  taxRate?: number | string;
   exchangeRate?: number; // Editado T-01
   currencyCode?: string; // Editado T-01
   status: 'UNPAID' | 'PAID' | 'VOID' | 'PARTIAL';
@@ -57,6 +59,8 @@ export interface PurchaseBill {
   items?: PurchaseBillItem[]; // Relation
   companyId: string;
   purchaseOrderId?: string | null;
+  retentionIVA?: number | string;
+  receiptRetIVA?: string;
 }
 
 export interface PurchaseOrderItem {
@@ -80,6 +84,41 @@ export interface PurchaseOrder {
   totalAmount: number;
   issueDate: Date | string;
   items?: PurchaseOrderItem[];
+}
+
+export interface PaymentOutDetail {
+  id: string;
+  paymentOutId: string;
+  purchaseBillId: string;
+  amountApplied: number;
+  purchaseBill?: PurchaseBill;
+}
+
+export interface PaymentOut {
+  id: string;
+  paymentNumber: string;
+  paymentDate: Date | string;
+  method: string;
+  reference?: string;
+  bankName?: string;
+  currencyCode: string;
+  exchangeRate: number;
+  amountPaid: number;
+  applyIGTF?: boolean;
+  notes?: string;
+  isActive: boolean;
+  
+  companyId: string;
+  company?: Company;
+  supplierId?: string;
+  supplier?: {
+    id: string;
+    name: string;
+    rif: string;
+  };
+  
+  details?: PaymentOutDetail[];
+  createdAt?: string | Date;
 }
 
 export interface ApiResponse<T> {

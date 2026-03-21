@@ -100,6 +100,10 @@ export class CreatePaymentOutDto {
   @IsOptional()
   notes?: string;
 
+  @IsUUID()
+  @IsOptional()
+  supplierId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PaymentDetailDto)

@@ -215,12 +215,19 @@ export default function NewPaymentPage() {
       router.push('/dashboard/accounting/bills');
 
     } catch (error: unknown) { 
-      console.error('Error al procesar pago:', error);
-      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      console.error('Error al procesar pago:', JSON.stringify(error));
+      const msg = (error && typeof error === 'object' && 'message' in error)
+        ? String((error as Record<string, unknown>).message)
+        : (error instanceof Error ? error.message : 'Error desconocido');
       alert(`❌ Error al procesar pago: ${msg}`);
     } 
     finally { setLoading(false); }
   };
+
+  // ── Símbolo de moneda según la factura seleccionada ───────────────────────
+  const billSymbol = selectedBill?.currencyCode === 'VES' ? 'Bs.'
+                   : selectedBill?.currencyCode === 'EUR' ? '€'
+                   : '$';
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -293,7 +300,7 @@ export default function NewPaymentPage() {
                   </div>
                   <div className="text-right flex items-center gap-6">
                     <div>
-                      <div className="text-2xl font-black text-white tracking-tighter">${Number(bill.totalAmount).toFixed(2)}</div>
+                       <div className="text-2xl font-black text-white tracking-tighter">{billSymbol}{Number(bill.totalAmount).toFixed(2)}</div>
                       <div className="text-[10px] text-gray-500 font-mono tracking-tight">CONTROL: {bill.controlNumber}</div>
                     </div>
                     {canDelete && (
@@ -337,13 +344,13 @@ export default function NewPaymentPage() {
                 </div>
                 <div className="text-right">
                    <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Total Factura</div>
-                   <div className="font-black text-2xl text-white tracking-tighter">${Number(selectedBill.totalAmount).toFixed(2)}</div>
+                   <div className="font-black text-2xl text-white tracking-tighter">{billSymbol}{Number(selectedBill.totalAmount).toFixed(2)}</div>
                 </div>
               </div>
               <div className="p-6 grid grid-cols-3 gap-5">
                  <div className="bg-[#0B1120] p-4 rounded-2xl border border-white/5 text-center">
                     <span className="block text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Base Imponible</span>
-                    <span className="font-black text-white text-lg tracking-tight">${Number(selectedBill.taxableAmount).toFixed(2)}</span>
+                     <span className="font-black text-white text-lg tracking-tight">{billSymbol}{Number(selectedBill.taxableAmount).toFixed(2)}</span>
                  </div>
                  <div className="bg-[#0B1120] p-4 rounded-2xl border border-white/5 text-center">
                     <span className="block text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">% Alíc. IVA</span>
@@ -351,7 +358,7 @@ export default function NewPaymentPage() {
                  </div>
                  <div className="bg-[#0B1120] p-4 rounded-2xl border border-white/5 text-center">
                     <span className="block text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Carga IVA</span>
-                    <span className="font-black text-white text-lg tracking-tight">${Number(selectedBill.taxAmount).toFixed(2)}</span>
+                     <span className="font-black text-white text-lg tracking-tight">{billSymbol}{Number(selectedBill.taxAmount).toFixed(2)}</span>
                  </div>
               </div>
 
@@ -386,12 +393,12 @@ export default function NewPaymentPage() {
                                return (
                                   <tr key={item.id} className="hover:bg-white/5 transition-colors group">
                                      <td className="px-4 py-3 text-white font-medium max-w-[150px] truncate" title={item.product?.name}>{item.product?.name || 'Item'}</td>
-                                     <td className="px-4 py-3 text-right font-mono">${base.toFixed(2)}</td>
+                                      <td className="px-4 py-3 text-right font-mono">{billSymbol}{base.toFixed(2)}</td>
                                      <td className="px-4 py-3 text-center text-gray-500 font-bold">{taxRate}%</td>
-                                     <td className="px-4 py-3 text-right font-mono">${tax.toFixed(2)}</td>
+                                      <td className="px-4 py-3 text-right font-mono">{billSymbol}{tax.toFixed(2)}</td>
                                      <td className="px-4 py-3 text-center text-red-400/80 font-bold">{islrRate > 0 ? `${islrRate}%` : '-'}</td>
-                                     <td className="px-4 py-3 text-right text-red-400 font-mono">{islr > 0 ? `-$${islr.toFixed(2)}` : '-'}</td>
-                                     <td className="px-4 py-3 text-right text-blue-400 font-black tracking-tighter text-sm">${(base + tax).toFixed(2)}</td>
+                                      <td className="px-4 py-3 text-right text-red-400 font-mono">{islr > 0 ? `-${billSymbol}${islr.toFixed(2)}` : '-'}</td>
+                                      <td className="px-4 py-3 text-right text-blue-400 font-black tracking-tighter text-sm">{billSymbol}{(base + tax).toFixed(2)}</td>
                                   </tr>
                                );
                             })}
@@ -447,7 +454,7 @@ export default function NewPaymentPage() {
                       <div className="relative z-10 flex justify-between items-end">
                          <div>
                             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Total Descontado</p>
-                            <p className="text-2xl font-black text-red-400 tracking-tighter">-${totals.retentionIVA.toFixed(2)}</p>
+                             <p className="text-2xl font-black text-red-400 tracking-tighter">-{billSymbol}{totals.retentionIVA.toFixed(2)}</p>
                          </div>
                          <div className="text-right">
                             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Periodo</p>
@@ -493,7 +500,7 @@ export default function NewPaymentPage() {
                     <CreditCard size={14} className="absolute left-1 text-white pointer-events-none opacity-0 group-has-[:checked]:opacity-100 transition-opacity" />
                  </div>
                  <label htmlFor="igtf" className="text-xs font-bold text-gray-300 cursor-pointer select-none">
-                    Aplicar IGTF (3%) <span className="text-gray-500 font-medium ml-2 uppercase tracking-tight text-[10px]">— Solo pagos en divisa efectivo</span>
+                    Aplicar IGTF (3%) <span className="text-gray-500 font-medium ml-2 uppercase tracking-tight text-[10px]">― Solo pagos en divisa efectivo</span>
                  </label>
                </div>
             </div>
@@ -509,22 +516,22 @@ export default function NewPaymentPage() {
               <div className="space-y-4 mb-8 border-b border-white/5 pb-8 font-bold">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Sub-Total Factura</span>
-                  <span className="text-white">${Number(selectedBill.totalAmount).toFixed(2)}</span>
+                   <span className="text-white">{billSymbol}{Number(selectedBill.totalAmount).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm items-center">
                   <span className="text-red-400/80 uppercase tracking-tighter text-[10px]">(-) Retención I.V.A ({paymentData.retentionIVAPercent}%)</span>
-                  <span className="text-red-400 font-black">-${totals.retentionIVA.toFixed(2)}</span>
+                   <span className="text-red-400 font-black">-{billSymbol}{totals.retentionIVA.toFixed(2)}</span>
                 </div>
                 {paymentData.retentionISLRAmount > 0 && (
                   <div className="flex justify-between text-sm items-center">
                     <span className="text-red-400/80 uppercase tracking-tighter text-[10px]">(-) Retención I.S.L.R</span>
-                    <span className="text-red-400 font-black">-${paymentData.retentionISLRAmount}</span>
+                     <span className="text-red-400 font-black">-{billSymbol}{paymentData.retentionISLRAmount}</span>
                   </div>
                 )}
                 {totals.igtf > 0 && (
                   <div className="flex justify-between text-sm items-center">
                     <span className="text-emerald-400/80 uppercase tracking-tighter text-[10px]">(+) Cargo IGTF (3%)</span>
-                    <span className="text-emerald-400 font-black">+${totals.igtf.toFixed(2)}</span>
+                     <span className="text-emerald-400 font-black">+{billSymbol}{totals.igtf.toFixed(2)}</span>
                   </div>
                 )}
               </div>

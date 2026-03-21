@@ -11,40 +11,42 @@ export class PaymentsOutService {
 
   // REGISTRAR EGRESO (PAGO A PROVEEDOR)
   async create(companyId: string, userId: string, data: CreatePaymentOutDto) {
-    const {
-      paymentDate,
-      method,
-      reference,
-      bankName,
-      currencyCode,
-      exchangeRate,
-      amountPaid, // Monto total que sale del banco
-      notes,
-      bills, // Array de facturas que estamos pagando
-    } = data;
+      const {
+        paymentDate,
+        method,
+        reference,
+        bankName,
+        currencyCode,
+        exchangeRate,
+        amountPaid, // Monto total que sale del banco
+        notes,
+        supplierId, // Nuevo campo
+        bills, // Array de facturas que estamos pagando
+      } = data;
 
-    // ✅ Q-01: Generar número de pago usando secuencia seg ura
+      // ✅ Q-01: Generar número de pago usando secuencia segura
 
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const paymentNumber = await this.generatePaymentNumber(companyId, tx);
-        // 1. Crear el Registro de Egreso (Cabecera)
-        const paymentOut = await tx.paymentOut.create({
-          data: {
-            companyId,
-            ...(userId ? { createdBy: { connect: { id: userId } } } : {}),
-            ...(userId ? { updatedBy: { connect: { id: userId } } } : {}),
-            paymentNumber,
-            paymentDate: new Date(paymentDate),
-            method: method as any, // Cast necesario por conflicto de tipos en entorno dev (EPERM en prisma generate)
-            reference,
-            bankName,
-            currencyCode,
-            exchangeRate,
-            amountPaid,
-            notes,
-          } as any, // Cast por EPERM audit fields
-        });
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const paymentNumber = await this.generatePaymentNumber(companyId, tx);
+          // 1. Crear el Registro de Egreso (Cabecera)
+          const paymentOut = await tx.paymentOut.create({
+            data: {
+              companyId,
+              ...(userId ? { createdBy: { connect: { id: userId } } } : {}),
+              ...(userId ? { updatedBy: { connect: { id: userId } } } : {}),
+              ...(supplierId ? { supplier: { connect: { id: supplierId } } } : {}),
+              paymentNumber,
+              paymentDate: new Date(paymentDate),
+              method: method as any, // Cast necesario por conflicto de tipos en entorno dev (EPERM en prisma generate)
+              reference,
+              bankName,
+              currencyCode,
+              exchangeRate,
+              amountPaid,
+              notes,
+            } as any, // Cast por EPERM audit fields
+          });
 
         // 2. Procesar cada Factura que se está matando/abando
         for (const [index, item] of bills.entries()) {
@@ -201,11 +203,19 @@ export class PaymentsOutService {
             exchangeRate: true,
             notes: true,
             createdAt: true,
+            supplier: {
+              select: {
+                id: true,
+                name: true,
+                rif: true
+              }
+            },
             company: {
               select: {
                 name: true,
                 rif: true,
                 address: true,
+                logoUrl: true,
               },
             },
             details: {

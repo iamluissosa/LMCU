@@ -101,17 +101,27 @@ export default function DirectPurchasePage() {
   const calcBruto = (item: ExpenseItem) =>
     Number(item.quantity) * Number(item.unitPrice);
 
-  /** Descuento en USD según el tipo */
+  /**
+   * Descuento en la moneda ACTIVA de la factura (USD o VES).
+   * - PERCENT:    porcentaje sobre el bruto, ya está en la moneda correcta.
+   * - FIXED_USD:  el usuario ingresó un monto en USD.
+   *               Si la factura es en VES → convertimos a Bs. multiplcándolo por la tasa.
+   *               Si la factura es en USD → se usa directamente.
+   * - FIXED_VES:  el usuario ingresó un monto en Bs.
+   *               Si la factura es en USD → convertimos a USD divid. por la tasa.
+   *               Si la factura es en VES → se usa directamente.
+   */
   const calcDiscount = (item: ExpenseItem): number => {
     const bruto = calcBruto(item);
-    const val = Number(item.discountValue);
+    const val   = Number(item.discountValue);
     if (!val || val <= 0) return 0;
+    const isVES = invoiceData.currencyCode === 'VES';
+    const rate  = invoiceData.exchangeRate > 0 ? invoiceData.exchangeRate : 1;
+
     switch (item.discountType) {
-      case 'PERCENT':   return bruto * (val / 100);
-      case 'FIXED_USD': return val;
-      case 'FIXED_VES': return invoiceData.exchangeRate > 0
-        ? val / invoiceData.exchangeRate
-        : 0;
+      case 'PERCENT':   return bruto * (val / 100);          // siempre en moneda activa
+      case 'FIXED_USD': return isVES ? val * rate : val;     // si la factura es Bs, convertir
+      case 'FIXED_VES': return isVES ? val : val / rate;     // si la factura es USD, convertir
       default: return 0;
     }
   };
@@ -398,10 +408,10 @@ export default function DirectPurchasePage() {
                       {discount > 0 && (
                         <div className="mt-1 text-center">
                           <span className="text-[9px] text-amber-400/70 font-mono">
-                            -{discount.toFixed(2)} USD
+                            -{invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{discount.toFixed(2)}
                             {item.discountType === 'PERCENT' && (
                               <span className="text-gray-600 ml-1">
-                                de {invoiceData.currencyCode === 'VES' ? 'Bs' : '$'}{bruto.toFixed(2)}
+                                de {invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{bruto.toFixed(2)}
                               </span>
                             )}
                           </span>
@@ -455,9 +465,13 @@ export default function DirectPurchasePage() {
                 <div className="flex justify-between items-center px-4 py-3 bg-amber-500/5 rounded-xl border border-amber-500/10">
                   <div className="flex items-center gap-2">
                     <Tag size={14} className="text-amber-400" />
-                    <span className="text-[10px] font-black text-amber-400/80 uppercase tracking-widest">Descuento Total en USD</span>
+                    <span className="text-[10px] font-black text-amber-400/80 uppercase tracking-widest">
+                      Descuento Total en {invoiceData.currencyCode === 'VES' ? 'Bs.' : 'USD'}
+                    </span>
                   </div>
-                  <span className="font-mono font-black text-amber-400">-${calcTotalDiscount().toFixed(2)}</span>
+                  <span className="font-mono font-black text-amber-400">
+                    -{invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{calcTotalDiscount().toFixed(2)}
+                  </span>
                 </div>
               )}
 

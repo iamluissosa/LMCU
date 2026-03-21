@@ -90,4 +90,21 @@ export class SettingsController {
       req.user.role,
     );
   }
+
+  // --- FORMATOS DE DOCUMENTOS FISCALES ---
+  @Get('document-formats')
+  @Permissions('settings.formats')
+  getDocumentFormats(@Request() req) {
+    const companyId: string | undefined = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Usuario sin empresa asignada');
+    return this.settingsService.getDocumentFormats(companyId);
+  }
+
+  @Patch('document-formats')
+  @Permissions('settings.formats')
+  updateDocumentFormats(@Request() req, @Body() data: any) {
+    const companyId: string | undefined = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Usuario sin empresa asignada');
+    return this.settingsService.updateDocumentFormats(companyId, data);
+  }
 }

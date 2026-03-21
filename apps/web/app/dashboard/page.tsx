@@ -59,8 +59,8 @@ export default function DashboardPage() {
 
         const data = await apiClient.get<DashboardStats>('/dashboard/stats');
         setStats(data);
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : 'Error desconocido';
+      } catch (error: any) {
+        const msg = (error && typeof error === 'object' && 'message' in error) ? error.message : (error instanceof Error ? error.message : 'Error desconocido');
         console.error('Error cargando dashboard:', msg);
         if (msg.includes('Access Denied')) {
           setError('No tienes permisos para ver las estadísticas o tu registro está incompleto.');

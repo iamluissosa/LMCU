@@ -98,6 +98,16 @@ model CompanySettings {
   currency String @default("USD")
   timeZone String @default("America/Caracas")
 
+  // ── FORMATOS DE DOCUMENTOS FISCALES ──────────────────────────────────────
+  // Comprobante de Retención de I.V.A.
+  retentionLegalText    String  @default("Ley de IVA Art. 11. \"La administración Tributaria podrá designar como responsables del pago del impuesto, en calidad de agentes de retención a quienes por sus funciones públicas o por razón de sus actividades privadas intervengan en operaciones gravadas con el impuesto establecido en este Decreto con Rango, Valor y Fuerza de Ley\"")
+  retentionProvidencia  String  @default("Providencia Administrativa Nº SNAT/2025/0054 del 01/08/2025")
+  retentionFooterText   String  @default("Este comprobante se emite en función a lo establecido en el artículo 16 de la Providencia Administrativa Nº SNAT/2025/0054 de fecha 01/08/2025")
+  retentionAgentLabel   String  @default("Firma del agente de retención")
+  retentionSubjectLabel String  @default("Firma del Beneficiario del Pago Fecha de entrega")
+  retentionSignatureUrl String? // URL pública imagen: sello + firma manuscrita + RIF del agente
+  // ─────────────────────────────────────────────────────────────────────────
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -245,6 +255,7 @@ model Supplier {
   company        Company         @relation(fields: [companyId], references: [id])
   purchaseOrders PurchaseOrder[]
   bills          PurchaseBill[]
+  paymentsOut    PaymentOut[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -491,7 +502,9 @@ model PaymentOut {
 
   notes String?
 
-  company Company @relation(fields: [companyId], references: [id])
+  company    Company   @relation(fields: [companyId], references: [id])
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
 
   // Detalle de qué facturas cubre este pago
   details PaymentOutDetail[]

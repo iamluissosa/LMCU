@@ -118,6 +118,7 @@ export default function GeneralSettingsPage() {
     { id: 'companies.edit', label: 'Editar Empresas' },
     { id: 'settings.view', label: 'Ver Configuración' },
     { id: 'settings.edit', label: 'Editar Configuración' },
+    { id: 'settings.formats', label: 'Configurar Formatos de Documentos' },
     // ── VENTAS ──────────────────────────────────
     { id: 'clients.view', label: 'Ver Clientes' },
     { id: 'clients.create', label: 'Crear Clientes' },

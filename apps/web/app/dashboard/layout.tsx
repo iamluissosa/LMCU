@@ -21,9 +21,12 @@ interface UserProfile {
   permissions?: string[];
 }
 
-interface ExchangeRateResponse {
-  rate?: number | string;
+interface AllRatesResponse {
+  usd: { rate: number | null; date: string | null; source: string | null };
+  eur: { rate: number | null; date: string | null; source: string | null };
 }
+
+type ActiveCurrency = 'USD' | 'EUR';
 
 interface ApiError {
   message?: string;
@@ -40,8 +43,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [companyName, setCompanyName] = useState("");
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
-  const [bcvRate, setBcvRate] = useState<number | null>(null);
+  const [usdRate, setUsdRate] = useState<number | null>(null);
+  const [eurRate, setEurRate] = useState<number | null>(null);
   const [loadingRate, setLoadingRate] = useState(false);
+  const [activeCurrency, setActiveCurrency] = useState<ActiveCurrency>('USD');
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     'Finanzas': pathname.includes('/dashboard/accounting'),
     'Facturación': pathname.includes('/dashboard/sales'),
@@ -70,29 +75,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   useEffect(() => {
-    const getRate = async () => {
+    const getRates = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       try {
-        const data = await apiClient.get<ExchangeRateResponse>('/exchange-rates/latest');
-        if (data && data.rate) setBcvRate(Number(data.rate));
+        const data = await apiClient.get<AllRatesResponse>('/exchange-rates/latest-all');
+        if (data?.usd?.rate) setUsdRate(Number(data.usd.rate));
+        if (data?.eur?.rate) setEurRate(Number(data.eur.rate));
       } catch (error: unknown) {
         const err = error as ApiError;
-        console.error('Error fetching rate:', err?.message ?? error);
+        console.error('Error fetching rates:', err?.message ?? error);
       }
     };
-    getRate();
+    getRates();
   }, []);
 
-  const syncRate = async () => {
+  const syncRates = async () => {
     setLoadingRate(true);
     try {
-        const data = await apiClient.post<ExchangeRateResponse>('/exchange-rates/sync', {});
-        setBcvRate(Number(data.rate));
-        toast.success(`Tasa actualizada: ${data.rate}`);
+        const data = await apiClient.post<AllRatesResponse>('/exchange-rates/sync-all', {});
+        if (data?.usd?.rate) setUsdRate(Number(data.usd.rate));
+        if (data?.eur?.rate) setEurRate(Number(data.eur.rate));
+        toast.success(`Tasas actualizadas — USD: ${data?.usd?.rate?.toFixed ? Number(data.usd.rate).toFixed(4) : '--'} | EUR: ${data?.eur?.rate?.toFixed ? Number(data.eur.rate).toFixed(4) : '--'}`);
     } catch (error) {
         console.error(error);
-        toast.error("Error actualizando tasa");
+        toast.error("Error actualizando tasas");
     } finally {
         setLoadingRate(false);
     }
@@ -160,6 +167,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/settings/general/dashboard', requiredPermission: 'settings.view' },
             { name: 'Usuarios', icon: UserCircle, path: '/dashboard/settings/general/users', requiredPermission: 'settings.view' },
             { name: 'Categorías de Serv.', icon: ClipboardCheck, path: '/dashboard/settings/general/service-categories', requiredPermission: 'settings.view' },
+            { name: 'Formatos de Documentos', icon: FileText, path: '/dashboard/settings/general/document-formats', requiredPermission: 'settings.formats' },
           ]
         }
       ]
@@ -171,9 +179,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1120] text-gray-100 flex font-sans">
+    <div className="min-h-screen bg-[#0B1120] print:bg-white text-gray-100 print:text-black flex font-sans">
       {/* SIDEBAR */}
-      <aside className={`bg-[#0B1120] border-r border-white/5 fixed h-full z-20 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+      <aside className={`print:hidden bg-[#0B1120] border-r border-white/5 fixed h-full z-20 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
         
         {/* LOGO / EMPRESA SELECTOR PLACEHOLDER */}
         <div className="h-20 flex-none flex flex-col justify-center px-4 border-b border-white/5">
@@ -283,22 +291,52 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* MAIN CONTENT */}
-      <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
+      <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 print:ml-0 print:block ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
         
         {/* HEADER SUPERIOR */}
-        <header className="h-20 bg-[#0B1120] flex items-center justify-between px-6 sticky top-0 z-10 border-b border-white/5">
+        <header className="print:hidden h-20 bg-[#0B1120] flex items-center justify-between px-6 sticky top-0 z-10 border-b border-white/5">
           <div className="flex items-center gap-4">
              <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors">
                <Menu size={20} />
              </button>
              
-             {/* INDICADOR DE TASA BCV */}
-             <div className="hidden md:flex items-center gap-2 bg-green-500/10 border border-green-500/20 px-3 py-1.5 rounded-lg text-sm">
-                <span className="font-bold text-green-400">BCV:</span>
-                <span className="font-mono text-green-100">{bcvRate ? `${bcvRate.toFixed(4)}` : '---'}</span>
-                <button onClick={syncRate} disabled={loadingRate} className="text-green-500 hover:text-green-300 transition-colors ml-1">
-                    <RefreshCw size={14} className={loadingRate ? "animate-spin" : ""} />
-                </button>
+             {/* INDICADORES DE TASA BCV — USD y EUR */}
+             <div className="hidden md:flex items-center gap-1.5">
+               {/* Badge USD */}
+               <button
+                 onClick={() => setActiveCurrency('USD')}
+                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 border ${
+                   activeCurrency === 'USD'
+                     ? 'bg-green-500/15 border-green-500/30 text-green-300'
+                     : 'bg-white/5 border-white/10 text-gray-400 hover:border-green-500/20 hover:text-green-400'
+                 }`}
+               >
+                 <span className="font-black text-[10px] uppercase tracking-widest">USD</span>
+                 <span className="font-mono text-xs">{usdRate ? usdRate.toFixed(4) : '---'}</span>
+               </button>
+
+               {/* Badge EUR */}
+               <button
+                 onClick={() => setActiveCurrency('EUR')}
+                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 border ${
+                   activeCurrency === 'EUR'
+                     ? 'bg-blue-500/15 border-blue-500/30 text-blue-300'
+                     : 'bg-white/5 border-white/10 text-gray-400 hover:border-blue-500/20 hover:text-blue-400'
+                 }`}
+               >
+                 <span className="font-black text-[10px] uppercase tracking-widest">EUR</span>
+                 <span className="font-mono text-xs">{eurRate ? eurRate.toFixed(4) : '---'}</span>
+               </button>
+
+               {/* Botón Refresh — actualiza ambas */}
+               <button
+                 onClick={syncRates}
+                 disabled={loadingRate}
+                 className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors border border-white/5"
+                 title="Actualizar tasas BCV"
+               >
+                 <RefreshCw size={13} className={loadingRate ? 'animate-spin' : ''} />
+               </button>
              </div>
           </div>
 
@@ -343,7 +381,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* CONTENIDO DE LA PÁGINA */}
-        <main className="p-6 md:p-8 flex-1 overflow-auto bg-[#0B1120]">
+        <main className="p-6 md:p-8 flex-1 overflow-auto bg-[#0B1120] print:bg-white print:p-0 print:overflow-visible border-none">
           {children}
         </main>
       </div>

@@ -36,7 +36,7 @@ export default function SuppliersPage() {
     address: '',
     retentionISLR: 0,
     paymentTerms: 0,
-    currencyPref: 'MULTI' as const,
+    currencyPref: 'MULTI' as 'USD' | 'VES' | 'MULTI',
   });
 
   // Cargar datos
@@ -246,7 +246,7 @@ export default function SuppliersPage() {
                     <select
                       className="w-full px-3 py-2 bg-[#0B1120] border border-white/10 text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none cursor-pointer"
                       value={formData.currencyPref}
-                      onChange={e => setFormData({...formData, currencyPref: e.target.value as any})}
+                      onChange={e => setFormData({...formData, currencyPref: e.target.value as 'USD' | 'VES' | 'MULTI'})}
                     >
                       <option value="MULTI">Multimoneda (USD y VES)</option>
                       <option value="USD">Solo Dólares (USD)</option>

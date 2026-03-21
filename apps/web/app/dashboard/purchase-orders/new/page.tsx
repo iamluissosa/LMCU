@@ -131,7 +131,7 @@ export default function NewPurchaseOrderPage() {
       const responseMsg = err.response?.data?.message;
       const errorMessage = responseMsg 
         ? (Array.isArray(responseMsg) ? responseMsg.join('\n') : responseMsg)
-        : (error.message || 'Error desconocido al crear la orden');
+        : (err.message || 'Error desconocido al crear la orden');
       
       alert(`❌ Error: ${errorMessage}`);
     } finally {
