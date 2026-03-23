@@ -88,7 +88,18 @@ export class UsersService {
       where: { id },
       include: {
         company: true, // Incluir datos de la empresa
-        role: true, // Incluir rol (campos escalares inc. permissions json)
+        role: true,    // Incluir rol (campos escalares inc. permissions json)
+      },
+    });
+  }
+
+  // 7. Buscar usuario por email (fallback para sync Supabase ↔ BD local)
+  async findByEmail(email: string) {
+    return this.prisma.user.findUnique({
+      where: { email },
+      include: {
+        company: true,
+        role: true,
       },
     });
   }

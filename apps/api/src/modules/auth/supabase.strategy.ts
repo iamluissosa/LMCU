@@ -3,17 +3,27 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UsersService } from '../users/users.service';
 
-// Permisos comodín para el rol ADMIN legacy (sin role personalizado asignado)
+// Permisos implícitos para usuarios ADMIN sin rol personalizado asignado
 const ADMIN_IMPLICIT_PERMISSIONS = [
   'dashboard.view',
-  'bills.view', 'bills.create', 'bills.delete',
-  'payments.view', 'payments.create',
-  'sales.view', 'sales.invoice', 'sales.order',
-  'clients.view', 'clients.create',
-  'suppliers.view', 'suppliers.create',
-  'products.view', 'products.create',
-  'settings.view', 'settings.edit',
-  'users.view', 'users.create',
+  'bills.view',
+  'bills.create',
+  'bills.delete',
+  'payments.view',
+  'payments.create',
+  'sales.view',
+  'sales.invoice',
+  'sales.order',
+  'clients.view',
+  'clients.create',
+  'suppliers.view',
+  'suppliers.create',
+  'products.view',
+  'products.create',
+  'settings.view',
+  'settings.edit',
+  'users.view',
+  'users.create',
   'reports.view',
 ];
 
@@ -30,11 +40,23 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // Validar existencia en BD local y obtener companyId
-    const user = await this.usersService.findUserById(payload.sub);
+    // 1. Buscar por ID (caso nominal: IDs sincronizados)
+    let user = await this.usersService.findUserById(payload.sub as string);
 
+    // 2. Fallback por email cuando el UUID de Supabase no coincide con el ID local
+    //    Esto ocurre cuando el usuario fue creado antes de sincronizar con Supabase
+    if (!user && payload.email) {
+      user = await this.usersService.findByEmail(payload.email as string);
+      if (user) {
+        console.warn(
+          `⚠️ AUTH SYNC: Usuario encontrado por email ${payload.email}. ` +
+          `Sub Supabase: ${payload.sub}, ID local: ${user.id}`,
+        );
+      }
+    }
+
+    // 3. Usuario genuinamente nuevo (todavía no registrado)
     if (!user) {
-      // Permitir nuevos users para que puedan registrarse
       return {
         userId: payload.sub,
         email: payload.email,
@@ -45,11 +67,11 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
       };
     }
 
-    // Permisos del rol personalizado (si tiene uno asignado)
-    const rolePermissions: string[] = (user.role?.permissions as string[] | null) ?? [];
+    // Permisos desde el rol personalizado asignado (campo JSON en BD)
+    const rolePermissions = (user.role?.permissions as string[] | null) ?? [];
 
-    // Si es ADMIN y no tiene rol personalizado con permisos → usar implícitos
-    const permissions =
+    // Si es ADMIN legacy sin rol personalizado → permisos implícitos completos
+    const permissions: string[] =
       rolePermissions.length > 0
         ? rolePermissions
         : user.roleLegacy === 'ADMIN'
@@ -57,7 +79,10 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
           : [];
 
     console.log(
-      `🔍 AUTH VALIDATE - Email: ${user.email}, RoleLegacy: ${user.roleLegacy}, CustomRole: ${user.role?.name}, Perms: ${permissions.length}`,
+      `🔍 AUTH VALIDATE - Email: ${user.email}, ` +
+      `RoleLegacy: ${user.roleLegacy}, ` +
+      `CustomRole: ${user.role?.name ?? 'ninguno'}, ` +
+      `Perms: ${permissions.length}`,
     );
 
     return {
@@ -65,12 +90,12 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
       userId: payload.sub,
       email: payload.email,
       name: user.name,
-      roles: payload.app_metadata?.roles || [],
+      roles: (payload.app_metadata?.roles as string[]) || [],
       companyId: user.companyId,
       companyName: user.company?.name,
-      role: user.roleLegacy,        // 'ADMIN' | 'USER' | null
-      roleName: user.role?.name,    // nombre rol personalizado
-      permissions,                  // permisos efectivos
+      role: user.roleLegacy,      // 'ADMIN' | 'USER' (campo legacy en BD)
+      roleName: user.role?.name,  // nombre del rol personalizado si existe
+      permissions,                // permisos efectivos usados por PermissionsGuard
     };
   }
 }
