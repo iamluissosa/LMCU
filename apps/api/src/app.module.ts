@@ -21,6 +21,7 @@ import { ClientsModule } from './modules/clients/clients.module';
 import { ServiceCategoriesModule } from './modules/service-categories/service-categories.module';
 import { IslrModule } from './modules/islr/islr.module';
 import { DocumentFormatsModule } from './modules/document-formats/document-formats.module';
+import { FiscalBooksModule } from './modules/fiscal-books/fiscal-books.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { DocumentFormatsModule } from './modules/document-formats/document-forma
     ServiceCategoriesModule,
     IslrModule,
     DocumentFormatsModule,
+    FiscalBooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

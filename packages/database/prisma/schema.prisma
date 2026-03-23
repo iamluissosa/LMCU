@@ -52,6 +52,11 @@ model Company {
   serviceCategories ServiceCategory[]
   islrRetentions    IslrRetention[]
   documentFormats   DocumentFormat[]
+
+  // Libros Fiscales IVA
+  creditNotes           CreditNote[]
+  debitNotes            DebitNote[]
+  ivaRetentionsReceived IvaRetentionReceived[]
 }
 
 model CompanySettings {
@@ -409,9 +414,31 @@ model PurchaseBill {
 
   // Desglose Fiscal (Venezuela)
   exemptAmount  Decimal @default(0) @db.Decimal(12, 2) // Exento
-  taxableAmount Decimal @default(0) @db.Decimal(12, 2) // Base Imponible
-  taxRate       Decimal @default(16.00) @db.Decimal(5, 2) // % IVA
-  taxAmount     Decimal @default(0) @db.Decimal(12, 2) // Monto IVA
+
+  // Alícuota General 16%
+  taxableAmount16 Decimal @default(0) @db.Decimal(12, 2)
+  taxAmount16     Decimal @default(0) @db.Decimal(12, 2)
+
+  // Alícuota Reducida 8%
+  taxableAmount8  Decimal @default(0) @db.Decimal(12, 2)
+  taxAmount8      Decimal @default(0) @db.Decimal(12, 2)
+
+  // Campos de retrocompatibilidad
+  taxableAmount Decimal @default(0) @db.Decimal(12, 2) // = sum(taxableAmountXX)
+  taxRate       Decimal @default(16.00) @db.Decimal(5, 2)
+  taxAmount     Decimal @default(0) @db.Decimal(12, 2) // = sum(taxAmountXX)
+
+  // ==== PERÍODO FISCAL ====
+  fiscalMonth Int? // Mes de emisión (1-12)
+  fiscalYear  Int? // Año del período
+
+  // ==== IMPORTACIONES (Libro de Compras - Columnas SENIAT obligatorias) ====
+  importDocketNumber     String? // Nro. Planilla de Importación
+  customsExpedientNumber String? // Nro. Expediente de Aduana
+
+  // ==== COMPRAS SIN DERECHO A CRÉDITO FISCAL ====
+  noTaxCredit    Boolean @default(false) // true = IVA no recuperable
+  noTaxCreditAmt Decimal @default(0) @db.Decimal(12, 2) // Monto IVA no recuperable
 
   // RETENCIONES (Se resta al pago del proveedor)
   retentionIVA  Decimal @default(0) @db.Decimal(12, 2)
@@ -440,6 +467,9 @@ model PurchaseBill {
   items    PurchaseBillItem[]
   payments PaymentOutDetail[]
 
+  // Relaciones con documentos que afectan esta factura
+  creditNotes CreditNote[] @relation("CreditNoteAffectedPB")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User?    @relation(fields: [userId], references: [id])
@@ -455,6 +485,7 @@ model PurchaseBill {
   @@index([companyId, status])
   @@index([supplierId, status])
   @@index([issueDate])
+  @@index([companyId, fiscalYear, fiscalMonth]) // Para consultas del Libro de Compras
 }
 
 // DETALLE DE FACTURA DE COMPRA (Items)
@@ -913,11 +944,29 @@ model SalesInvoice {
 
   // ==== DESGLOSE FISCAL VENEZOLANO (Libro de Ventas) ====
   exemptAmount  Decimal @default(0) @db.Decimal(12, 2) // Base Exenta (Ítems sin IVA)
-  taxableAmount Decimal @default(0) @db.Decimal(12, 2) // Base Imponible IVA 16% (o 8%)
-  taxRate       Decimal @default(16.00) @db.Decimal(5, 2) // Alícuota principal
-  taxAmount     Decimal @default(0) @db.Decimal(12, 2) // IVA cobrado
+
+  // Alícuota General 16%
+  taxableAmount16 Decimal @default(0) @db.Decimal(12, 2) // Base Imponible IVA 16%
+  taxAmount16     Decimal @default(0) @db.Decimal(12, 2) // IVA cobrado al 16%
+
+  // Alícuota Reducida 8%
+  taxableAmount8  Decimal @default(0) @db.Decimal(12, 2) // Base Imponible IVA 8%
+  taxAmount8      Decimal @default(0) @db.Decimal(12, 2) // IVA cobrado al 8%
+
+  // Alícuota Adicional 31%
+  taxableAmount31 Decimal @default(0) @db.Decimal(12, 2) // Base Imponible IVA 31%
+  taxAmount31     Decimal @default(0) @db.Decimal(12, 2) // IVA cobrado al 31%
+
+  // Campos de retrocompatibilidad (mantienen la suma de todas las alícuotas)
+  taxableAmount Decimal @default(0) @db.Decimal(12, 2) // = sum(taxableAmountXX) — mantiene compatibilidad
+  taxRate       Decimal @default(16.00) @db.Decimal(5, 2) // Alícuota principal aplicada
+  taxAmount     Decimal @default(0) @db.Decimal(12, 2)   // = sum(taxAmountXX)    — mantiene compatibilidad
   subtotal      Decimal @default(0) @db.Decimal(12, 2) // Suma líneas antes de impuestos
   totalAmount   Decimal @default(0) @db.Decimal(12, 2) // Total de la factura
+
+  // ==== PERÍODO FISCAL (para consultas eficientes del Libro) ====
+  fiscalMonth Int? // 1-12: mes de emisión (se rellena al emitir la factura)
+  fiscalYear  Int? // Año del período fiscal
 
   // ==== RETENCIONES QUE APLICARÁ EL CLIENTE (Agentes SENIAT) ====
   // El cliente agente nos RETIENE parte del IVA y/o ISLR al moment de pagar.
@@ -944,6 +993,10 @@ model SalesInvoice {
   paidAmount Decimal @default(0) @db.Decimal(12, 2) // Acumulado de pagos recibidos
   // netToPay (calculado en app) = totalAmount - retentionIVA - retentionISLR + igtfAmount
 
+  // ==== TRAZABILIDAD DE ANULACIÓN (SENIAT exige mostrar registro con montos en 0) ====
+  voidedAt   DateTime? // Timestamp de anulación
+  voidReason String?   // Motivo legal de anulación
+
   inBook Boolean @default(true) // ¿Va al Libro de Ventas SENIAT?
   notes  String?
 
@@ -951,6 +1004,11 @@ model SalesInvoice {
   client   Client             @relation(fields: [clientId], references: [id])
   items    SalesInvoiceItem[]
   payments PaymentInDetail[] // Todos los cobros parciales asociados
+
+  // Relaciones con documentos que afectan esta factura
+  creditNotes             CreditNote[]           @relation("CreditNoteAffectedSI")
+  debitNotes              DebitNote[]            @relation("DebitNoteAffectedSI")
+  ivaRetentionsReceived   IvaRetentionReceived[]
 
   // Auditoría
   createdAt   DateTime  @default(now())
@@ -965,7 +1023,8 @@ model SalesInvoice {
   @@index([companyId, status])
   @@index([companyId, issueDate])
   @@index([clientId, status])
-  @@index([companyId, dueDate]) // Para job de facturas vencidas
+  @@index([companyId, dueDate])         // Para job de facturas vencidas
+  @@index([companyId, fiscalYear, fiscalMonth]) // Para consultas del Libro de Ventas
 }
 
 model SalesInvoiceItem {
@@ -1104,3 +1163,153 @@ model IslrRetention {
   
   @@index([companyId, retentionDate])
 }
+
+// ==========================================
+// 📒 LIBROS FISCALES IVA (SENIAT)
+// Prov. 0071 Facturación | Prov. 0049 Retenciones
+// ==========================================
+
+enum NoteStatus {
+  DRAFT
+  ISSUED
+  VOID
+}
+
+// Nota de Crédito — reduce deuda del cliente (ventas) o del proveedor (compras)
+// Art. 58 Ley IVA: debe emitirse en el período en que se detecta la causa
+model CreditNote {
+  id        String @id @default(uuid())
+  companyId String
+
+  // Parte ─ puede afectar una factura de venta O de compra
+  clientId   String?
+  supplierId String?
+
+  noteNumber    String  // N° Nota de Crédito (correlativo CompanySettings)
+  controlNumber String? // N° Control SENIAT (comprobante fiscal)
+
+  issueDate   DateTime @default(now())
+  fiscalMonth Int      // Período en que se EMITE (para el libro)
+  fiscalYear  Int
+
+  // === Documento Afectado ===
+  // Relación con factura de venta afectada
+  affectedSalesInvoiceId String?
+  affectedSalesInvoice   SalesInvoice? @relation("CreditNoteAffectedSI", fields: [affectedSalesInvoiceId], references: [id])
+
+  // Relación con factura de compra afectada
+  affectedPurchaseBillId String?
+  affectedPurchaseBill   PurchaseBill? @relation("CreditNoteAffectedPB", fields: [affectedPurchaseBillId], references: [id])
+
+  // === Extemporaneidad ===
+  // Si true: la NC se emite hoy pero afecta un período fiscal ya cerrado
+  isExtemporaneous    Boolean @default(false)
+  affectedFiscalMonth Int?    // Mes del período afectado (referencia solo documental)
+  affectedFiscalYear  Int?    // Año del período afectado
+
+  // === Montos (en moneda del documento) ===
+  currencyCode    String  @default("USD")
+  exchangeRate    Decimal @db.Decimal(12, 4)
+
+  exemptAmount    Decimal @default(0) @db.Decimal(12, 2) // Monto exento
+  taxableAmount16 Decimal @default(0) @db.Decimal(12, 2) // Base al 16%
+  taxAmount16     Decimal @default(0) @db.Decimal(12, 2) // IVA al 16%
+  taxableAmount8  Decimal @default(0) @db.Decimal(12, 2) // Base al 8%
+  taxAmount8      Decimal @default(0) @db.Decimal(12, 2) // IVA al 8%
+  taxableAmount   Decimal @default(0) @db.Decimal(12, 2) // Suma bases (retrocompat.)
+  taxAmount       Decimal @default(0) @db.Decimal(12, 2) // Suma IVA (retrocompat.)
+  totalAmount     Decimal @db.Decimal(12, 2)
+
+  reason String? // Descripción del motivo de la nota
+
+  status NoteStatus @default(ISSUED)
+  inBook Boolean    @default(true) // ¿Va al Libro de Ventas/Compras?
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, noteNumber])
+  @@index([companyId, fiscalYear, fiscalMonth])
+  @@index([affectedSalesInvoiceId])
+  @@index([affectedPurchaseBillId])
+}
+
+// Nota de Débito — aumenta la deuda del cliente (ventas)
+// Ej.: ajuste de precio, gastos no cobrados inicialmente
+model DebitNote {
+  id        String @id @default(uuid())
+  companyId String
+  clientId  String?
+
+  noteNumber    String  // N° Nota de Débito (correlativo)
+  controlNumber String? // N° Control SENIAT
+
+  issueDate   DateTime @default(now())
+  fiscalMonth Int
+  fiscalYear  Int
+
+  // Documento Afectado (factura de venta)
+  affectedSalesInvoiceId String?
+  affectedSalesInvoice   SalesInvoice? @relation("DebitNoteAffectedSI", fields: [affectedSalesInvoiceId], references: [id])
+
+  // Montos
+  currencyCode    String  @default("USD")
+  exchangeRate    Decimal @db.Decimal(12, 4)
+
+  exemptAmount    Decimal @default(0) @db.Decimal(12, 2)
+  taxableAmount16 Decimal @default(0) @db.Decimal(12, 2)
+  taxAmount16     Decimal @default(0) @db.Decimal(12, 2)
+  taxableAmount8  Decimal @default(0) @db.Decimal(12, 2)
+  taxAmount8      Decimal @default(0) @db.Decimal(12, 2)
+  taxableAmount   Decimal @default(0) @db.Decimal(12, 2)
+  taxAmount       Decimal @default(0) @db.Decimal(12, 2)
+  totalAmount     Decimal @db.Decimal(12, 2)
+
+  reason String?
+
+  status NoteStatus @default(ISSUED)
+  inBook Boolean    @default(true)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, noteNumber])
+  @@index([companyId, fiscalYear, fiscalMonth])
+  @@index([affectedSalesInvoiceId])
+}
+
+// Retenciones de IVA recibidas de Clientes Agentes (Providencia 0049)
+// A diferencia de IvaRetention (compras), este modelo registra lo que el CLIENTE nos retiene
+model IvaRetentionReceived {
+  id        String @id @default(uuid())
+  companyId String
+  clientId  String
+
+  // Factura de venta a la que está ligada la retención
+  salesInvoiceId String
+
+  // Datos del comprobante entregado por el cliente
+  controlNumber String   @unique // Nro. Comprobante de Retención (SENIAT)
+  retentionDate DateTime
+
+  retentionMonth Int // Para indexar el libro de ventas
+  retentionYear  Int
+
+  retainedAmount Decimal @db.Decimal(12, 2) // Monto IVA retenido
+  taxableBase    Decimal @db.Decimal(12, 2) // Base sobre la que se aplicó
+  percentage     Decimal @db.Decimal(5, 2)  // 75 o 100 (% sobre el IVA)
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  salesInvoice SalesInvoice @relation(fields: [salesInvoiceId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, retentionYear, retentionMonth])
+  @@index([salesInvoiceId])
+}
+
