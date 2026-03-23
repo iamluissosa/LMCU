@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
   Body,
   Request,
@@ -65,6 +66,22 @@ export class SalesInvoicesController {
       req.user.companyId,
       Number(year) || new Date().getFullYear(),
       Number(month) || new Date().getMonth() + 1,
+    );
+  }
+
+  // PATCH /sales-invoices/:id/void — Anular factura (Prov. 0071 Art. 22 SENIAT)
+  @Patch(':id/void')
+  @Permissions('sales.invoice')
+  voidInvoice(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+  ) {
+    return this.service.voidInvoice(
+      req.user.companyId,
+      req.user.id,
+      id,
+      reason ?? 'Anulada por el usuario',
     );
   }
 

@@ -245,6 +245,65 @@ export class PurchaseBillsService {
   }
 
   // ---------------------------------------------------------
+  // ANULAR FACTURA (VOID) — Cumple Prov. 0071 Art. 22 SENIAT
+  // La factura queda en el Libro de Compras con montos en 0.00
+  // ---------------------------------------------------------
+  async voidBill(
+    companyId: string,
+    userId: string,
+    id: string,
+    reason: string,
+  ): Promise<any> {
+    const bill = await this.prisma.purchaseBill.findUnique({ where: { id } });
+    if (!bill) throw new NotFoundException('Factura no encontrada');
+    if (bill.companyId !== companyId) {
+      throw new ForbiddenException('No tienes permiso para anular esta factura');
+    }
+    if ((bill.status as string) === 'VOID') {
+      throw new BadRequestException('La factura ya fue anulada');
+    }
+    if ((bill.status as string) === 'PAID') {
+      throw new BadRequestException(
+        'No se puede anular una factura ya pagada. Emita una Nota de Crédito.',
+      );
+    }
+
+    const now = new Date();
+    const voided = await this.prisma.purchaseBill.update({
+      where: { id },
+      data: {
+        status: 'VOID' as any,
+        voidedAt: now,
+        voidReason: reason,
+        // Prov. 0071 Art. 22: documento anulado reporta montos en cero
+        totalAmount:    0,
+        taxableAmount:  0,
+        taxAmount:      0,
+        retentionIVA:   0,
+        retentionISLR:  0,
+      } as any,
+    });
+
+    // Revertir orden de compra si aplica
+    if (bill.purchaseOrderId) {
+      const remainingActive = await this.prisma.purchaseBill.count({
+        where: {
+          purchaseOrderId: bill.purchaseOrderId,
+          status: { not: 'VOID' as any },
+        },
+      });
+      if (remainingActive === 0) {
+        await this.prisma.purchaseOrder.update({
+          where: { id: bill.purchaseOrderId },
+          data: { status: 'RECEIVED' },
+        });
+      }
+    }
+
+    return voided;
+  }
+
+  // ---------------------------------------------------------
   // FASE 2: COMPRA DIRECTA — GASTO (SIN INVENTARIO)
   // Los ítems son gastos operativos (servicios, suministros, etc.)
   // NO se crea recepción ni se modifica el stock.

@@ -8,6 +8,7 @@ import {
   Delete,
   Param,
   Query,
+  Patch,
 } from '@nestjs/common';
 import { PurchaseBillsService } from './purchase-bills.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -61,5 +62,21 @@ export class PurchaseBillsController {
   @Permissions('bills.delete')
   async remove(@Request() req, @Param('id') id: string): Promise<PurchaseBill> {
     return this.billsService.remove(req.user.companyId, req.user.id, id);
+  }
+
+  // PATCH /bills/:id/void — Anular factura de compra (Prov. 0071 Art. 22)
+  @Patch(':id/void')
+  @Permissions('bills.delete')
+  async voidBill(
+    @Request() req,
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+  ) {
+    return this.billsService.voidBill(
+      req.user.companyId,
+      req.user.id,
+      id,
+      reason ?? 'Anulada por el usuario',
+    );
   }
 }

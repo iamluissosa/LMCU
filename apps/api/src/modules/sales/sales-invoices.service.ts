@@ -308,8 +308,59 @@ export class SalesInvoicesService {
   }
 
   // ------------------------------------------------------------------
-  // FACTURAS VENCIDAS (para job nocturno o endpoint de alertas)
+  // ANULAR FACTURA DE VENTA (VOID) — Prov. 0071 Art. 22 SENIAT
+  // La factura queda en el Libro de Ventas con todos los montos en 0.00
+  // Solo se permite si no ha sido pagada (status ≠ PAID/PARTIAL)
   // ------------------------------------------------------------------
+  async voidInvoice(
+    companyId: string,
+    userId: string,
+    id: string,
+    reason: string,
+  ) {
+    const invoice = await this.prisma.salesInvoice.findFirst({
+      where: { id, companyId },
+    });
+    if (!invoice) throw new NotFoundException('Factura no encontrada');
+
+    if ((invoice.status as string) === 'VOID') {
+      throw new BadRequestException('La factura ya fue anulada');
+    }
+    if (['PAID', 'PARTIAL'].includes(invoice.status as string)) {
+      throw new BadRequestException(
+        'No se puede anular una factura con cobros registrados. Emita una Nota de Crédito.',
+      );
+    }
+
+    const now = new Date();
+    return this.prisma.salesInvoice.update({
+      where: { id },
+      data: {
+        status: 'VOID' as any,
+        voidedAt: now,
+        voidReason: reason,
+        // Prov. 0071 Art. 22: montos en cero; el registro fiscal permanece visible
+        subtotal:         0,
+        exemptAmount:     0,
+        taxableAmount:    0,
+        taxAmount:        0,
+        totalAmount:      0,
+        taxableAmount16:  0,
+        taxAmount16:      0,
+        taxableAmount8:   0,
+        taxAmount8:       0,
+        taxableAmount31:  0,
+        taxAmount31:      0,
+        retentionIVA:     0,
+        retentionISLR:    0,
+        igtfAmount:       0,
+      } as any,
+      include: {
+        client: { select: { id: true, name: true, rif: true } },
+      },
+    });
+  }
+
   async getOverdue(companyId: string) {
     return this.prisma.salesInvoice.findMany({
       where: {
