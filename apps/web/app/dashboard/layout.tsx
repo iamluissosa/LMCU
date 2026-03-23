@@ -134,6 +134,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             { name: 'Facturas de Compra', icon: DollarSign, path: '/dashboard/accounting/bills', requiredPermission: 'bills.view' },
             { name: 'Historial de Pagos', icon: FileText, path: '/dashboard/accounting/payments', requiredPermission: 'payments.view' },
             { name: 'Registrar Pago', icon: CreditCard, path: '/dashboard/accounting/payments/new', requiredPermission: 'payments.create' },
+            { name: 'Libros Fiscales IVA', icon: FileText, path: '/dashboard/accounting/books', requiredPermission: 'bills.view' },
           ]
         },
         { 

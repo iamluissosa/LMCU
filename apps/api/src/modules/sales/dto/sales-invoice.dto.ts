@@ -57,7 +57,19 @@ export class CreateSalesInvoiceDto {
 
   @IsDateString()
   @IsOptional()
+  issueDate?: string; // Fecha de emisión (para período fiscal SENIAT)
+
+  @IsDateString()
+  @IsOptional()
   dueDate?: string;
+
+  @IsNumber()
+  @IsOptional()
+  fiscalMonth?: number; // 1-12; auto-calculado de issueDate si no se provee
+
+  @IsNumber()
+  @IsOptional()
+  fiscalYear?: number; // auto-calculado de issueDate si no se provee
 
   @IsString()
   @IsOptional()

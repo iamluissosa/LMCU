@@ -48,15 +48,26 @@ export class SalesInvoicesService {
         throw new BadRequestException('Cliente no válido.');
       }
 
-      // 3. Calcular totales de ítems
+      // 3. Calcular totales de ítems (incluyendo alícuotas segregadas SENIAT)
       const {
         subtotal,
         exemptAmount,
         taxableAmount,
         taxAmount,
+        taxableAmount16,
+        taxAmount16,
+        taxableAmount8,
+        taxAmount8,
+        taxableAmount31,
+        taxAmount31,
         totalAmount,
         itemsData,
       } = this.calculateTotals(dto.items);
+
+      // Período fiscal automático desde la fecha de emisión
+      const issueDateObj = dto.issueDate ? new Date(dto.issueDate) : new Date();
+      const fiscalMonth = dto.fiscalMonth ?? (issueDateObj.getMonth() + 1);
+      const fiscalYear  = dto.fiscalYear  ?? issueDateObj.getFullYear();
 
       // 4. Calcular RETENCIONES según las reglas SENIAT
       // Retención IVA: solo si el cliente es agente de retención
@@ -91,22 +102,33 @@ export class SalesInvoicesService {
           controlNumber: dto.controlNumber,
           currencyCode: dto.currencyCode ?? 'USD',
           exchangeRate: new Decimal(dto.exchangeRate ?? 1),
+          issueDate: issueDateObj,
           dueDate,
-          // Desglose fiscal
+          // ── Período fiscal SENIAT ──────────────────────
+          fiscalMonth,
+          fiscalYear,
+          // ── Desglose fiscal total ──────────────────────
           subtotal: new Decimal(subtotal),
           exemptAmount: new Decimal(exemptAmount),
           taxableAmount: new Decimal(taxableAmount),
           taxAmount: new Decimal(taxAmount),
           totalAmount: new Decimal(totalAmount),
-          // Retenciones (SENIAT)
+          // ── Alícuotas segregadas SENIAT ────────────────
+          taxableAmount16: new Decimal(taxableAmount16),
+          taxAmount16: new Decimal(taxAmount16),
+          taxableAmount8: new Decimal(taxableAmount8),
+          taxAmount8: new Decimal(taxAmount8),
+          taxableAmount31: new Decimal(taxableAmount31),
+          taxAmount31: new Decimal(taxAmount31),
+          // ── Retenciones (SENIAT) ───────────────────────
           retIvaRate: new Decimal(retIvaRate),
           retentionIVA: new Decimal(retentionIVA),
           retISLRRate: new Decimal(retISLRRate),
           retentionISLR: new Decimal(retentionISLR),
-          // IGTF
+          // ── IGTF ──────────────────────────────────────
           igtfApplies,
           igtfRate: new Decimal(3),
-          // Metadatos
+          // ── Metadatos ─────────────────────────────────
           inBook: dto.inBook ?? true,
           notes: dto.notes,
           status: 'ISSUED',
@@ -322,13 +344,19 @@ export class SalesInvoicesService {
   }
 
   // ------------------------------------------------------------------
-  // HELPER: CALCULAR TOTALES FISCALES
+  // HELPER: CALCULAR TOTALES FISCALES (con alícuotas segregadas SENIAT)
   // ------------------------------------------------------------------
   private calculateTotals(items: CreateSalesInvoiceDto['items']) {
     let subtotal = 0,
       exemptAmount = 0,
       taxableAmount = 0,
-      taxAmount = 0;
+      taxAmount = 0,
+      taxableAmount16 = 0,
+      taxAmount16 = 0,
+      taxableAmount8 = 0,
+      taxAmount8 = 0,
+      taxableAmount31 = 0,
+      taxAmount31 = 0;
 
     const itemsData = items.map((i) => {
       const rate = i.taxRate ?? 16;
@@ -337,10 +365,15 @@ export class SalesInvoicesService {
       const tax = base * (rate / 100);
 
       subtotal += base;
-      if (rate === 0) exemptAmount += base;
-      else {
+      if (rate === 0) {
+        exemptAmount += base;
+      } else {
         taxableAmount += base;
         taxAmount += tax;
+        // Segregar por alícuota para el SENIAT
+        if (rate === 16) { taxableAmount16 += base; taxAmount16 += tax; }
+        else if (rate === 8) { taxableAmount8 += base; taxAmount8 += tax; }
+        else if (rate === 31) { taxableAmount31 += base; taxAmount31 += tax; }
       }
 
       return {
@@ -360,6 +393,12 @@ export class SalesInvoicesService {
       exemptAmount,
       taxableAmount,
       taxAmount,
+      taxableAmount16,
+      taxAmount16,
+      taxableAmount8,
+      taxAmount8,
+      taxableAmount31,
+      taxAmount31,
       totalAmount: subtotal + taxAmount,
       itemsData,
     };
