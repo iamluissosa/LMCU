@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import { useCompany } from '@/hooks/useCompany';
 
 // ─── Tipos ────────────────────────────────────────────────────
 interface SalesRow {
