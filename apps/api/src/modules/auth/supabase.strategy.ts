@@ -70,11 +70,18 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
     // Permisos desde el rol personalizado asignado (campo JSON en BD)
     const rolePermissions = (user.role?.permissions as string[] | null) ?? [];
 
-    // Si es ADMIN legacy sin rol personalizado → permisos implícitos completos
+    // Determinar efectivamente el rol:
+    // - Si tiene rol personalizado con permisos → usarlos
+    // - Si roleLegacy === 'ADMIN' → permisos implícitos completos
+    // - Si roleLegacy es null/undefined pero tiene companyId → es usuario del sistema, tratar como ADMIN
+    // - Caso USER sin rol personalizado → sin acceso adicional
+    const isRegistered = !!user.companyId;
+    const isAdmin = user.roleLegacy === 'ADMIN' || (!user.roleLegacy && isRegistered);
+
     const permissions: string[] =
       rolePermissions.length > 0
         ? rolePermissions
-        : user.roleLegacy === 'ADMIN'
+        : isAdmin
           ? ADMIN_IMPLICIT_PERMISSIONS
           : [];
 
