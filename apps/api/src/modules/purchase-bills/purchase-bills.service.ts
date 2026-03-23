@@ -11,12 +11,14 @@ import { CreateDirectPurchaseDto } from './dto/create-direct-purchase.dto';
 import { PurchaseBill } from '@erp/types';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
+import { IslrService } from '../islr/islr.service';
 
 @Injectable()
 export class PurchaseBillsService {
   constructor(
     private prisma: PrismaService,
     private billsRepository: PurchaseBillsRepository,
+    private islrService: IslrService,
   ) {}
 
   // REGISTRAR FACTURA (I/R)
@@ -32,6 +34,7 @@ export class PurchaseBillsService {
       controlNumber,
       issueDate,
       items,
+      islrConceptId,
     } = data;
 
     try {
@@ -86,6 +89,17 @@ export class PurchaseBillsService {
             calculatedSubtotal += qtyBilled * priceBilled;
           }
 
+          // 2.5 CALCULAR ISLR SI APLICA
+          let islrCalc: { taxableBase: number; percentage: number; sustraendo: number; retainedAmount: number; } | null = null;
+          if (islrConceptId) {
+            islrCalc = await this.islrService.calculateRetention({
+              taxableBase: data.taxableAmount || calculatedSubtotal, 
+              conceptId: islrConceptId,
+              supplierId: supplierId,
+              companyId: companyId
+            });
+          }
+
           // 3. Crear la Factura
           const bill = await this.billsRepository.create(
             companyId,
@@ -98,6 +112,8 @@ export class PurchaseBillsService {
               controlNumber,
               issueDate: new Date(issueDate),
               status: 'UNPAID', // Nace como cuenta por pagar
+              retentionISLR: islrCalc?.retainedAmount || 0,
+              rateRetISLR: islrCalc?.percentage || 0,
               totalAmount: data.totalAmount || calculatedSubtotal,
               taxableAmount: data.taxableAmount || 0,
               taxAmount: data.taxAmount || 0,
@@ -116,6 +132,26 @@ export class PurchaseBillsService {
             } as any,
             tx,
           ); // Pasamos tx para evitar deadlock
+
+          // 4. REGISTRAR EL HISTÓRICO ISLR SI HUBIERE RETENCIÓN
+          if (islrCalc && islrCalc.retainedAmount > 0) {
+            const controlNumberGen = `ISLR-${companyId.substring(0,4).toUpperCase()}-${Date.now()}`;
+            
+            await tx.islrRetention.create({
+              data: {
+                companyId,
+                supplierId,
+                conceptId: islrConceptId!,
+                controlNumber: controlNumberGen,
+                totalInvoice: data.totalAmount || calculatedSubtotal,
+                taxableBase: islrCalc.taxableBase,
+                percentage: islrCalc.percentage,
+                sustraendo: islrCalc.sustraendo,
+                retainedAmount: islrCalc.retainedAmount,
+                retentionDate: new Date()
+              }
+            });
+          }
 
           return bill;
         },
@@ -245,7 +281,7 @@ export class PurchaseBillsService {
     userId: string,
     data: CreateDirectPurchaseDto,
   ): Promise<PurchaseBill> {
-    const { supplierId, invoiceNumber, controlNumber, issueDate, items } = data;
+    const { supplierId, invoiceNumber, controlNumber, issueDate, items, islrConceptId } = data;
     const exchangeRate = data.exchangeRate ?? 1;
 
     try {
@@ -287,6 +323,17 @@ export class PurchaseBillsService {
             };
           });
 
+          // 0.5 CALCULAR ISLR SI APLICA
+          let islrCalc: { taxableBase: number; percentage: number; sustraendo: number; retainedAmount: number; } | null = null;
+          if (islrConceptId) {
+            islrCalc = await this.islrService.calculateRetention({
+              taxableBase: data.taxableAmount ?? calculatedBase, 
+              conceptId: islrConceptId,
+              supplierId: supplierId,
+              companyId: companyId
+            });
+          }
+
           // 1. Crear la Factura de Gasto (PurchaseBill con isExpense = true)
           const bill = await tx.purchaseBill.create({
             data: {
@@ -297,6 +344,8 @@ export class PurchaseBillsService {
               issueDate: new Date(issueDate),
               status: 'UNPAID',
               isExpense: true, // ← Marca la factura como GASTO, no inventario
+              retentionISLR: islrCalc?.retainedAmount || 0,
+              rateRetISLR: islrCalc?.percentage || 0,
               totalAmount:   data.totalAmount   ?? calculatedTotal,
               taxableAmount: data.taxableAmount ?? calculatedBase,
               taxAmount:     data.taxAmount     ?? calculatedTax,
@@ -311,6 +360,26 @@ export class PurchaseBillsService {
           // ✅ NO se crea GoodsReceipt — no hay entrada física al almacén
           // ✅ NO se modifica currentStock — es un gasto, no mercancía
           // ✅ NO se recalcula costAverage — el inventario no se ve afectado
+
+          // 2. REGISTRAR ISLR HISTORY SI APLICA
+          if (islrCalc && islrCalc.retainedAmount > 0) {
+            const controlNumberGen = `ISLR-${companyId.substring(0,4).toUpperCase()}-${Date.now()}`;
+            
+            await tx.islrRetention.create({
+              data: {
+                companyId,
+                supplierId,
+                conceptId: islrConceptId!,
+                controlNumber: controlNumberGen,
+                totalInvoice: data.totalAmount ?? calculatedTotal,
+                taxableBase: islrCalc.taxableBase,
+                percentage: islrCalc.percentage,
+                sustraendo: islrCalc.sustraendo,
+                retainedAmount: islrCalc.retainedAmount,
+                retentionDate: new Date()
+              }
+            });
+          }
 
           return bill;
         },

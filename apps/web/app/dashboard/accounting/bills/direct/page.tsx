@@ -1,14 +1,22 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { Receipt, DollarSign, Plus, Trash2, AlertCircle, Tag } from 'lucide-react';
+import { Receipt, DollarSign, Plus, Trash2, AlertCircle, Tag, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Supplier } from '@erp/types';
+
+interface IslrConceptRef {
+  id: string;
+  code: string;
+  description: string;
+}
 
 interface ExpenseCategory {
   id: string;
   name: string;
   description?: string;
+  islrConceptId?: string | null;
+  islrConcept?: IslrConceptRef | null;
 }
 
 type DiscountType = 'PERCENT' | 'FIXED_USD' | 'FIXED_VES';
@@ -23,6 +31,16 @@ interface ExpenseItem {
   // Descuento
   discountType: DiscountType;
   discountValue: number;
+}
+
+interface IslrPreview {
+  taxableBase: number;
+  percentage: number;
+  sustraendo: number;
+  retainedAmount: number;
+  conceptCode: string;
+  conceptDescription: string;
+  message?: string;
 }
 
 export default function DirectPurchasePage() {
@@ -45,6 +63,10 @@ export default function DirectPurchasePage() {
 
   // Ítems de gasto
   const [items, setItems] = useState<ExpenseItem[]>([]);
+
+  // Preview ISLR
+  const [islrPreview, setIslrPreview] = useState<IslrPreview | null>(null);
+  const [islrCalculating, setIslrCalculating] = useState(false);
 
   // Cargar catálogos y tasa BCV
   useEffect(() => {
@@ -90,6 +112,10 @@ export default function DirectPurchasePage() {
     setItems(prev => prev.map((item, i) =>
       i === idx ? { ...item, [field]: value } : item
     ));
+    // Limpiar preview si cambian datos relevantes
+    if (['expenseCategoryId', 'unitPrice', 'quantity', 'discountValue'].includes(field)) {
+      setIslrPreview(null);
+    }
   };
 
   const removeLine = (idx: number) => {
@@ -146,6 +172,50 @@ export default function DirectPurchasePage() {
   // ─── Label visual del tipo de descuento ─────────────────────────────────
   const discountLabel = (type: DiscountType) =>
     ({ PERCENT: '%', FIXED_USD: 'USD', FIXED_VES: 'VES' })[type];
+
+  // ─── ISLR Preview Calculation ────────────────────────────────────────
+  const getIslrAffectedItems = () => {
+    return items.filter(item => {
+      const cat = categories.find(c => c.id === item.expenseCategoryId);
+      return cat?.islrConcept && calcBase(item) > 0;
+    });
+  };
+
+  const calculateIslrPreview = async () => {
+    if (!invoiceData.supplierId) return;
+    const affectedItems = getIslrAffectedItems();
+    if (affectedItems.length === 0) return;
+
+    // Tomar el primer concepto ISLR encontrado (las líneas pueden tener el mismo)
+    const firstItem = affectedItems[0];
+    if (!firstItem) return;
+    const firstCat = categories.find(c => c.id === firstItem.expenseCategoryId);
+    if (!firstCat?.islrConcept) return;
+
+    // Sumar bases imponibles de todas las líneas con ese concepto
+    const totalBase = affectedItems.reduce((acc, item) => acc + calcBase(item), 0);
+
+    setIslrCalculating(true);
+    try {
+      const result = await apiClient.post<IslrPreview>('/islr/calculate', {
+        taxableBase: totalBase,
+        conceptId: firstCat.islrConcept.id,
+        supplierId: invoiceData.supplierId,
+      });
+      setIslrPreview({
+        ...result,
+        conceptCode: firstCat.islrConcept.code,
+        conceptDescription: firstCat.islrConcept.description,
+      });
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      alert(`Error calculando ISLR: ${err.message || 'Error desconocido'}`);
+    } finally {
+      setIslrCalculating(false);
+    }
+  };
+
+  const hasIslrItems = getIslrAffectedItems().length > 0;
 
   // ─── Submit ──────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -341,8 +411,26 @@ export default function DirectPurchasePage() {
                         value={item.expenseCategoryId}
                         onChange={e => updateLine(idx, 'expenseCategoryId', e.target.value)}>
                         <option value="" className="bg-[#1A1F2C]">Sin categoría</option>
-                        {categories.map(c => <option key={c.id} value={c.id} className="bg-[#1A1F2C]">{c.name}</option>)}
+                        {categories.map(c => (
+                          <option key={c.id} value={c.id} className="bg-[#1A1F2C]">
+                            {c.name}{c.islrConcept ? ` ⚡ ISLR ${c.islrConcept.code}` : ''}
+                          </option>
+                        ))}
                       </select>
+                      {(() => {
+                        const cat = categories.find(c => c.id === item.expenseCategoryId);
+                        if (cat?.islrConcept) {
+                          return (
+                            <div className="mt-1 flex items-center gap-1">
+                              <ShieldCheck size={10} className="text-blue-400" />
+                              <span className="text-[9px] text-blue-400 font-bold">
+                                ISLR {cat.islrConcept.code}
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </td>
                     {/* Descripción */}
                     <td className="px-3 py-3">
@@ -508,6 +596,75 @@ export default function DirectPurchasePage() {
                   <span className="font-mono font-black text-gray-500">
                     $ {(calcTotal() / invoiceData.exchangeRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
+                </div>
+              )}
+
+              {/* ─── PREVIEW ISLR ─── */}
+              {hasIslrItems && (
+                <div className="mt-4 border-2 border-blue-500/30 rounded-2xl overflow-hidden bg-blue-500/5">
+                  <div className="p-4 border-b border-blue-500/20 flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck size={18} className="text-blue-400" />
+                      <span className="text-xs font-black text-blue-300 uppercase tracking-widest">Preview Retención ISLR</span>
+                    </div>
+                    <button
+                      onClick={calculateIslrPreview}
+                      disabled={islrCalculating || !invoiceData.supplierId}
+                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all"
+                    >
+                      {islrCalculating ? 'Calculando...' : 'Calcular ISLR'}
+                    </button>
+                  </div>
+
+                  {!invoiceData.supplierId && (
+                    <div className="p-4 text-center">
+                      <p className="text-xs text-yellow-400">⚠ Selecciona un proveedor para calcular la retención ISLR</p>
+                    </div>
+                  )}
+
+                  {islrPreview && (
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="bg-blue-500/20 text-blue-300 text-[10px] font-bold px-2 py-1 rounded font-mono">
+                          Cód. {islrPreview.conceptCode}
+                        </span>
+                        <span className="text-xs text-blue-200/70">{islrPreview.conceptDescription}</span>
+                      </div>
+
+                      {islrPreview.message ? (
+                        <div className="bg-gray-800/50 rounded-xl p-3 text-center">
+                          <p className="text-xs text-gray-400">{islrPreview.message}</p>
+                        </div>
+                      ) : (
+                        <>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-white/5 rounded-xl p-3 text-center">
+                            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">Base Imponible</p>
+                            <p className="font-mono font-black text-white text-sm">
+                              {invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{islrPreview.taxableBase.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                          <div className="bg-white/5 rounded-xl p-3 text-center">
+                            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">% Retención</p>
+                            <p className="font-mono font-black text-blue-400 text-sm">{islrPreview.percentage}%</p>
+                          </div>
+                          <div className="bg-white/5 rounded-xl p-3 text-center">
+                            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">Sustraendo</p>
+                            <p className="font-mono font-black text-gray-400 text-sm">
+                              {invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{islrPreview.sustraendo.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-3 bg-blue-600/20 rounded-xl p-4 text-center border border-blue-500/30">
+                          <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest mb-1">ISLR a Retener</p>
+                          <p className="font-mono font-black text-blue-300 text-2xl">
+                            {invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{islrPreview.retainedAmount.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

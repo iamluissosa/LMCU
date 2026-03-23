@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Package, Settings, LogOut, 
   Menu, Building2, UserCircle, Truck, ShoppingCart, ClipboardCheck, 
   DollarSign, CreditCard, RefreshCw, FileText, TrendingUp, Receipt, Users,
-  Bell, Sun
+  Bell, Sun, Calculator
 } from 'lucide-react';
 
 interface UserProfile {
@@ -168,6 +168,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             { name: 'Usuarios', icon: UserCircle, path: '/dashboard/settings/general/users', requiredPermission: 'settings.view' },
             { name: 'Categorías de Serv.', icon: ClipboardCheck, path: '/dashboard/settings/general/service-categories', requiredPermission: 'settings.view' },
             { name: 'Formatos de Documentos', icon: FileText, path: '/dashboard/settings/general/document-formats', requiredPermission: 'settings.formats' },
+            { name: 'Ajustes Fiscales (ISLR)', icon: Calculator, path: '/dashboard/settings/general/fiscal', requiredPermission: 'settings.view' },
           ]
         }
       ]

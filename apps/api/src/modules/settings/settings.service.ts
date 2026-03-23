@@ -96,70 +96,15 @@ export class SettingsService {
   }
 
   // ── FORMATOS DE DOCUMENTOS FISCALES ──────────────────────────────────────
+  // DEPRECADO: Ahora se usa /document-formats/:type (DocumentFormatsModule)
+  // Se mantienen estos métodos solo para retrocompatibilidad temporal.
 
-  async getDocumentFormats(companyId: string) {
-    // Obtiene o crea la configuración (misma lógica que getSettings)
-    let settings = await this.prisma.companySettings.findUnique({
-      where: { companyId },
-      select: {
-        retentionLegalText: true,
-        retentionProvidencia: true,
-        retentionFooterText: true,
-        retentionAgentLabel: true,
-        retentionSubjectLabel: true,
-        retentionSignatureUrl: true,
-      },
-    });
-
-    if (!settings) {
-      // Si no existe configuración, la crea con defaults prisma
-      await this.prisma.companySettings.create({ data: { companyId } });
-      settings = await this.prisma.companySettings.findUnique({
-        where: { companyId },
-        select: {
-          retentionLegalText: true,
-          retentionProvidencia: true,
-          retentionFooterText: true,
-          retentionAgentLabel: true,
-          retentionSubjectLabel: true,
-          retentionSignatureUrl: true,
-        },
-      });
-    }
-
-    return settings;
+  async getDocumentFormats(_companyId: string) {
+    return {};
   }
 
-  async updateDocumentFormats(companyId: string, data: {
-    retentionLegalText?: string;
-    retentionProvidencia?: string;
-    retentionFooterText?: string;
-    retentionAgentLabel?: string;
-    retentionSubjectLabel?: string;
-    retentionSignatureUrl?: string | null;
-  }) {
-    return this.prisma.companySettings.upsert({
-      where: { companyId },
-      update: {
-        ...(data.retentionLegalText !== undefined && { retentionLegalText: data.retentionLegalText }),
-        ...(data.retentionProvidencia !== undefined && { retentionProvidencia: data.retentionProvidencia }),
-        ...(data.retentionFooterText !== undefined && { retentionFooterText: data.retentionFooterText }),
-        ...(data.retentionAgentLabel !== undefined && { retentionAgentLabel: data.retentionAgentLabel }),
-        ...(data.retentionSubjectLabel !== undefined && { retentionSubjectLabel: data.retentionSubjectLabel }),
-        ...(data.retentionSignatureUrl !== undefined && { retentionSignatureUrl: data.retentionSignatureUrl }),
-      },
-      create: {
-        companyId,
-        ...data,
-      },
-      select: {
-        retentionLegalText: true,
-        retentionProvidencia: true,
-        retentionFooterText: true,
-        retentionAgentLabel: true,
-        retentionSubjectLabel: true,
-        retentionSignatureUrl: true,
-      },
-    });
+  async updateDocumentFormats(_companyId: string, _data: Record<string, unknown>) {
+    return {};
   }
 }
+

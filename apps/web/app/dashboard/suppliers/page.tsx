@@ -14,6 +14,7 @@ interface Supplier {
   retentionISLR?: number | string;
   paymentTerms?: number | string;
   currencyPref?: 'USD' | 'VES' | 'MULTI';
+  personType?: 'PNR' | 'PNNR' | 'PJD' | 'PJND' | null;
 }
 
 export default function SuppliersPage() {
@@ -37,6 +38,7 @@ export default function SuppliersPage() {
     retentionISLR: 0,
     paymentTerms: 0,
     currencyPref: 'MULTI' as 'USD' | 'VES' | 'MULTI',
+    personType: '' as string,
   });
 
   // Cargar datos
@@ -66,11 +68,12 @@ export default function SuppliersPage() {
         address: supplier.address || '',
         retentionISLR: Number(supplier.retentionISLR) || 0,
         paymentTerms: Number(supplier.paymentTerms) || 0,
-        currencyPref: supplier.currencyPref || 'MULTI'
+        currencyPref: supplier.currencyPref || 'MULTI',
+        personType: supplier.personType || '',
       });
     } else {
       setEditingId(null);
-      setFormData({ name: '', rif: '', email: '', phone: '', address: '', retentionISLR: 0, paymentTerms: 0, currencyPref: 'MULTI' });
+      setFormData({ name: '', rif: '', email: '', phone: '', address: '', retentionISLR: 0, paymentTerms: 0, currencyPref: 'MULTI', personType: '' });
     }
     setIsModalOpen(true);
   };
@@ -171,7 +174,22 @@ export default function SuppliersPage() {
                     {supplier.currencyPref === 'VES' && <span className="text-[9px] font-black bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded-full">VES</span>}
                     {supplier.currencyPref === 'MULTI' && <span className="text-[9px] font-black bg-purple-500/10 text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded-full">MULTI</span>}
                   </div>
-                  <div className="text-xs text-blue-400 font-mono bg-blue-500/10 inline-block px-1 rounded mt-1 border border-blue-500/20">{supplier.rif}</div>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <div className="text-xs text-blue-400 font-mono bg-blue-500/10 inline-block px-1 rounded border border-blue-500/20">{supplier.rif}</div>
+                    {supplier.personType && (
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${
+                        supplier.personType === 'PJD' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                        : supplier.personType === 'PNR' ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                        : supplier.personType === 'PJND' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                      }`}>
+                        {supplier.personType}
+                      </span>
+                    )}
+                    {!supplier.personType && (
+                      <span className="text-[9px] font-bold text-red-400/60 border border-red-500/20 bg-red-500/5 px-1.5 py-0.5 rounded-full">Sin tipo fiscal</span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4">
                   <div className="text-gray-200">{supplier.email || '-'}</div>
@@ -225,6 +243,21 @@ export default function SuppliersPage() {
                     <input required className="w-full px-3 py-2 bg-[#0B1120] border border-white/10 text-white placeholder-gray-500 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     placeholder="J-12345678-9"
                     value={formData.rif} onChange={e => setFormData({...formData, rif: e.target.value})} />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-200 mb-1">Tipo de Persona Fiscal <span className="text-blue-400 text-[10px]">(ISLR)</span></label>
+                    <select
+                      className="w-full px-3 py-2 bg-[#0B1120] border border-white/10 text-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none cursor-pointer"
+                      value={formData.personType}
+                      onChange={e => setFormData({...formData, personType: e.target.value})}
+                    >
+                      <option value="" className="bg-[#1A1F2C]">— Seleccionar —</option>
+                      <option value="PJD" className="bg-[#1A1F2C]">PJD — Persona Jurídica Domiciliada</option>
+                      <option value="PNR" className="bg-[#1A1F2C]">PNR — Persona Natural Residente</option>
+                      <option value="PJND" className="bg-[#1A1F2C]">PJND — Persona Jurídica No Domiciliada</option>
+                      <option value="PNNR" className="bg-[#1A1F2C]">PNNR — Persona Natural No Residente</option>
+                    </select>
+                    <p className="text-[10px] text-gray-500 mt-1">Requerido para el cálculo automático de retención ISLR (Decreto 1808)</p>
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-200 mb-1">Teléfono</label>

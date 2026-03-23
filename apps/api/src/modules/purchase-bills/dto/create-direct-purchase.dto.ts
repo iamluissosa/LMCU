@@ -89,6 +89,10 @@ export class CreateDirectPurchaseDto {
   @IsOptional()
   currencyCode?: string; // Múltiples monedas (USD o VES)
 
+  @IsString()
+  @IsOptional()
+  islrConceptId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => DirectPurchaseItemDto)

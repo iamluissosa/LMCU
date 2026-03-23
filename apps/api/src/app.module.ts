@@ -19,6 +19,8 @@ import { ExpenseCategoriesModule } from './modules/expense-categories/expense-ca
 import { SalesModule } from './modules/sales/sales.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { ServiceCategoriesModule } from './modules/service-categories/service-categories.module';
+import { IslrModule } from './modules/islr/islr.module';
+import { DocumentFormatsModule } from './modules/document-formats/document-formats.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { ServiceCategoriesModule } from './modules/service-categories/service-ca
     SalesModule,
     ClientsModule,
     ServiceCategoriesModule,
+    IslrModule,
+    DocumentFormatsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

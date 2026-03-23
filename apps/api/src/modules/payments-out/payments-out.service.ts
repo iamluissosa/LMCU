@@ -106,6 +106,34 @@ export class PaymentsOutService {
                   igtfAmount: retentionData.igtfAmount || bill.igtfAmount,
                 },
               });
+
+              // ✅ Crear registro IslrRetention si hay retención ISLR con datos del concepto
+              if (
+                Number(retentionData.retentionISLR) > 0 &&
+                receiptRetISLR &&
+                retentionData.islrConceptId
+              ) {
+                // Evitar duplicados: verificar si ya existe un registro con este controlNumber
+                const existing = await tx.islrRetention.findUnique({
+                  where: { controlNumber: receiptRetISLR },
+                });
+                if (!existing) {
+                  await tx.islrRetention.create({
+                    data: {
+                      controlNumber: receiptRetISLR,
+                      supplierId: bill.supplierId,
+                      companyId: companyId,
+                      conceptId: retentionData.islrConceptId,
+                      retentionDate: new Date(),
+                      totalInvoice: retentionData.islrTotalInvoice || Number(bill.totalAmount),
+                      taxableBase: retentionData.islrTaxableBase || 0,
+                      percentage: retentionData.islrPercentage || 0,
+                      sustraendo: retentionData.islrSustraendo || 0,
+                      retainedAmount: Number(retentionData.retentionISLR),
+                    },
+                  });
+                }
+              }
             }
 
             // C. Crear Detalle del Pago

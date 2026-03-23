@@ -20,7 +20,8 @@ export class SuppliersService {
         address: data.address,
         retentionISLR: data.retentionISLR ? Number(data.retentionISLR) : 0,
         paymentTerms: Number(data.paymentTerms) || 0,
-        contactName: data.contactName, // Asegurar que este campo exista en el schema o DTO
+        contactName: data.contactName,
+        personType: data.personType as any,
       },
     });
     return created as unknown as Supplier; // Casting temporal si Prisma types difieren ligeramente
@@ -100,6 +101,7 @@ export class SuppliersService {
           data.paymentTerms !== undefined
             ? Number(data.paymentTerms)
             : undefined,
+        personType: data.personType as any,
       },
     });
     return updated as unknown as Supplier;

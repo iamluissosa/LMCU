@@ -3,32 +3,34 @@ import { useEffect, useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { 
   CreditCard, Search, 
-  Plus, FileText, CheckCircle, Calendar
+  Plus, FileText, CheckCircle, Calendar, Printer
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
-interface DocFormats {
-  retentionLegalText: string;
-  retentionProvidencia: string;
-  retentionFooterText: string;
-  retentionAgentLabel: string;
-  retentionSubjectLabel: string;
-  retentionSignatureUrl: string | null;
+interface DocumentFormat {
+  documentType: string;
+  headerText: string;
+  footerText: string;
+  legalText: string;
+  agentSignatureLabel: string;
+  subjectSignatureLabel: string;
+  stampUrl: string | null;
 }
 
-const DOC_DEFAULTS: DocFormats = {
-  retentionLegalText: 'Ley de IVA Art. 11.',
-  retentionProvidencia: 'Providencia Administrativa Nº SNAT/2025/0054 del 01/08/2025',
-  retentionFooterText: 'Este comprobante se emite en función a lo establecido en el artículo 16 de la Providencia Administrativa Nº SNAT/2025/0054',
-  retentionAgentLabel: 'Firma del agente de retención',
-  retentionSubjectLabel: 'Firma del Beneficiario del Pago Fecha de entrega',
-  retentionSignatureUrl: null,
+const DOC_DEFAULTS: DocumentFormat = {
+  documentType: 'RET_IVA',
+  headerText: '',
+  footerText: 'Este comprobante se emite en función a lo establecido en el artículo 16 de la Providencia Administrativa Nº SNAT/2025/0054',
+  legalText: 'Ley de IVA Art. 11. "La administración Tributaria..."',
+  agentSignatureLabel: 'Firma del agente de retención',
+  subjectSignatureLabel: 'Firma del Beneficiario del Pago Fecha de entrega',
+  stampUrl: null,
 };
 
 interface CompanyBase { name: string; rif: string; address: string; logoUrl?: string; }
 interface SupplierBase { name: string; rif: string; address?: string; }
-interface PurchaseBillBase { invoiceNumber: string; purchaseOrderId?: string | null; supplier: SupplierBase; retentionIVA: string | number; receiptRetIVA?: string; exchangeRate: string | number; totalAmount: string | number; taxableAmount: string | number; taxAmount: string | number; issueDate: string; controlNumber?: string; taxRate: string | number; }
+interface PurchaseBillBase { invoiceNumber: string; purchaseOrderId?: string | null; supplier: SupplierBase; retentionIVA: string | number; receiptRetIVA?: string; retentionISLR?: string | number; receiptRetISLR?: string; exchangeRate: string | number; totalAmount: string | number; taxableAmount: string | number; taxAmount: string | number; issueDate: string; controlNumber?: string; taxRate: string | number; }
 interface PaymentDetail { id: string; amountApplied: string | number; purchaseBill: PurchaseBillBase; }
 interface PaymentOut { id: string; paymentNumber: string; paymentDate: string; method: string; bankName?: string; reference?: string; notes?: string; amountPaid: string | number; exchangeRate: string | number; currencyCode?: string; details: PaymentDetail[]; company?: CompanyBase; }
 
@@ -36,12 +38,12 @@ export default function PaymentsOutPage() {
   const [payments, setPayments] = useState<PaymentOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [docFormats, setDocFormats] = useState<DocFormats>(DOC_DEFAULTS);
+  const [docFormats, setDocFormats] = useState<DocumentFormat>(DOC_DEFAULTS);
 
   // Cargar configuración de formatos al montar
   const fetchDocFormats = useCallback(async () => {
     try {
-      const data = await apiClient.get<DocFormats>('/settings/document-formats');
+      const data = await apiClient.get<DocumentFormat>('/document-formats/RET_IVA');
       setDocFormats(data);
     } catch {
       // Fallback silencioso a valores por defecto
@@ -267,12 +269,39 @@ export default function PaymentsOutPage() {
                                 </div>
                                 <div className="text-right">
                                     <p className="font-black text-white text-lg tracking-tighter">{selectedPayment.currencyCode === 'VES' ? 'Bs.' : selectedPayment.currencyCode === 'EUR' ? '€' : '$'}{Number(d.amountApplied).toFixed(2)}</p>
-                                    {Number(d.purchaseBill.retentionIVA) > 0 && (
-                                        <div className="flex flex-col items-end mt-1">
-                                          <p className="text-[10px] text-red-400/80 font-bold uppercase tracking-tighter">RET. IVA APLICADA</p>
-                                          <p className="text-xs text-red-400 font-mono font-bold">Bs. {Number(d.purchaseBill.retentionIVA).toLocaleString('es-VE', {minimumFractionDigits: 2})}</p>
-                                        </div>
-                                    )}
+                                    <div className="flex flex-col items-end gap-2 mt-1">
+                                      {Number(d.purchaseBill.retentionIVA) > 0 && (
+                                          <div className="flex flex-col items-end">
+                                            <p className="text-[10px] text-red-400/80 font-bold uppercase tracking-tighter">RET. IVA APLICADA</p>
+                                            <p className="text-xs text-red-400 font-mono font-bold">Bs. {Number(d.purchaseBill.retentionIVA).toLocaleString('es-VE', {minimumFractionDigits: 2})}</p>
+                                          </div>
+                                      )}
+                                      
+                                      {Number(d.purchaseBill.retentionISLR) > 0 && d.purchaseBill.receiptRetISLR && (
+                                          <div className="flex items-center gap-2">
+                                              <div className="flex flex-col items-end">
+                                                <p className="text-[10px] text-blue-400/80 font-bold uppercase tracking-tighter">RET. ISLR APLICADA</p>
+                                                <p className="text-xs text-blue-400 font-mono font-bold">Bs. {Number(d.purchaseBill.retentionISLR).toLocaleString('es-VE', {minimumFractionDigits: 2})}</p>
+                                              </div>
+                                              <button 
+                                                onClick={async (e) => {
+                                                  e.stopPropagation();
+                                                  try {
+                                                    const res = await apiClient.get<{ id: string }>(`/islr/by-receipt/${d.purchaseBill.receiptRetISLR}`);
+                                                    if (res?.id) window.open(`/print/islr/${res.id}`, '_blank');
+                                                  } catch (err) {
+                                                    console.error('No se encontró comprobante ISLR:', err);
+                                                    toast.error('No se encontró el comprobante ISLR vinculado');
+                                                  }
+                                                }}
+                                                className="bg-blue-600/20 hover:bg-blue-500 text-blue-400 hover:text-white p-2 rounded-xl transition-all shadow-lg"
+                                                title="Imprimir Comprobante ISLR"
+                                              >
+                                                <Printer size={14} />
+                                              </button>
+                                          </div>
+                                      )}
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -322,8 +351,8 @@ export default function PaymentsOutPage() {
 
            // Sacar recibo de retención si existe, o usar Payment Number como ref
            let retentionNumber = '';
-           if (selectedPayment.details.length > 0) {
-             retentionNumber = selectedPayment.details[0].purchaseBill.receiptRetIVA || selectedPayment.paymentNumber;
+           if (selectedPayment.details && selectedPayment.details.length > 0) {
+             retentionNumber = selectedPayment.details[0]?.purchaseBill?.receiptRetIVA || selectedPayment.paymentNumber;
            }
 
            // Proveedor (Sujeto retenido) asumiendo que un pago es a un solo proveedor
@@ -377,7 +406,7 @@ export default function PaymentsOutPage() {
                      {/* Texto Legal Centro */}
                      <div className="flex-1 text-center px-4 pt-1">
                         <p className="text-[10px] sm:text-[11px] font-medium leading-[1.2] text-gray-800 tracking-tight">
-                          {docFormats.retentionLegalText}
+                          {docFormats.legalText}
                         </p>
                      </div>
 
@@ -388,7 +417,7 @@ export default function PaymentsOutPage() {
                   {/* Títulos Centrales */}
                   <div className="text-center mt-2 space-y-0.5">
                      <h1 className="text-lg font-black tracking-widest text-[#1a1a1a]">COMPROBANTE DE RETENCION DE I.V.A.</h1>
-                     <p className="text-[11px] font-medium text-gray-800">{docFormats.retentionProvidencia}</p>
+                     <p className="text-[11px] font-medium text-gray-800">{docFormats.headerText || 'Providencia Administrativa Nº SNAT/2025/0054 del 01/08/2025'}</p>
                   </div>
 
                   {/* Número de comprobante y Fecha/Periodo */}
@@ -525,17 +554,27 @@ export default function PaymentsOutPage() {
 
                {/* FOOTER (Texto providencia al pie de la tabla) */}
                <div className="text-center mt-2">
-                   <span className="text-[10px] font-bold text-gray-800 tracking-tight">{docFormats.retentionFooterText}</span>
+                   <p className="text-center font-bold text-[10px] sm:text-[11px] uppercase tracking-widest text-[#1a1a1a]">
+                  {docFormats.footerText}
+               </p>
                </div>
 
                {/* BLOQUES DE FIRMAS FINALES */}
                <div className="mt-8 flex justify-center gap-12 sm:gap-24 px-12">
                    {/* Firma Izquierda (Vacia / Con Sello del Agente si hay en config) */}
-                   <div className="w-[300px] border border-black relative">
-                       {docFormats.retentionSignatureUrl && (
-                           // eslint-disable-next-line @next/next/no-img-element
-                           <img src={docFormats.retentionSignatureUrl} alt="Sello y Firma Agente" className="w-[180px] h-[75px] object-contain absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-125" />
-                       )}
+                   <div className="w-[45%] border border-black relative h-28 flex flex-col items-center justify-end pb-1">
+                  <p className="text-[10px] font-black mt-2 tracking-widest uppercase">{docFormats.agentSignatureLabel}</p>
+                  <p className="text-[10px] font-bold text-gray-600 truncate">{selectedPayment.company?.name}</p>
+                  {docFormats.stampUrl && (
+                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-70 -z-10">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={docFormats.stampUrl} alt="Sello" className="h-16 object-contain pointer-events-none grayscale" />
+                     </div>
+                  )}
+               </div>
+               
+               <div className="w-[45%] text-center border-t border-black pt-2 flex flex-col items-center">
+                  <p className="text-[10px] font-black mt-2 tracking-widest uppercase break-words w-full px-2">{docFormats.subjectSignatureLabel}</p>
                        {/* Un recuadro grande en blanco vacío. Le daremos altura explícita. */}
                        <div className="h-28 flex flex-col items-center justify-end pb-1 opacity-0 pointer-events-none text-[8px] border-t border-black px-4 mx-4 hidden">
                           {/* El recuadro real (Veneventos imagen) solo muestra lineas o cajas en blanco. */}

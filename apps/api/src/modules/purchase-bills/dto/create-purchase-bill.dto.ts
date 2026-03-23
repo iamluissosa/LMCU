@@ -78,6 +78,10 @@ export class CreatePurchaseBillDto {
   @IsOptional()
   exchangeRate?: number;
 
+  @IsString()
+  @IsOptional()
+  islrConceptId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PurchaseBillItemDto)

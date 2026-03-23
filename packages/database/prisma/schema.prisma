@@ -50,6 +50,8 @@ model Company {
   salesInvoices     SalesInvoice[]
   paymentsIn        PaymentIn[]
   serviceCategories ServiceCategory[]
+  islrRetentions    IslrRetention[]
+  documentFormats   DocumentFormat[]
 }
 
 model CompanySettings {
@@ -98,18 +100,35 @@ model CompanySettings {
   currency String @default("USD")
   timeZone String @default("America/Caracas")
 
-  // ── FORMATOS DE DOCUMENTOS FISCALES ──────────────────────────────────────
-  // Comprobante de Retención de I.V.A.
-  retentionLegalText    String  @default("Ley de IVA Art. 11. \"La administración Tributaria podrá designar como responsables del pago del impuesto, en calidad de agentes de retención a quienes por sus funciones públicas o por razón de sus actividades privadas intervengan en operaciones gravadas con el impuesto establecido en este Decreto con Rango, Valor y Fuerza de Ley\"")
-  retentionProvidencia  String  @default("Providencia Administrativa Nº SNAT/2025/0054 del 01/08/2025")
-  retentionFooterText   String  @default("Este comprobante se emite en función a lo establecido en el artículo 16 de la Providencia Administrativa Nº SNAT/2025/0054 de fecha 01/08/2025")
-  retentionAgentLabel   String  @default("Firma del agente de retención")
-  retentionSubjectLabel String  @default("Firma del Beneficiario del Pago Fecha de entrega")
-  retentionSignatureUrl String? // URL pública imagen: sello + firma manuscrita + RIF del agente
   // ─────────────────────────────────────────────────────────────────────────
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// 📄 FORMATOS DE DOCUMENTOS FISCALES (NUEVO)
+// ==========================================
+
+model DocumentFormat {
+  id        String   @id @default(uuid())
+  companyId String
+  documentType String // 'RET_IVA', 'RET_ISLR', 'INVOICE', 'DELIVERY_NOTE', 'CREDIT_NOTE', 'DEBIT_NOTE'
+
+  // Campos comunes
+  headerText String? // Providencias, Autorizaciones
+  footerText String? // Notas a pie de página, providencias
+  legalText  String? // Leyendas normativas obligatorias
+  
+  // Nomenclatura de firmas
+  agentSignatureLabel   String? // ej. "Firma del agente"
+  subjectSignatureLabel String? // ej. "Beneficiario"
+  
+  // Archivos adjuntos
+  stampUrl String? // URL del logo, sello o firma escaneada
+
+  company   Company @relation(fields: [companyId], references: [id])
+  @@unique([companyId, documentType])
 }
 
 // ==========================================
@@ -237,6 +256,13 @@ model Product {
 // ==========================================
 
 // 1. PROVEEDORES
+enum PersonType {
+  PNR   // Persona Natural Residente
+  PNNR  // Persona Natural No Residente
+  PJD   // Persona Jurídica Domiciliada
+  PJND  // Persona Jurídica No Domiciliada
+}
+
 model Supplier {
   id        String @id @default(uuid())
   companyId String
@@ -251,11 +277,13 @@ model Supplier {
   retentionISLR Decimal @default(0) @db.Decimal(5, 2)
   paymentTerms  Int     @default(0)
   currencyPref  String  @default("MULTI") // 'USD', 'VES', 'MULTI'
+  personType    PersonType? // Tipo de persona para efectos de ISLR
 
   company        Company         @relation(fields: [companyId], references: [id])
   purchaseOrders PurchaseOrder[]
   bills          PurchaseBill[]
   paymentsOut    PaymentOut[]
+  islrRetentions IslrRetention[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -465,6 +493,10 @@ model ExpenseCategory {
   name        String // "Servicios Públicos", "Alquiler", "Papelería"
   description String?
   isActive    Boolean @default(true)
+
+  // Vinculación ISLR (Decreto 1808)
+  islrConceptId String?
+  islrConcept   IslrConcept? @relation(fields: [islrConceptId], references: [id])
 
   company   Company            @relation(fields: [companyId], references: [id])
   billItems PurchaseBillItem[]
@@ -1008,4 +1040,67 @@ model PaymentInDetail {
 
   paymentIn    PaymentIn    @relation(fields: [paymentInId], references: [id], onDelete: Cascade)
   salesInvoice SalesInvoice @relation(fields: [salesInvoiceId], references: [id])
+}
+
+// ==========================================
+// 🏛️ IMPUESTOS SOBRE LA RENTA (ISLR - DECRETO 1808)
+// ==========================================
+
+model IslrConcept {
+  id          String          @id @default(uuid())
+  code        String          @unique // Ej. "058", "027"
+  description String
+  isActive    Boolean         @default(true)
+  rates       IslrRate[]
+  retentions  IslrRetention[]
+  expenseCategories ExpenseCategory[]
+  
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model IslrRate {
+  id             String      @id @default(uuid())
+  conceptId      String
+  concept        IslrConcept @relation(fields: [conceptId], references: [id])
+  personType     PersonType
+  percentage     Decimal     @db.Decimal(5, 2)
+  sustraendoFact Decimal     @db.Decimal(12, 4)
+  minBaseUt      Decimal     @db.Decimal(12, 4)
+  
+  @@unique([conceptId, personType])
+}
+
+model FiscalParameter {
+  id            String   @id @default(uuid())
+  name          String   @unique // Ej. "UNIDAD_TRIBUTARIA"
+  value         Decimal  @db.Decimal(12, 4)
+  effectiveDate DateTime @default(now())
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model IslrRetention {
+  id              String      @id @default(uuid())
+  supplierId      String
+  supplier        Supplier    @relation(fields: [supplierId], references: [id])
+  conceptId       String
+  concept         IslrConcept @relation(fields: [conceptId], references: [id])
+  controlNumber   String      @unique // Numero correlativo del comprobante
+  retentionDate   DateTime    @default(now())
+  
+  totalInvoice    Decimal     @db.Decimal(12, 2)
+  taxableBase     Decimal     @db.Decimal(12, 2)
+  percentage      Decimal     @db.Decimal(5, 2)
+  sustraendo      Decimal     @db.Decimal(12, 2)
+  retainedAmount  Decimal     @db.Decimal(12, 2)
+  
+  companyId       String
+  company         Company     @relation(fields: [companyId], references: [id])
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([companyId, retentionDate])
 }

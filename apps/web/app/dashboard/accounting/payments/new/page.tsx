@@ -1,10 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { 
-  CreditCard, Save, Search, ArrowLeft, FileText, Trash2 
+import {
+  CreditCard, Save, Search, ArrowLeft, FileText, Trash2, ShieldCheck 
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Supplier, PurchaseBill, PurchaseBillItem } from '@erp/types'; // Importar tipos compartidos
+import { Supplier, PurchaseBill, PurchaseBillItem } from '@erp/types';
 import { apiClient } from '@/lib/api-client';
 
 export default function NewPaymentPage() {
@@ -51,6 +51,19 @@ export default function NewPaymentPage() {
 
   const [fetchedRate, setFetchedRate] = useState<number>(0);
   const [canDelete, setCanDelete] = useState(false);
+
+  // Estado ISLR calculado
+  const [islrDetails, setIslrDetails] = useState<{
+    conceptId: string;
+    conceptCode: string;
+    conceptDesc: string;
+    percentage: number;
+    sustraendo: number;
+    retainedAmount: number;
+    taxableBase: number;
+    message?: string;
+  } | null>(null);
+  const [islrCalculating, setIslrCalculating] = useState(false);
 
   // 1. Cargar Proveedores, Permisos y Tasa BCV
   useEffect(() => {
@@ -106,18 +119,82 @@ export default function NewPaymentPage() {
 
   // 3. Seleccionar Factura
   // ✅ Q-01: Eliminamos generación de comprobantes, ahora lo hace el backend
-  const handleSelectBill = (bill: PurchaseBill) => {
+  const handleSelectBill = async (bill: PurchaseBill) => {
     setSelectedBill(bill);
+    const rate = fetchedRate > 0 ? fetchedRate : Number(bill.exchangeRate);
     
-    setPaymentData({
-      ...paymentData,
-      // Priorizamos la tasa del día (fetchedRate) sobre la de la factura
-      exchangeRate: fetchedRate > 0 ? fetchedRate : Number(bill.exchangeRate),
-      // ❌ NO generamos receiptRetIVA/ISLR aquí, el backend lo hará automáticamente
+    setPaymentData(prev => ({
+      ...prev,
+      exchangeRate: rate,
       retentionIVAPercent: 75,
+      retentionISLRAmount: 0,
       amountPaid: 0 
-    });
+    }));
+    setIslrDetails(null);
     setStep(3);
+
+    // Auto-calcular ISLR si el proveedor tiene tipo persona y la factura tiene items con categoría ISLR
+    if (selectedSupplier && bill.items && bill.items.length > 0) {
+      // Buscar si algún item tiene expenseCategoryId (gasto directo con posible vinculación ISLR)
+      const itemsWithCategory = bill.items.filter((item: PurchaseBillItem) => 
+        (item as any).expenseCategoryId
+      );
+
+      if (itemsWithCategory.length > 0) {
+        // Obtener categorías para verificar si tienen concepto ISLR
+        try {
+          setIslrCalculating(true);
+          const catResponse = await apiClient.get<any[]>('/expense-categories');
+          const categories = catResponse || [];
+          
+          // Buscar la primera categoría con concepto ISLR vinculado
+          let islrConceptId: string | null = null;
+          let islrConceptCode = '';
+          let islrConceptDesc = '';
+          let islrTaxableBase = 0;
+
+          for (const item of itemsWithCategory) {
+            const cat = categories.find((c: any) => c.id === (item as any).expenseCategoryId);
+            if (cat?.islrConcept) {
+              if (!islrConceptId) {
+                islrConceptId = cat.islrConcept.id;
+                islrConceptCode = cat.islrConcept.code;
+                islrConceptDesc = cat.islrConcept.description;
+              }
+              islrTaxableBase += Number(item.totalLine);
+            }
+          }
+
+          if (islrConceptId && islrTaxableBase > 0) {
+            const result = await apiClient.post<any>('/islr/calculate', {
+              taxableBase: islrTaxableBase,
+              conceptId: islrConceptId,
+              supplierId: selectedSupplier.id,
+            });
+
+            const retAmount = Number(result.retainedAmount) || 0;
+            setIslrDetails({
+              conceptId: islrConceptId,
+              conceptCode: islrConceptCode,
+              conceptDesc: islrConceptDesc,
+              percentage: Number(result.percentage) || 0,
+              sustraendo: Number(result.sustraendo) || 0,
+              retainedAmount: retAmount,
+              taxableBase: islrTaxableBase,
+              message: result.message,
+            });
+            setPaymentData(prev => ({
+              ...prev,
+              retentionISLRAmount: retAmount,
+            }));
+          }
+        } catch (e: unknown) {
+          console.error('Error auto-calculando ISLR:', e);
+        } finally {
+          setIslrCalculating(false);
+        }
+      }
+    }
   };
 
   // 4.1 Eliminar Factura Logic
@@ -201,10 +278,18 @@ export default function NewPaymentPage() {
           retentionData: {
             retentionIVA: totals.retentionIVA,
             rateRetIVA: paymentData.retentionIVAPercent,
-            receiptRetIVA: paymentData.receiptRetIVA, // Se guarda el YYYYMM...
+            receiptRetIVA: paymentData.receiptRetIVA,
             retentionISLR: paymentData.retentionISLRAmount,
             receiptRetISLR: paymentData.receiptRetISLR,
-            igtfAmount: totals.igtf
+            igtfAmount: totals.igtf,
+            // Datos ISLR para crear registro IslrRetention
+            ...(islrDetails && paymentData.retentionISLRAmount > 0 ? {
+              islrConceptId: islrDetails.conceptId,
+              islrTaxableBase: islrDetails.taxableBase,
+              islrPercentage: islrDetails.percentage,
+              islrSustraendo: islrDetails.sustraendo,
+              islrTotalInvoice: Number(selectedBill.totalAmount),
+            } : {}),
           }
         }]
       };
@@ -280,6 +365,18 @@ export default function NewPaymentPage() {
               <div className="p-12 text-center bg-[#0B1120] rounded-2xl border border-white/5">
                 <FileText size={48} className="mx-auto text-gray-800 mb-4" />
                 <p className="text-gray-500 font-black uppercase tracking-widest text-[10px]">No hay facturas pendientes para este proveedor</p>
+                
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <button 
+                    onClick={() => router.push('/dashboard/accounting/bills/direct')}
+                    className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-orange-500/20 transition-all active:scale-95"
+                  >
+                    + Registrar Gasto / Compra Directa (Sin O.C.)
+                  </button>
+                  <p className="text-gray-600 text-[9px] font-bold max-w-[200px] text-left">
+                    * Si deseas registrar un egreso libre sin orden de compra, primero regístralo como un Gasto Directo.
+                  </p>
+                </div>
               </div>
             ) : (
               pendingBills.map(bill => (
@@ -300,7 +397,7 @@ export default function NewPaymentPage() {
                   </div>
                   <div className="text-right flex items-center gap-6">
                     <div>
-                       <div className="text-2xl font-black text-white tracking-tighter">{billSymbol}{Number(bill.totalAmount).toFixed(2)}</div>
+                       <div className="text-2xl font-black text-white tracking-tighter">{bill.currencyCode === 'VES' ? 'Bs.' : bill.currencyCode === 'EUR' ? '€' : '$'}{Number(bill.totalAmount).toFixed(2)}</div>
                       <div className="text-[10px] text-gray-500 font-mono tracking-tight">CONTROL: {bill.controlNumber}</div>
                     </div>
                     {canDelete && (
@@ -523,9 +620,22 @@ export default function NewPaymentPage() {
                    <span className="text-red-400 font-black">-{billSymbol}{totals.retentionIVA.toFixed(2)}</span>
                 </div>
                 {paymentData.retentionISLRAmount > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm items-center">
+                      <span className="text-red-400/80 uppercase tracking-tighter text-[10px]">(-) Retención I.S.L.R</span>
+                      <span className="text-red-400 font-black">-{billSymbol}{Number(paymentData.retentionISLRAmount).toLocaleString(selectedBill?.currencyCode === 'USD' ? 'en-US' : 'es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    {islrDetails && (
+                      <div className="flex items-center gap-1.5 ml-2">
+                        <ShieldCheck size={10} className="text-blue-400" />
+                        <span className="text-[9px] text-blue-400/70 font-bold">Cód. {islrDetails.conceptCode} · {islrDetails.percentage}%</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {islrCalculating && (
                   <div className="flex justify-between text-sm items-center">
-                    <span className="text-red-400/80 uppercase tracking-tighter text-[10px]">(-) Retención I.S.L.R</span>
-                     <span className="text-red-400 font-black">-{billSymbol}{paymentData.retentionISLRAmount}</span>
+                    <span className="text-blue-400/80 uppercase tracking-tighter text-[10px] animate-pulse">Calculando ISLR...</span>
                   </div>
                 )}
                 {totals.igtf > 0 && (

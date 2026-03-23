@@ -61,6 +61,7 @@ export interface PurchaseBill {
   purchaseOrderId?: string | null;
   retentionIVA?: number | string;
   receiptRetIVA?: string;
+  retentionISLR?: number | string;
 }
 
 export interface PurchaseOrderItem {

@@ -50,6 +50,27 @@ class RetentionDataDto {
   @IsNumber()
   @IsOptional()
   igtfAmount?: number;
+
+  // Campos para crear registro IslrRetention al momento del pago
+  @IsString()
+  @IsOptional()
+  islrConceptId?: string;
+
+  @IsNumber()
+  @IsOptional()
+  islrTaxableBase?: number;
+
+  @IsNumber()
+  @IsOptional()
+  islrPercentage?: number;
+
+  @IsNumber()
+  @IsOptional()
+  islrSustraendo?: number;
+
+  @IsNumber()
+  @IsOptional()
+  islrTotalInvoice?: number;
 }
 
 class PaymentDetailDto {

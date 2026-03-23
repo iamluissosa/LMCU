@@ -711,16 +711,25 @@ function UsersListTab() {
 }
 
 // --- SUB-COMPONENT CATEGORÍAS DE GASTO ---
+interface IslrConceptRef {
+  id: string;
+  code: string;
+  description: string;
+}
+
 interface ExpenseCategory {
   id: string;
   name: string;
   description?: string;
   isActive: boolean;
   createdAt: string;
+  islrConceptId?: string | null;
+  islrConcept?: IslrConceptRef | null;
 }
 
 function ExpenseCategoriesTab() {
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+  const [islrConcepts, setIslrConcepts] = useState<IslrConceptRef[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCat, setEditingCat] = useState<Partial<ExpenseCategory> | null>(null);
@@ -737,7 +746,16 @@ function ExpenseCategoriesTab() {
     }
   };
 
-  useEffect(() => { fetchCategories(); }, []);
+  const fetchConcepts = async () => {
+    try {
+      const data = await apiClient.get<IslrConceptRef[]>('/islr/concepts');
+      setIslrConcepts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => { fetchCategories(); fetchConcepts(); }, []);
 
   const handleOpenCreate = () => {
     setEditingCat({ name: '', description: '', isActive: true });
@@ -754,10 +772,19 @@ function ExpenseCategoriesTab() {
     if (!editingCat?.name) return;
     setSaving(true);
     try {
-      await apiClient.post('/expense-categories', {
+      const payload = {
         name: editingCat.name,
         description: editingCat.description || '',
-      });
+        islrConceptId: editingCat.islrConceptId || null,
+      };
+
+      if (editingCat.id) {
+        // UPDATE
+        await apiClient.patch(`/expense-categories/${editingCat.id}`, payload);
+      } else {
+        // CREATE
+        await apiClient.post('/expense-categories', payload);
+      }
       setIsModalOpen(false);
       fetchCategories();
     } catch (err: unknown) {
@@ -827,6 +854,7 @@ function ExpenseCategoriesTab() {
           <thead className="bg-gray-50 text-xs uppercase font-semibold text-gray-500">
             <tr>
               <th className="px-5 py-3">Nombre</th>
+              <th className="px-5 py-3">Cód. ISLR</th>
               <th className="px-5 py-3">Descripción</th>
               <th className="px-5 py-3 text-center">Estado</th>
               <th className="px-5 py-3 text-right">Acciones</th>
@@ -835,7 +863,7 @@ function ExpenseCategoriesTab() {
           <tbody className="divide-y divide-gray-100">
             {categories.length === 0 ? (
               <tr>
-                <td colSpan={4} className="py-12 text-center text-gray-500">
+                <td colSpan={5} className="py-12 text-center text-gray-500">
                   <div className="text-4xl mb-2">🗂️</div>
                   <p className="font-medium">No hay categorías definidas aún.</p>
                   <p className="text-xs mt-1 text-gray-400">Usa el botón &quot;Crear por Defecto&quot; para empezar rápido.</p>
@@ -848,6 +876,17 @@ function ExpenseCategoriesTab() {
                     <span className="w-2 h-2 rounded-full bg-orange-400 shrink-0 shadow-[0_0_8px_rgba(2fb3ff,0.5)]" style={{backgroundColor: '#f97316', boxShadow: '0 0 8px rgba(249,115,22,0.5)'}} />
                     {cat.name}
                   </div>
+                </td>
+                <td className="px-5 py-4">
+                  {cat.islrConcept ? (
+                    <span className="inline-flex items-center gap-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-bold px-2 py-1 rounded-lg">
+                      <span className="font-mono">{cat.islrConcept.code}</span>
+                      <span className="text-blue-300/60">•</span>
+                      <span className="text-blue-300/80 font-normal truncate max-w-[140px]">{cat.islrConcept.description}</span>
+                    </span>
+                  ) : (
+                    <span className="text-gray-600 text-xs">—</span>
+                  )}
                 </td>
                 <td className="px-5 py-4 text-gray-400 text-xs">{cat.description || '—'}</td>
                 <td className="px-5 py-4 text-center">
@@ -906,6 +945,27 @@ function ExpenseCategoriesTab() {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1.5">
+                  Concepto ISLR (Decreto 1808) <span className="text-gray-500 font-normal">(opcional)</span>
+                </label>
+                <select
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all text-sm"
+                  value={editingCat.islrConceptId || ''}
+                  onChange={e => setEditingCat({ ...editingCat, islrConceptId: e.target.value || null })}
+                >
+                  <option value="">Sin concepto ISLR</option>
+                  {islrConcepts.map(c => (
+                    <option key={c.id} value={c.id} className="bg-gray-900 text-white">
+                      {c.code} – {c.description}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-gray-500 mt-1.5 leading-relaxed">
+                  Si vinculas un concepto ISLR, al registrar un gasto directo con esta categoría se auto-calculará la retención.
+                </p>
+              </div>
+
               {editingCat.id && (
                 <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 text-xs text-orange-400">
                   💡 Para modificar el nombre de manera segura, elimina esta categoría y crea una nueva (si aún no tiene gastos asociados).
@@ -919,7 +979,14 @@ function ExpenseCategoriesTab() {
                   className="px-5 py-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl text-sm font-medium transition-colors">
                   Cancelar
                 </button>
-                {!editingCat.id && (
+                {editingCat.id ? (
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-sm font-medium shadow-lg shadow-blue-500/20 transition-all">
+                    {saving ? 'Guardando...' : 'Guardar Cambios'}
+                  </button>
+                ) : (
                   <button
                     type="submit"
                     disabled={saving}

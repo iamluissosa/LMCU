@@ -45,4 +45,8 @@ export class CreateSupplierDto {
   @IsString()
   @IsOptional()
   currencyPref?: string;
+
+  @IsString()
+  @IsOptional()
+  personType?: string; // 'PNR' | 'PNNR' | 'PJD' | 'PJND'
 }

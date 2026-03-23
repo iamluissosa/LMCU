@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Param,
   Body,
   Request,
   UseGuards,
@@ -22,8 +24,17 @@ export class ExpenseCategoriesController {
   @Post()
   create(
     @Request() req: any,
-    @Body() body: { name: string; description?: string },
+    @Body() body: { name: string; description?: string; islrConceptId?: string | null },
   ) {
     return this.service.create(req.user.companyId, body);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body() body: { name?: string; description?: string; islrConceptId?: string | null; isActive?: boolean },
+  ) {
+    return this.service.update(id, req.user.companyId, body);
   }
 }

@@ -1,0 +1,2 @@
+﻿app/dashboard/accounting/payments/page.tsx(326,32): error TS2532: Object is possibly 'undefined'.
+app/print/islr/[id]/page.tsx(6,26): error TS2307: Cannot find module '../../../utils/auth' or its corresponding type declarations.
