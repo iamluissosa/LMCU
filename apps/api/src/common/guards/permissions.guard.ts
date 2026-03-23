@@ -17,6 +17,7 @@ export class PermissionsGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
+    // Sin decorador @Permissions → acceso libre (solo requiere JWT válido)
     if (!required || required.length === 0) {
       return true;
     }
@@ -24,25 +25,33 @@ export class PermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request?.user;
 
-    if (user?.role === 'ADMIN') {
+    // ── ADMIN bypass ──────────────────────────────────────────────────
+    // El campo `role` en el payload JWT es `user.roleLegacy` (ver supabase.strategy.ts)
+    // Los valores posibles son: 'ADMIN' | 'USER' | undefined
+    const legacyRole = user?.role ?? user?.roleLegacy;
+    if (legacyRole === 'ADMIN') {
       return true;
     }
 
-    const permissions: string[] = user?.permissions || [];
+    // ── Verificación de permisos granulares ──────────────────────────
+    const permissions: string[] = Array.isArray(user?.permissions)
+      ? user.permissions
+      : [];
+
     const hasPermission = required.some((perm) => permissions.includes(perm));
 
     if (!hasPermission) {
       console.warn(
-        `⛔ Acceso Denegado. Usuario: ${user?.email}, RolLegacy: ${user?.role}, RolCustom: ${user?.roleName}`,
+        `⛔ Acceso Denegado. Usuario: ${user?.email}, RolLegacy: ${legacyRole}, RolCustom: ${user?.roleName}`,
       );
       console.warn(`   Permisos requeridos: [${required.join(', ')}]`);
       console.warn(
-        `   Permisos del usuario (Tipo ${typeof permissions}):`,
+        `   Permisos del usuario (${permissions.length}):`,
         permissions,
       );
 
       throw new ForbiddenException(
-        `Access Denied. RoleLegacy: ${user?.role}, CustomRole: ${user?.roleName}, Your Perms: ${JSON.stringify(permissions)}`,
+        `Access Denied. RoleLegacy: ${legacyRole}, CustomRole: ${user?.roleName}, Your Perms: ${JSON.stringify(permissions)}`,
       );
     }
 
