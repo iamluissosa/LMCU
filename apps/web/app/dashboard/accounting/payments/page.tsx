@@ -32,7 +32,8 @@ interface CompanyBase { name: string; rif: string; address: string; logoUrl?: st
 interface SupplierBase { name: string; rif: string; address?: string; }
 interface PurchaseBillBase { invoiceNumber: string; purchaseOrderId?: string | null; supplier: SupplierBase; retentionIVA: string | number; receiptRetIVA?: string; retentionISLR?: string | number; receiptRetISLR?: string; exchangeRate: string | number; totalAmount: string | number; taxableAmount: string | number; taxAmount: string | number; issueDate: string; controlNumber?: string; taxRate: string | number; }
 interface PaymentDetail { id: string; amountApplied: string | number; purchaseBill: PurchaseBillBase; }
-interface PaymentOut { id: string; paymentNumber: string; paymentDate: string; method: string; bankName?: string; reference?: string; notes?: string; amountPaid: string | number; exchangeRate: string | number; currencyCode?: string; details: PaymentDetail[]; company?: CompanyBase; }
+interface ExpenseItem { id: string; description: string; amount: number; expenseCategory?: { name: string; code: string; }; department?: { name: string; code: string; }; }
+interface PaymentOut { id: string; paymentNumber: string; paymentDate: string; method: string; bankName?: string; reference?: string; notes?: string; amountPaid: string | number; exchangeRate: string | number; currencyCode?: string; isDirectExpense?: boolean; details: PaymentDetail[]; expenseItems?: ExpenseItem[]; company?: CompanyBase; }
 
 export default function PaymentsOutPage() {
   const [payments, setPayments] = useState<PaymentOut[]>([]);
@@ -97,16 +98,24 @@ export default function PaymentsOutPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
         <div>
           <h1 className="text-2xl font-black text-white flex items-center gap-2">
-            <CreditCard className="text-blue-500" /> Historial de Pagos
+            <CreditCard className="text-blue-500" /> Historial de Egresos
           </h1>
-          <p className="text-gray-400 text-sm mt-1 uppercase tracking-tight font-medium">Egresos · Salidas de Caja y Banco</p>
+          <p className="text-gray-400 text-sm mt-1 uppercase tracking-tight font-medium">Egresos · Pagos a Proveedores · Gastos Directos</p>
         </div>
-        <Link 
-          href="/dashboard/accounting/payments/new" 
-          className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2"
-        >
-          <Plus size={18} /> Registrar Nuevo Pago
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link 
+            href="/dashboard/accounting/payments/direct" 
+            className="bg-orange-600 hover:bg-orange-500 text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-orange-600/20 transition-all flex items-center gap-2"
+          >
+            <FileText size={18} /> Gasto Sin Factura
+          </Link>
+          <Link 
+            href="/dashboard/accounting/payments/new" 
+            className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2"
+          >
+            <Plus size={18} /> Pago a Proveedor
+          </Link>
+        </div>
       </div>
 
       {/* FILTROS Y BÚSQUEDA */}
@@ -174,21 +183,36 @@ export default function PaymentsOutPage() {
                     )}
                   </td>
 
-                  {/* COL 3: Qué facturas pagó */}
+                  {/* COL 3: Qué facturas pagó o Gastos Directos */}
                   <td className="px-6 py-5">
                     <div className="space-y-1.5">
-                      {pay.details.map((d: PaymentDetail) => (
-                        <div key={d.id} className="flex items-center gap-2 text-[11px] font-medium">
-                          <CheckCircle size={12} className="text-green-500/80"/>
-                          <span className="text-gray-300">Fac. <span className="text-white font-mono">{d.purchaseBill.invoiceNumber}</span></span>
-                          {!d.purchaseBill.purchaseOrderId && (
-                            <span className="bg-orange-500/10 text-orange-400 text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter border border-orange-500/20">
-                              Gasto
-                            </span>
-                          )}
-                          <span className="text-gray-500 text-[10px] truncate max-w-[120px] uppercase">({d.purchaseBill.supplier.name})</span>
-                        </div>
-                      ))}
+                      {pay.isDirectExpense && pay.expenseItems ? (
+                        pay.expenseItems.slice(0, 2).map((item) => (
+                           <div key={item.id} className="flex items-center gap-2 text-[11px] font-medium">
+                             <CheckCircle size={12} className="text-orange-500/80"/>
+                             <span className="bg-orange-500/10 text-orange-400 text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter border border-orange-500/20">
+                                Gasto Directo
+                             </span>
+                             <span className="text-gray-300 truncate max-w-[200px]">{item.description}</span>
+                           </div>
+                        ))
+                      ) : (
+                        pay.details.map((d: PaymentDetail) => (
+                          <div key={d.id} className="flex items-center gap-2 text-[11px] font-medium">
+                            <CheckCircle size={12} className="text-green-500/80"/>
+                            <span className="text-gray-300">Fac. <span className="text-white font-mono">{d.purchaseBill.invoiceNumber}</span></span>
+                            {!d.purchaseBill.purchaseOrderId && (
+                              <span className="bg-orange-500/10 text-orange-400 text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter border border-orange-500/20">
+                                Gasto
+                              </span>
+                            )}
+                            <span className="text-gray-500 text-[10px] truncate max-w-[120px] uppercase">({d.purchaseBill.supplier.name})</span>
+                          </div>
+                        ))
+                      )}
+                      {pay.isDirectExpense && pay.expenseItems && pay.expenseItems.length > 2 && (
+                          <div className="text-[10px] text-gray-500 italic ml-5">+ {pay.expenseItems.length - 2} líneas más</div>
+                      )}
                       {pay.notes && (
                         <p className="text-[10px] text-gray-600 italic mt-2 line-clamp-1 max-w-xs">&quot;{pay.notes}&quot;</p>
                       )}
@@ -251,77 +275,104 @@ export default function PaymentsOutPage() {
                     </div>
 
                     <div className="space-y-4">
-                        <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-white/5 pb-2">Comprobantes Conciliados</h4>
+                        <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-white/5 pb-2">
+                           {selectedPayment.isDirectExpense ? "Líneas de Egreso / Distribución Contable" : "Comprobantes Conciliados"}
+                        </h4>
                         <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                        {selectedPayment.details.map((d: PaymentDetail) => (
-                            <div key={d.id} className="bg-white/5 p-5 rounded-2xl border border-white/5 flex justify-between items-center group hover:bg-white/10 transition-all">
-                                <div>
-                                    <p className="font-black text-white text-sm flex items-center gap-2">
-                                        FACTURA #{d.purchaseBill.invoiceNumber}
-                                        {!d.purchaseBill.purchaseOrderId && (
-                                            <span className="bg-orange-500/10 text-orange-400 text-[9px] px-2 py-0.5 rounded-full font-black uppercase border border-orange-500/20">
-                                                GASTO
-                                            </span>
+                        {selectedPayment.isDirectExpense && selectedPayment.expenseItems ? (
+                           selectedPayment.expenseItems.map((item) => (
+                             <div key={item.id} className="bg-white/5 p-5 rounded-2xl border border-white/5 flex justify-between items-center group hover:bg-white/10 transition-all">
+                               <div>
+                                   <p className="font-black text-white text-sm flex items-center gap-2">
+                                       {item.description}
+                                   </p>
+                                   <p className="text-xs text-orange-400 font-bold uppercase mt-1">
+                                       Cat: {item.expenseCategory?.name || 'N/A'}
+                                   </p>
+                                   {item.department && (
+                                     <p className="text-[10px] text-gray-500 uppercase mt-0.5 tracking-widest">
+                                        C.C: {item.department.code} - {item.department.name}
+                                     </p>
+                                   )}
+                               </div>
+                               <div className="text-right">
+                                   <p className="font-black text-white text-lg tracking-tighter">${Number(item.amount).toFixed(2)}</p>
+                               </div>
+                             </div>
+                           ))
+                        ) : (
+                          selectedPayment.details.map((d: PaymentDetail) => (
+                              <div key={d.id} className="bg-white/5 p-5 rounded-2xl border border-white/5 flex justify-between items-center group hover:bg-white/10 transition-all">
+                                  <div>
+                                      <p className="font-black text-white text-sm flex items-center gap-2">
+                                          FACTURA #{d.purchaseBill.invoiceNumber}
+                                          {!d.purchaseBill.purchaseOrderId && (
+                                              <span className="bg-orange-500/10 text-orange-400 text-[9px] px-2 py-0.5 rounded-full font-black uppercase border border-orange-500/20">
+                                                  GASTO
+                                              </span>
+                                          )}
+                                      </p>
+                                      <p className="text-xs text-gray-400 font-bold uppercase mt-1">{d.purchaseBill.supplier.name}</p>
+                                      <p className="text-[10px] text-gray-600 font-mono mt-0.5">RIF: {d.purchaseBill.supplier.rif}</p>
+                                  </div>
+                                  <div className="text-right">
+                                      <p className="font-black text-white text-lg tracking-tighter">{selectedPayment.currencyCode === 'VES' ? 'Bs.' : selectedPayment.currencyCode === 'EUR' ? '€' : '$'}{Number(d.amountApplied).toFixed(2)}</p>
+                                      <div className="flex flex-col items-end gap-2 mt-1">
+                                        {Number(d.purchaseBill.retentionIVA) > 0 && (
+                                            <div className="flex flex-col items-end">
+                                              <p className="text-[10px] text-red-400/80 font-bold uppercase tracking-tighter">RET. IVA APLICADA</p>
+                                              <p className="text-xs text-red-400 font-mono font-bold">Bs. {Number(d.purchaseBill.retentionIVA).toLocaleString('es-VE', {minimumFractionDigits: 2})}</p>
+                                            </div>
                                         )}
-                                    </p>
-                                    <p className="text-xs text-gray-400 font-bold uppercase mt-1">{d.purchaseBill.supplier.name}</p>
-                                    <p className="text-[10px] text-gray-600 font-mono mt-0.5">RIF: {d.purchaseBill.supplier.rif}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-black text-white text-lg tracking-tighter">{selectedPayment.currencyCode === 'VES' ? 'Bs.' : selectedPayment.currencyCode === 'EUR' ? '€' : '$'}{Number(d.amountApplied).toFixed(2)}</p>
-                                    <div className="flex flex-col items-end gap-2 mt-1">
-                                      {Number(d.purchaseBill.retentionIVA) > 0 && (
-                                          <div className="flex flex-col items-end">
-                                            <p className="text-[10px] text-red-400/80 font-bold uppercase tracking-tighter">RET. IVA APLICADA</p>
-                                            <p className="text-xs text-red-400 font-mono font-bold">Bs. {Number(d.purchaseBill.retentionIVA).toLocaleString('es-VE', {minimumFractionDigits: 2})}</p>
-                                          </div>
-                                      )}
-                                      
-                                      {Number(d.purchaseBill.retentionISLR) > 0 && d.purchaseBill.receiptRetISLR && (
-                                          <div className="flex items-center gap-2">
-                                              <div className="flex flex-col items-end">
-                                                <p className="text-[10px] text-blue-400/80 font-bold uppercase tracking-tighter">RET. ISLR APLICADA</p>
-                                                <p className="text-xs text-blue-400 font-mono font-bold">Bs. {Number(d.purchaseBill.retentionISLR).toLocaleString('es-VE', {minimumFractionDigits: 2})}</p>
-                                              </div>
-                                              <button 
-                                                onClick={async (e) => {
-                                                  e.stopPropagation();
-                                                  try {
-                                                    const res = await apiClient.get<{ id: string }>(`/islr/by-receipt/${d.purchaseBill.receiptRetISLR}`);
-                                                    if (res?.id) window.open(`/print/islr/${res.id}`, '_blank');
-                                                  } catch (err) {
-                                                    console.error('No se encontró comprobante ISLR:', err);
-                                                    toast.error('No se encontró el comprobante ISLR vinculado');
-                                                  }
-                                                }}
-                                                className="bg-blue-600/20 hover:bg-blue-500 text-blue-400 hover:text-white p-2 rounded-xl transition-all shadow-lg"
-                                                title="Imprimir Comprobante ISLR"
-                                              >
-                                                <Printer size={14} />
-                                              </button>
-                                          </div>
-                                      )}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                                        
+                                        {Number(d.purchaseBill.retentionISLR) > 0 && d.purchaseBill.receiptRetISLR && (
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex flex-col items-end">
+                                                  <p className="text-[10px] text-blue-400/80 font-bold uppercase tracking-tighter">RET. ISLR APLICADA</p>
+                                                  <p className="text-xs text-blue-400 font-mono font-bold">Bs. {Number(d.purchaseBill.retentionISLR).toLocaleString('es-VE', {minimumFractionDigits: 2})}</p>
+                                                </div>
+                                                <button 
+                                                  onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    try {
+                                                      const res = await apiClient.get<{ id: string }>(`/islr/by-receipt/${d.purchaseBill.receiptRetISLR}`);
+                                                      if (res?.id) window.open(`/print/islr/${res.id}`, '_blank');
+                                                    } catch (err) {
+                                                      console.error('No se encontró comprobante ISLR:', err);
+                                                      toast.error('No se encontró el comprobante ISLR vinculado');
+                                                    }
+                                                  }}
+                                                  className="bg-blue-600/20 hover:bg-blue-500 text-blue-400 hover:text-white p-2 rounded-xl transition-all shadow-lg"
+                                                  title="Imprimir Comprobante ISLR"
+                                                >
+                                                  <Printer size={14} />
+                                                </button>
+                                            </div>
+                                        )}
+                                      </div>
+                                  </div>
+                              </div>
+                          ))
+                        )}
                         </div>
                     </div>
                 </div>
 
                 <div className="bg-white/5 px-8 py-6 flex justify-end gap-4 border-t border-white/5">
                     <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 text-gray-500 hover:text-white font-black uppercase tracking-widest text-[10px] transition-all">Cancelar</button>
-                    <button 
-                        onClick={() => {
-                            console.log('--- PRINT DEBUG ---');
-                            console.log('Selected Payment:', selectedPayment);
-                            console.log('Company:', selectedPayment?.company);
-                            handlePrint();
-                        }}
-                        className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl flex items-center gap-2 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02]"
-                    >
-                        <FileText size={18} /> Imprimir Voucher
-                    </button>
+                    {!selectedPayment.isDirectExpense && (
+                      <button 
+                          onClick={() => {
+                              console.log('--- PRINT DEBUG ---');
+                              console.log('Selected Payment:', selectedPayment);
+                              console.log('Company:', selectedPayment?.company);
+                              handlePrint();
+                          }}
+                          className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl flex items-center gap-2 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02]"
+                      >
+                          <FileText size={18} /> Imprimir Voucher
+                      </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -343,7 +394,7 @@ export default function PaymentsOutPage() {
 
       {/* COMPROBANTE DE RETENCIÓN (SOLO IMPRESIÓN) */}
       <div className="hidden print:block font-sans text-black bg-white w-full absolute top-0 left-0 z-[9999] px-4 py-2">
-         {selectedPayment && (() => {
+         {selectedPayment && !selectedPayment.isDirectExpense && (() => {
            // Calcular periodo (AAAA-MM) y fecha
            const paymentDateObj = new Date(selectedPayment.paymentDate);
            const periodStr = `${paymentDateObj.getFullYear()}-${String(paymentDateObj.getMonth() + 1).padStart(2, '0')}`;

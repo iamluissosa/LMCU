@@ -16,6 +16,10 @@ class PurchaseBillItemDto {
   @IsNotEmpty()
   productId: string;
 
+  @IsUUID()
+  @IsOptional()
+  departmentId?: string;
+
   @IsString()
   @IsOptional()
   productName?: string; // Útil para logs de error

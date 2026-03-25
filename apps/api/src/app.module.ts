@@ -22,6 +22,8 @@ import { ServiceCategoriesModule } from './modules/service-categories/service-ca
 import { IslrModule } from './modules/islr/islr.module';
 import { DocumentFormatsModule } from './modules/document-formats/document-formats.module';
 import { FiscalBooksModule } from './modules/fiscal-books/fiscal-books.module';
+import { DepartmentsModule } from './modules/departments/departments.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -48,6 +50,8 @@ import { FiscalBooksModule } from './modules/fiscal-books/fiscal-books.module';
     IslrModule,
     DocumentFormatsModule,
     FiscalBooksModule,
+    DepartmentsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

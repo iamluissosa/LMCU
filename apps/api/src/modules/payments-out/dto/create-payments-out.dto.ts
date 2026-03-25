@@ -9,6 +9,7 @@ import {
   Min,
   IsUUID,
   IsEnum,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -88,6 +89,24 @@ class PaymentDetailDto {
   retentionData?: RetentionDataDto;
 }
 
+class PaymentOutExpenseItemDto {
+  @IsUUID()
+  @IsOptional()
+  expenseCategoryId?: string;
+
+  @IsUUID()
+  @IsOptional()
+  departmentId?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  description: string;
+
+  @IsNumber()
+  @Min(0)
+  amount: number;
+}
+
 export class CreatePaymentOutDto {
   @IsDateString()
   @IsNotEmpty()
@@ -128,5 +147,16 @@ export class CreatePaymentOutDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PaymentDetailDto)
-  bills: PaymentDetailDto[];
+  @IsOptional()
+  bills?: PaymentDetailDto[];
+
+  @IsBoolean()
+  @IsOptional()
+  isDirectExpense?: boolean;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentOutExpenseItemDto)
+  @IsOptional()
+  expenseItems?: PaymentOutExpenseItemDto[];
 }

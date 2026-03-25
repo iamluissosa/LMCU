@@ -19,10 +19,17 @@ interface ExpenseCategory {
   islrConcept?: IslrConceptRef | null;
 }
 
+interface Department {
+  id: string;
+  code: string;
+  name: string;
+}
+
 type DiscountType = 'PERCENT' | 'FIXED_USD' | 'FIXED_VES';
 
 interface ExpenseItem {
   expenseCategoryId: string;
+  departmentId?: string;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -49,6 +56,7 @@ export default function DirectPurchasePage() {
   // Catálogos
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Cabecera de la factura
@@ -72,12 +80,14 @@ export default function DirectPurchasePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [supRes, catRes] = await Promise.all([
+        const [supRes, catRes, dptRes] = await Promise.all([
           apiClient.get<{ items: Supplier[] }>('/suppliers'),
           apiClient.get<ExpenseCategory[]>('/expense-categories'),
+          apiClient.get<Department[]>('/departments'),
         ]);
         setSuppliers(supRes.items || []);
         setCategories(Array.isArray(catRes) ? catRes : []);
+        setDepartments(Array.isArray(dptRes) ? dptRes : []);
       } catch (err) {
         console.error('Error cargando catálogos:', err);
       }
@@ -98,6 +108,7 @@ export default function DirectPurchasePage() {
   const addLine = () => {
     setItems([...items, {
       expenseCategoryId: '',
+      departmentId: '',
       description: '',
       quantity: 1,
       unitPrice: 0,
@@ -239,6 +250,7 @@ export default function DirectPurchasePage() {
         totalAmount:   calcTotal(),
         items: items.map(i => ({
           expenseCategoryId: i.expenseCategoryId || undefined,
+          departmentId:      i.departmentId || undefined,
           description:       i.description,
           quantity:          Number(i.quantity),
           unitPrice:         Number(i.unitPrice),
@@ -382,8 +394,9 @@ export default function DirectPurchasePage() {
           <table className="w-full text-sm text-left min-w-[1050px]">
             <thead className="bg-white/5 text-[10px] uppercase text-gray-500 font-black tracking-widest">
               <tr>
-                <th className="px-3 py-4 w-[15%]">Categoría</th>
-                <th className="px-3 py-4 w-[25%]">Descripción del Gasto</th>
+                <th className="px-3 py-4 w-[12%]">Categoría</th>
+                <th className="px-3 py-4 w-[12%]">Centro de Costo</th>
+                <th className="px-3 py-4 w-[20%]">Descripción del Gasto</th>
                 <th className="px-3 py-4 w-[8%] text-center">Cant.</th>
                 <th className="px-3 py-4 w-[15%] text-right">Precio ({invoiceData.currencyCode === 'VES' ? 'Bs' : '$'})</th>
                 <th className="px-3 py-4 w-[10%] text-center">IVA (%)</th>
@@ -431,6 +444,20 @@ export default function DirectPurchasePage() {
                         }
                         return null;
                       })()}
+                    </td>
+                    {/* Departamento */}
+                    <td className="px-3 py-3">
+                      <select
+                        className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:ring-1 focus:ring-orange-500/50 outline-none appearance-none cursor-pointer"
+                        value={item.departmentId || ''}
+                        onChange={e => updateLine(idx, 'departmentId', e.target.value)}>
+                        <option value="" className="bg-[#1A1F2C]">Sin C.C.</option>
+                        {departments.map(d => (
+                          <option key={d.id} value={d.id} className="bg-[#1A1F2C]">
+                            {d.code} - {d.name}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     {/* Descripción */}
                     <td className="px-3 py-3">

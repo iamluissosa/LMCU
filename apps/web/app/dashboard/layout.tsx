@@ -167,9 +167,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           children: [
             { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/settings/general/dashboard', requiredPermission: 'settings.view' },
             { name: 'Usuarios', icon: UserCircle, path: '/dashboard/settings/general/users', requiredPermission: 'settings.view' },
+            { name: 'Departamentos', icon: Building2, path: '/dashboard/settings/general/departments', requiredPermission: 'settings.view' },
             { name: 'Categorías de Serv.', icon: ClipboardCheck, path: '/dashboard/settings/general/service-categories', requiredPermission: 'settings.view' },
             { name: 'Formatos de Documentos', icon: FileText, path: '/dashboard/settings/general/document-formats', requiredPermission: 'settings.formats' },
             { name: 'Ajustes Fiscales (ISLR)', icon: Calculator, path: '/dashboard/settings/general/fiscal', requiredPermission: 'settings.view' },
+          ]
+        }
+      ]
+    },
+    {
+      title: 'REPORTES',
+      items: [
+        { 
+          name: 'Reportes del Sistema', 
+          icon: TrendingUp, 
+          children: [
+            { name: 'Historial de Gastos', icon: FileText, path: '/dashboard/reports/expenses', requiredPermission: 'dashboard.view' },
           ]
         }
       ]

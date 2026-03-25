@@ -111,6 +111,8 @@ export class PurchaseBillsService {
               invoiceNumber,
               controlNumber,
               issueDate: new Date(issueDate),
+              fiscalMonth: new Date(issueDate).getMonth() + 1,
+              fiscalYear: new Date(issueDate).getFullYear(),
               status: 'UNPAID', // Nace como cuenta por pagar
               retentionISLR: islrCalc?.retainedAmount || 0,
               rateRetISLR: islrCalc?.percentage || 0,
@@ -120,8 +122,9 @@ export class PurchaseBillsService {
               exchangeRate: data.exchangeRate || 1,
               currencyCode: 'USD',
               items: {
-                create: items.map((i) => ({
+                create: items.map((i: any) => ({
                   productId: i.productId,
+                  departmentId: i.departmentId ?? null,
                   quantity: i.quantity,
                   unitPrice: i.unitPrice,
                   taxRate: i.taxRate || 0,
@@ -369,6 +372,7 @@ export class PurchaseBillsService {
 
             return {
               expenseCategoryId: i.expenseCategoryId ?? null,
+              departmentId:      (i as any).departmentId ?? null, // Workaround if TS complains during compile about the DTO update temporarily
               description:       i.description ?? null,
               quantity:          i.quantity,
               unitPrice:         i.unitPrice,
@@ -401,6 +405,8 @@ export class PurchaseBillsService {
               invoiceNumber,
               controlNumber,
               issueDate: new Date(issueDate),
+              fiscalMonth: new Date(issueDate).getMonth() + 1,
+              fiscalYear: new Date(issueDate).getFullYear(),
               status: 'UNPAID',
               isExpense: true, // ← Marca la factura como GASTO, no inventario
               retentionISLR: islrCalc?.retainedAmount || 0,

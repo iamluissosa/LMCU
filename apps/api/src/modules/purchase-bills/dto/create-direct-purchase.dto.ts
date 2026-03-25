@@ -17,6 +17,10 @@ export class DirectPurchaseItemDto {
   @IsOptional()
   expenseCategoryId?: string; // Categoría de gasto (opcional)
 
+  @IsUUID()
+  @IsOptional()
+  departmentId?: string; // Centro de costo (opcional)
+
   @IsString()
   @IsNotEmpty()
   description: string; // "Pago CORPOELEC Febrero 2026"

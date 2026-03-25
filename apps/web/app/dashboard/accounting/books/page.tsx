@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { api } from '@/lib/api';
+import { apiClient } from '@/lib/api-client';
 
 // ─── Tipos ────────────────────────────────────────────────────
 interface SalesRow {
@@ -66,7 +66,7 @@ const MONTHS = [
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
 ];
 
-function fmt(n: number) {
+function fmt(n: number | undefined) {
   return new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n ?? 0);
 }
 function fmtDate(d: string | null) {
@@ -74,9 +74,8 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('es-VE');
 }
 
-// ─── Export CSV ────────────────────────────────────────────────
-function exportCSV(rows: object[], filename: string) {
-  if (!rows.length) return;
+function exportCSV(rows: Record<string, any>[], filename: string) {
+  if (!rows || !rows.length || !rows[0]) return;
   const headers = Object.keys(rows[0]);
   const csv = [
     headers.join(';'),
@@ -107,15 +106,15 @@ export default function FiscalBooksPage() {
     setError(null);
     try {
       if (tab === 'sales') {
-        const res = await api.get<BookResponse<SalesRow>>(
+        const res = await apiClient.get<BookResponse<SalesRow>>(
           `/fiscal-books/sales-book?year=${year}&month=${month}`,
         );
-        setSalesData(res.data);
+        setSalesData(res);
       } else {
-        const res = await api.get<BookResponse<PurchaseRow>>(
+        const res = await apiClient.get<BookResponse<PurchaseRow>>(
           `/fiscal-books/purchase-book?year=${year}&month=${month}`,
         );
-        setPurchaseData(res.data);
+        setPurchaseData(res);
       }
     } catch {
       setError('Error al consultar el libro fiscal. Verifique la conexión con el servidor.');

@@ -21,7 +21,9 @@ export class PaymentsOutService {
         amountPaid, // Monto total que sale del banco
         notes,
         supplierId, // Nuevo campo
-        bills, // Array de facturas que estamos pagando
+        bills = [], // Array de facturas que estamos pagando
+        isDirectExpense,
+        expenseItems = [],
       } = data;
 
       // ✅ Q-01: Generar número de pago usando secuencia segura
@@ -33,9 +35,8 @@ export class PaymentsOutService {
           const paymentOut = await tx.paymentOut.create({
             data: {
               companyId,
-              ...(userId ? { createdBy: { connect: { id: userId } } } : {}),
-              ...(userId ? { updatedBy: { connect: { id: userId } } } : {}),
-              ...(supplierId ? { supplier: { connect: { id: supplierId } } } : {}),
+              ...(userId ? { userId, createdById: userId, updatedById: userId } : {}),
+              ...(supplierId ? { supplierId } : {}),
               paymentNumber,
               paymentDate: new Date(paymentDate),
               method: method as any, // Cast necesario por conflicto de tipos en entorno dev (EPERM en prisma generate)
@@ -45,11 +46,26 @@ export class PaymentsOutService {
               exchangeRate,
               amountPaid,
               notes,
+              isDirectExpense: isDirectExpense || false,
             } as any, // Cast por EPERM audit fields
           });
 
-        // 2. Procesar cada Factura que se está matando/abando
-        for (const [index, item] of bills.entries()) {
+        if (isDirectExpense) {
+          // Guardar líneas de egreso directo
+          if (expenseItems.length > 0) {
+            await tx.paymentOutExpenseItem.createMany({
+              data: expenseItems.map(item => ({
+                paymentOutId: paymentOut.id,
+                expenseCategoryId: item.expenseCategoryId,
+                departmentId: item.departmentId,
+                description: item.description,
+                amount: item.amount,
+              }))
+            });
+          }
+        } else {
+          // 2. Procesar cada Factura que se está matando/abando
+          for (const [index, item] of bills.entries()) {
           try {
             const { purchaseBillId, amountApplied, retentionData } = item;
 
@@ -182,6 +198,7 @@ export class PaymentsOutService {
             );
           }
         }
+        }
 
         return paymentOut;
       });
@@ -278,6 +295,20 @@ export class PaymentsOutService {
                 },
               },
             },
+            isDirectExpense: true,
+            expenseItems: {
+              select: {
+                id: true,
+                description: true,
+                amount: true,
+                expenseCategory: {
+                  select: { id: true, name: true }
+                },
+                department: {
+                  select: { id: true, name: true, code: true }
+                }
+              }
+            }
           },
         }),
         this.prisma.paymentOut.count({
