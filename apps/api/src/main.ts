@@ -25,7 +25,8 @@ async function bootstrap() {
   app.useGlobalInterceptors(new TransformInterceptor());
 
   app.enableCors({
-    origin: true, // Permitir cualquier origen en desarrollo
+    origin:
+      process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
