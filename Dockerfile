@@ -45,4 +45,4 @@ RUN pnpm --filter api build
 ENV NODE_ENV=production
 EXPOSE 3000
 
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["node", "apps/api/dist/src/main.js"]
