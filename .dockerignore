@@ -1,0 +1,27 @@
+node_modules
+.git
+.turbo
+.next
+.vscode
+.idx
+.agents
+dist
+coverage
+build
+tmp
+
+# Archivos innecesarios para el build
+*.log
+*.md
+docker-compose.yml
+.env*
+*.txt
+
+# Scripts de debug
+debug-*.js
+backfill-*.ts
+backfill-*.js
+check-db.ts
+
+# Web app (no necesaria para el build de la API)
+apps/web
