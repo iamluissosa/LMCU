@@ -5,9 +5,7 @@ node_modules
 .vscode
 .idx
 .agents
-dist
 coverage
-build
 tmp
 
 # Archivos innecesarios para el build
