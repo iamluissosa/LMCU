@@ -1,0 +1,22 @@
+# Railway deployment config for pnpm monorepo
+# Nixpacks detecta Node.js pero usa npm por defecto.
+# Este archivo fuerza el uso de pnpm para soportar workspace:^ protocol.
+
+[phases.setup]
+nixPkgs = ["...", "nodejs_22"]
+
+[phases.install]
+cmds = [
+  "npm i -g pnpm@9",
+  "pnpm install --frozen-lockfile"
+]
+
+[phases.build]
+cmds = [
+  "pnpm --filter @repo/database generate",
+  "pnpm --filter @erp/types build",
+  "pnpm --filter api build"
+]
+
+[start]
+cmd = "node apps/api/dist/main.js"
