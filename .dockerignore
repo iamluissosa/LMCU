@@ -5,7 +5,6 @@ node_modules
 .vscode
 .idx
 .agents
-dist
 coverage
 build
 tmp
