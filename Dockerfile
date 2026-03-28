@@ -46,3 +46,6 @@ ENV NODE_ENV=production
 EXPOSE 3000
 
 CMD ["node", "apps/api/dist/main.js"]
+
+# NOTE: When building from apps/api as rootDirectory (Railway),
+# use apps/api/Dockerfile instead.
