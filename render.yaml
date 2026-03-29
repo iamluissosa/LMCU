@@ -3,7 +3,7 @@ services:
     name: erp-lmcu-api
     runtime: node
     plan: free
-    buildCommand: pnpm install --prod=false && pnpm exec turbo run build --filter=api
+    buildCommand: NODE_ENV=development pnpm install && NODE_ENV=development pnpm exec turbo run build --filter=api
     startCommand: node apps/api/dist/src/main.js
     envVars:
       - key: NODE_ENV
