@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: erp-lmcu-api
+    runtime: node
+    plan: free
+    buildCommand: pnpm install && npx turbo run build --filter=api
+    startCommand: node apps/api/dist/src/main.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
