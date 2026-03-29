@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Package, Settings, LogOut, 
   Menu, Building2, UserCircle, Truck, ShoppingCart, ClipboardCheck, 
   DollarSign, CreditCard, RefreshCw, FileText, TrendingUp, Receipt, Users,
-  Bell, Sun, Calculator
+  Bell, Sun, Calculator, CircleHelp
 } from 'lucide-react';
 
 interface UserProfile {
@@ -186,6 +186,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           ]
         }
       ]
+    },
+    {
+      title: 'SOPORTE',
+      items: [
+        { name: 'Manuales de Usuario', icon: CircleHelp, path: '/dashboard/help', requiredPermission: 'dashboard.view' }
+      ]
     }
   ];
 
@@ -300,7 +306,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* FOOTER DEL SIDEBAR */}
         <div className="p-4 border-t border-white/5">
            <div className={`text-xs text-gray-600 ${!isSidebarOpen && 'text-center'}`}>
-             {isSidebarOpen ? 'ERP v1.0 — Multiempresa' : 'v1.0'}
+             {isSidebarOpen ? 'LMCU ERP v1.0.0 — PROD' : 'v1.0.0'}
            </div>
         </div>
       </aside>
