@@ -37,5 +37,7 @@ yarn-error.log*
 .DS_Store
 *.pem
 
-# Backups
-.git_backup
+
+# Custom/Temporary Files
+*.log
+apps/api/*.json
