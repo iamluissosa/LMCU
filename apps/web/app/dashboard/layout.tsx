@@ -182,7 +182,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           name: 'Reportes del Sistema', 
           icon: TrendingUp, 
           children: [
-            { name: 'Historial de Gastos', icon: FileText, path: '/dashboard/reports/expenses', requiredPermission: 'dashboard.view' },
+            { name: 'Historial de Gastos', icon: FileText, path: '/dashboard/reports/expenses', requiredPermission: 'reports.view' },
           ]
         }
       ]

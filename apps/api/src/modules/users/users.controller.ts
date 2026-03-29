@@ -116,6 +116,7 @@ export class UsersController {
           'users.view', 'users.create', 'users.edit', 'users.delete',
           'companies.view', 'companies.create', 'companies.edit',
           'settings.view', 'settings.edit', 'settings.formats',
+          'reports.view',
           'clients.view', 'clients.create', 'clients.edit', 'clients.delete',
           'sales.view', 'sales.create', 'sales.edit', 'sales.invoice', 'sales.delete',
         ],

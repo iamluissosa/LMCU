@@ -134,6 +134,8 @@ export default function GeneralSettingsPage() {
     { id: 'widget.low_stock.view', label: 'Dashboard: Ver Stock Crítico' },
     { id: 'widget.sales.view', label: 'Dashboard: Ver Métricas de Ventas' },
     { id: 'widget.finance.view', label: 'Dashboard: Ver Métricas de Finanzas' },
+    // ── REPORTES ──────────────────────────
+    { id: 'reports.view', label: 'Ver Módulo de Reportes' },
   ];
 
   const handleOpenModal = async (role?: Role) => {
