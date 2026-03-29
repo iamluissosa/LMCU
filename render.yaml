@@ -3,11 +3,15 @@ services:
     name: erp-lmcu-api
     runtime: node
     plan: free
-    buildCommand: pnpm install && npx turbo run build --filter=api
+    buildCommand: pnpm install --prod=false && pnpm exec turbo run build --filter=api
     startCommand: node apps/api/dist/src/main.js
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 22.0.0
+      - key: PNPM_VERSION
+        value: 9.12.3
       - key: PORT
         value: 3001
       - key: DATABASE_URL
