@@ -386,7 +386,9 @@ export class IslrService {
     const errors: ImportRowError[] = [];
 
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(fileBuffer);
+    // Buffer.from() normaliza el tipo evitando incompatibilidad con ExcelJS
+    const safeBuffer = Buffer.from(fileBuffer) as unknown as ArrayBuffer;
+    await workbook.xlsx.load(safeBuffer);
 
     // ── Leer Hoja Conceptos ────────────────────────────────────────────────
     const wsConceptos = workbook.getWorksheet('Conceptos');
