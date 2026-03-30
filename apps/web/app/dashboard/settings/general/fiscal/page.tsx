@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { createClient } from '@/lib/supabase';
 import {
   Calculator,
   Save,
@@ -219,7 +220,9 @@ export default function FiscalSettingsPage() {
   const handleDownloadTemplate = async () => {
     try {
       setDownloading(true);
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? '';
       const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
       const url = `${apiBase}/islr/export-template`;
 
@@ -263,7 +266,9 @@ export default function FiscalSettingsPage() {
 
     try {
       setImporting(true);
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? '';
       const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
       const formData = new FormData();
