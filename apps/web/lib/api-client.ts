@@ -60,8 +60,18 @@ async function request<T>(
       throw error;
     }
 
-    const response: ApiResponse<T> = await res.json();
-    return response.data; // Unpack data
+    const json = await res.json();
+    // El API puede devolver: { data: T, ... } (wrapped) o directamente T (unwrapped).
+    // Detectamos el wrapper por la presencia de la clave 'data' en un objeto plano.
+    if (
+      json !== null &&
+      typeof json === 'object' &&
+      !Array.isArray(json) &&
+      'data' in json
+    ) {
+      return (json as ApiResponse<T>).data;
+    }
+    return json as T;
   } catch (err: unknown) {
     const e = err as Record<string, unknown>;
     // Si el error ya es tipo ApiError, lo relanzamos

@@ -40,69 +40,84 @@ export class SupabaseStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // 1. Buscar por ID (caso nominal: IDs sincronizados)
-    let user = await this.usersService.findUserById(payload.sub as string);
-
-    // 2. Fallback por email cuando el UUID de Supabase no coincide con el ID local
-    //    Esto ocurre cuando el usuario fue creado antes de sincronizar con Supabase
-    if (!user && payload.email) {
-      user = await this.usersService.findByEmail(payload.email as string);
-      if (user) {
-        console.warn(
-          `⚠️ AUTH SYNC: Usuario encontrado por email ${payload.email}. ` +
-          `Sub Supabase: ${payload.sub}, ID local: ${user.id}`,
-        );
+    try {
+      // Guardia temprana: si no hay sub (ID Supabase), el token está malformado
+      if (!payload?.sub) {
+        console.error('❌ AUTH VALIDATE: payload.sub undefined. Token inválido.');
+        return null; // Passport lo convierte en 401, no 500
       }
-    }
 
-    // 3. Usuario genuinamente nuevo (todavía no registrado)
-    if (!user) {
+      // 1. Buscar por ID (caso nominal: IDs sincronizados)
+      let user = await this.usersService.findUserById(payload.sub as string);
+
+      // 2. Fallback por email cuando el UUID de Supabase no coincide con el ID local
+      //    Esto ocurre cuando el usuario fue creado antes de sincronizar con Supabase
+      if (!user && payload.email) {
+        user = await this.usersService.findByEmail(payload.email as string);
+        if (user) {
+          console.warn(
+            `⚠️ AUTH SYNC: Usuario encontrado por email ${payload.email}. ` +
+            `Sub Supabase: ${payload.sub}, ID local: ${user.id}`,
+          );
+        }
+      }
+
+      // 3. Usuario genuinamente nuevo (todavía no registrado)
+      if (!user) {
+        return {
+          userId: payload.sub,
+          email: payload.email,
+          isNew: true,
+          companyId: null,
+          roles: [],
+          permissions: [],
+        };
+      }
+
+      // Permisos desde el rol personalizado asignado (campo JSON en BD)
+      // Usamos Array.isArray() para evitar crash si el campo tiene un tipo inesperado
+      const rawPerms = user.role?.permissions;
+      const rolePermissions: string[] = Array.isArray(rawPerms) ? (rawPerms as string[]) : [];
+
+      // Determinar efectivamente el rol:
+      // - Si tiene rol personalizado con permisos → usarlos
+      // - Si roleLegacy === 'ADMIN' → permisos implícitos completos
+      // - Si roleLegacy es null/undefined pero tiene companyId → es usuario del sistema, tratar como ADMIN
+      // - Caso USER sin rol personalizado → sin acceso adicional
+      const isRegistered = !!user.companyId;
+      const isAdmin = user.roleLegacy === 'ADMIN' || (!user.roleLegacy && isRegistered);
+
+      const permissions: string[] =
+        rolePermissions.length > 0
+          ? rolePermissions
+          : isAdmin
+            ? ADMIN_IMPLICIT_PERMISSIONS
+            : [];
+
+      console.log(
+        `🔍 AUTH VALIDATE - Email: ${user.email}, ` +
+        `RoleLegacy: ${user.roleLegacy}, ` +
+        `CustomRole: ${user.role?.name ?? 'ninguno'}, ` +
+        `Perms: ${permissions.length}`,
+      );
+
       return {
+        id: user.id,
         userId: payload.sub,
         email: payload.email,
-        isNew: true,
-        companyId: null,
-        roles: [],
-        permissions: [],
+        name: user.name,
+        roles: (payload.app_metadata?.roles as string[]) || [],
+        companyId: user.companyId,
+        companyName: user.company?.name,
+        role: user.roleLegacy,      // 'ADMIN' | 'USER' (campo legacy en BD)
+        roleName: user.role?.name,  // nombre del rol personalizado si existe
+        isAdmin,
+        permissions,                // permisos efectivos usados por PermissionsGuard
       };
+    } catch (err) {
+      // Un crash aquí generaba el 500 opaco. Ahora lo logeamos y retornamos null → 401
+      console.error('❌ AUTH VALIDATE CRASH:', err?.message ?? err);
+      return null;
     }
-
-    // Permisos desde el rol personalizado asignado (campo JSON en BD)
-    const rolePermissions = (user.role?.permissions as string[] | null) ?? [];
-
-    // Determinar efectivamente el rol:
-    // - Si tiene rol personalizado con permisos → usarlos
-    // - Si roleLegacy === 'ADMIN' → permisos implícitos completos
-    // - Si roleLegacy es null/undefined pero tiene companyId → es usuario del sistema, tratar como ADMIN
-    // - Caso USER sin rol personalizado → sin acceso adicional
-    const isRegistered = !!user.companyId;
-    const isAdmin = user.roleLegacy === 'ADMIN' || (!user.roleLegacy && isRegistered);
-
-    const permissions: string[] =
-      rolePermissions.length > 0
-        ? rolePermissions
-        : isAdmin
-          ? ADMIN_IMPLICIT_PERMISSIONS
-          : [];
-
-    console.log(
-      `🔍 AUTH VALIDATE - Email: ${user.email}, ` +
-      `RoleLegacy: ${user.roleLegacy}, ` +
-      `CustomRole: ${user.role?.name ?? 'ninguno'}, ` +
-      `Perms: ${permissions.length}`,
-    );
-
-    return {
-      id: user.id,
-      userId: payload.sub,
-      email: payload.email,
-      name: user.name,
-      roles: (payload.app_metadata?.roles as string[]) || [],
-      companyId: user.companyId,
-      companyName: user.company?.name,
-      role: user.roleLegacy,      // 'ADMIN' | 'USER' (campo legacy en BD)
-      roleName: user.role?.name,  // nombre del rol personalizado si existe
-      permissions,                // permisos efectivos usados por PermissionsGuard
-    };
   }
 }
