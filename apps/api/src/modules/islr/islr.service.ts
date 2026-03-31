@@ -53,21 +53,25 @@ export class IslrService {
       return this.buildZeroRetention(taxableBase);
     }
 
-    // 5. ALGORITMO: Calcular Sustraendo Matemático (S = V_ut * F_s)
-    const sustraendo = utValue * Number(rate.sustraendoFact);
-
-    // 6. ALGORITMO: Calcular Retención Impositiva (R = (B * p) - S)
+    // 5. ALGORITMO: Calcular Retención Bruta
     // El porcentaje llega como 2 (que es 2%) o 5.
     const percentageCalc = Number(rate.percentage) / 100;
-    
+
+    // 6. ALGORITMO: Calcular Sustraendo Matemático (Decreto 1808)
+    // Fórmula: Sustraendo = UT × FactorConstante × Porcentaje
+    // El sustraendoFact almacena el factor puro del Decreto (ej. 83.3334 para Honorarios PNR)
+    // Así el sustraendo se recalcula dinámicamente cuando cambia la UT.
+    const sustraendo = utValue * Number(rate.sustraendoFact) * percentageCalc;
+
+    // 7. ALGORITMO: Calcular Retención Impositiva (R = (B * p) - S)
     let retainedAmount = (taxableBase * percentageCalc) - sustraendo;
     retainedAmount = Math.max(0, retainedAmount); // Evitar retención negativa
 
     return {
       taxableBase,
       percentage: Number(rate.percentage),
-      sustraendo,
-      retainedAmount
+      sustraendo: Number(sustraendo.toFixed(2)),
+      retainedAmount: Number(retainedAmount.toFixed(2)),
     };
   }
 
@@ -108,33 +112,44 @@ export class IslrService {
   async seedMatrix() {
     // Decreto 1808: Cada concepto tiene DOS tasas (una por PJD y otra por PNR)
     // El código principal es el de la Persona Jurídica (J), agrupamos ambas tasas bajo el mismo concepto.
+    // NOTA IMPORTANTE — Decreto 1808:
+    // El campo sustraendoFact almacena el FACTOR CONSTANTE puro expresado en UT (no el valor final).
+    // Fórmula: Sustraendo = Valor_UT × sustraendoFact × (porcentaje / 100)
+    //
+    // Para Honorarios/Comisiones/Arrendamiento PNR (3%):
+    //   Sustraendo = UT × 83.3334 × 0.03 = 107.50 Bs (con UT = 43)
+    //
+    // Para Servicios PNR (1%):
+    //   Sustraendo = UT × 83.3334 × 0.01 = 35.83 Bs (con UT = 43)
+    //
+    // Para PJD (Personas Jurídicas Domiciliadas): sustraendoFact = 0 (sin sustraendo)
     const conceptMatrix = [
       {
         code: '058', description: 'Honorarios Profesionales',
         rates: [
-          { personType: 'PJD', percentage: 5, sustraendoFact: 0, minBaseUt: 0 },
-          { personType: 'PNR', percentage: 3, sustraendoFact: 107.50, minBaseUt: 0 },
+          { personType: 'PJD', percentage: 5, sustraendoFact: 0,       minBaseUt: 0 },
+          { personType: 'PNR', percentage: 3, sustraendoFact: 83.3334, minBaseUt: 0 },
         ]
       },
       {
         code: '054', description: 'Servicios (Ejecución de Obras/Servicios)',
         rates: [
-          { personType: 'PJD', percentage: 2, sustraendoFact: 0, minBaseUt: 0 },
-          { personType: 'PNR', percentage: 1, sustraendoFact: 35.83, minBaseUt: 0 },
+          { personType: 'PJD', percentage: 2, sustraendoFact: 0,       minBaseUt: 0 },
+          { personType: 'PNR', percentage: 1, sustraendoFact: 83.3334, minBaseUt: 0 },
         ]
       },
       {
         code: '052', description: 'Comisiones Mercantiles',
         rates: [
-          { personType: 'PJD', percentage: 5, sustraendoFact: 0, minBaseUt: 0 },
-          { personType: 'PNR', percentage: 3, sustraendoFact: 107.50, minBaseUt: 0 },
+          { personType: 'PJD', percentage: 5, sustraendoFact: 0,       minBaseUt: 0 },
+          { personType: 'PNR', percentage: 3, sustraendoFact: 83.3334, minBaseUt: 0 },
         ]
       },
       {
         code: '062', description: 'Arrendamiento de Inmuebles',
         rates: [
-          { personType: 'PJD', percentage: 5, sustraendoFact: 0, minBaseUt: 0 },
-          { personType: 'PNR', percentage: 3, sustraendoFact: 107.50, minBaseUt: 0 },
+          { personType: 'PJD', percentage: 5, sustraendoFact: 0,       minBaseUt: 0 },
+          { personType: 'PNR', percentage: 3, sustraendoFact: 83.3334, minBaseUt: 0 },
         ]
       },
     ];
