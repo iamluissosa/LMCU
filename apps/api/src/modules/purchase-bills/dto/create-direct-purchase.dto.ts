@@ -85,6 +85,29 @@ export class CreateDirectPurchaseDto {
   @IsOptional()
   taxAmount?: number;
 
+  // ─── Desglose fiscal por alícuota (Prov. 0071 SENIAT) ───────────
+  // Estos campos son opcionales: si no se envían, el servicio los
+  // calcula automáticamente desde los ítems usando su taxRate.
+  @IsNumber()
+  @IsOptional()
+  exemptAmount?: number; // Base exenta (0%)
+
+  @IsNumber()
+  @IsOptional()
+  taxableAmount16?: number; // Base imponible al 16%
+
+  @IsNumber()
+  @IsOptional()
+  taxAmount16?: number; // IVA al 16%
+
+  @IsNumber()
+  @IsOptional()
+  taxableAmount8?: number; // Base imponible al 8%
+
+  @IsNumber()
+  @IsOptional()
+  taxAmount8?: number; // IVA al 8%
+
   @IsNumber()
   @IsOptional()
   exchangeRate?: number;

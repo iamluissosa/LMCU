@@ -210,7 +210,109 @@ export class PaymentsOutService {
     }
   }
 
-  // Historial de Pagos
+  // Obtener Egreso
+  async findOne(companyId: string, id: string) {
+    const payment = await this.prisma.paymentOut.findUnique({
+      where: { id, companyId },
+      include: {
+        expenseItems: {
+          include: {
+            expenseCategory: true,
+            department: true,
+          }
+        },
+        supplier: true,
+        details: true,
+      }
+    });
+
+    if (!payment) {
+      throw new BadRequestException('Egreso no encontrado');
+    }
+
+    return payment;
+  }
+
+  // Editar Egreso (Solo Gastos Directos)
+  async update(companyId: string, userId: string, id: string, data: any) {
+    const {
+      paymentDate, reference, bankName, method, currencyCode, amountPaid, notes, supplierId, expenseItems = []
+    } = data;
+
+    const existing = await this.prisma.paymentOut.findUnique({
+      where: { id, companyId },
+      include: { details: true }
+    });
+
+    if (!existing) {
+      throw new BadRequestException('Egreso no encontrado');
+    }
+
+    if (!existing.isDirectExpense) {
+      throw new BadRequestException('No se puede modificar un egreso vinculado a facturas o compras. Solo aplica para gastos directos.');
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      // 1. Actualizar Cabecera
+      const updated = await tx.paymentOut.update({
+        where: { id },
+        data: {
+          ...(userId ? { updatedById: userId } : {}),
+          ...(supplierId !== undefined ? { supplierId } : {}),
+          ...(paymentDate ? { paymentDate: new Date(paymentDate) } : {}),
+          ...(method ? { method: method as any } : {}),
+          ...(reference !== undefined ? { reference } : {}),
+          ...(bankName !== undefined ? { bankName } : {}),
+          ...(currencyCode ? { currencyCode } : {}),
+          ...(amountPaid !== undefined ? { amountPaid } : {}),
+          ...(notes !== undefined ? { notes } : {}),
+        } as any
+      });
+
+      // 2. Reemplazar líneas de gasto
+      if (expenseItems.length > 0) {
+        await tx.paymentOutExpenseItem.deleteMany({
+          where: { paymentOutId: id }
+        });
+
+        await tx.paymentOutExpenseItem.createMany({
+          data: expenseItems.map((item: any) => ({
+            paymentOutId: id,
+            expenseCategoryId: item.expenseCategoryId || null,
+            departmentId: item.departmentId || null,
+            description: item.description,
+            amount: item.amount,
+          }))
+        });
+      }
+
+      return updated;
+    });
+  }
+
+  // Eliminar Egreso (Soft Delete, Solo Gastos Directos)
+  async remove(companyId: string, userId: string, id: string) {
+    const existing = await this.prisma.paymentOut.findUnique({
+      where: { id, companyId },
+    });
+
+    if (!existing) {
+      throw new BadRequestException('Egreso no encontrado');
+    }
+
+    if (!existing.isDirectExpense) {
+      throw new BadRequestException('No se puede eliminar un egreso vinculado a facturas o compras por esta vía.');
+    }
+
+    return await this.prisma.paymentOut.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        ...(userId ? { updatedById: userId } : {})
+      } as any
+    });
+  }
+
   // Historial de Pagos
   async findAll(
     companyId: string,

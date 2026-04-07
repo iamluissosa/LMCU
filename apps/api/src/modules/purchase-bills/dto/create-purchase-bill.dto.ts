@@ -70,6 +70,28 @@ export class CreatePurchaseBillDto {
   @IsOptional()
   totalAmount?: number;
 
+  // ─── Desglose fiscal por alícuota (Prov. 0071 SENIAT) ───────────
+  @IsNumber()
+  @IsOptional()
+  exemptAmount?: number; // Base exenta (0%)
+
+  @IsNumber()
+  @IsOptional()
+  taxableAmount16?: number; // Base imponible al 16%
+
+  @IsNumber()
+  @IsOptional()
+  taxAmount16?: number; // IVA al 16%
+
+  @IsNumber()
+  @IsOptional()
+  taxableAmount8?: number; // Base imponible al 8%
+
+  @IsNumber()
+  @IsOptional()
+  taxAmount8?: number; // IVA al 8%
+
+  // ─── Campos genéricos (retrocompatibilidad) ──────────────────────
   @IsNumber()
   @IsOptional()
   taxableAmount?: number;

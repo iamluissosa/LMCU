@@ -111,7 +111,7 @@ export class UsersController {
           'receptions.view', 'receptions.create',
           'purchase_orders.view', 'purchase_orders.create', 'purchase_orders.edit', 'purchase_orders.delete',
           'bills.view', 'bills.create', 'bills.edit', 'bills.delete',
-          'payments.view', 'payments.create',
+          'payments.view', 'payments.create', 'payments.edit', 'payments.delete',
           'suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete',
           'users.view', 'users.create', 'users.edit', 'users.delete',
           'companies.view', 'companies.create', 'companies.edit',

@@ -117,8 +117,15 @@ export class PurchaseBillsService {
               retentionISLR: islrCalc?.retainedAmount || 0,
               rateRetISLR: islrCalc?.percentage || 0,
               totalAmount: data.totalAmount || calculatedSubtotal,
-              taxableAmount: data.taxableAmount || 0,
-              taxAmount: data.taxAmount || 0,
+              // ─── Desglose fiscal por alícuota (Libro de Compras SENIAT) ───
+              exemptAmount:    data.exemptAmount    ?? 0,
+              taxableAmount16: data.taxableAmount16 ?? 0,
+              taxAmount16:     data.taxAmount16     ?? 0,
+              taxableAmount8:  data.taxableAmount8  ?? 0,
+              taxAmount8:      data.taxAmount8      ?? 0,
+              // Campos genéricos (retrocompatibilidad)
+              taxableAmount: data.taxableAmount || (data.taxableAmount16 ?? 0) + (data.taxableAmount8 ?? 0),
+              taxAmount: data.taxAmount || (data.taxAmount16 ?? 0) + (data.taxAmount8 ?? 0),
               exchangeRate: data.exchangeRate || 1,
               currencyCode: 'USD',
               items: {
@@ -350,9 +357,15 @@ export class PurchaseBillsService {
       const result = await this.prisma.$transaction(
         async (tx) => {
           // Calcular totales de los ítems de gasto (después del descuento)
-          let calculatedBase = 0;   // Base imponible total (sin IVA)
-          let calculatedTax  = 0;   // IVA total
-          let calculatedTotal = 0;  // Total factura (base + IVA)
+          // ── Acumuladores por alícuota (Prov. 0071 SENIAT ─ Libro de Compras) ──
+          let calculatedBase16 = 0; // Base imponible al 16%
+          let calculatedTax16  = 0; // IVA al 16%
+          let calculatedBase8  = 0; // Base imponible al 8%
+          let calculatedTax8   = 0; // IVA al 8%
+          let calculatedExempt = 0; // Base exenta (tasa 0%)
+          let calculatedBase   = 0; // Subtotal base (suma de las 3 categorías)
+          let calculatedTax    = 0; // IVA total (suma de 16% + 8%)
+          let calculatedTotal  = 0; // Total factura (base + IVA)
 
           const itemsToCreate = items.map((i) => {
             const bruto = Number(i.quantity) * Number(i.unitPrice);
@@ -364,7 +377,19 @@ export class PurchaseBillsService {
             );
             // Base neta de la línea (lo que se guarda en totalLine)
             const base = bruto - discountAmount;
-            const tax  = base * (Number(i.taxRate ?? 0) / 100);
+            const taxRateNum = Number(i.taxRate ?? 0);
+            const tax = base * (taxRateNum / 100);
+
+            // Clasificar por alícuota para el libro fiscal
+            if (taxRateNum === 16) {
+              calculatedBase16 += base;
+              calculatedTax16  += tax;
+            } else if (taxRateNum === 8) {
+              calculatedBase8 += base;
+              calculatedTax8  += tax;
+            } else {
+              calculatedExempt += base; // Exento o tasa 0
+            }
 
             calculatedBase  += base;
             calculatedTax   += tax;
@@ -372,7 +397,7 @@ export class PurchaseBillsService {
 
             return {
               expenseCategoryId: i.expenseCategoryId ?? null,
-              departmentId:      (i as any).departmentId ?? null, // Workaround if TS complains during compile about the DTO update temporarily
+              departmentId:      (i as any).departmentId ?? null,
               description:       i.description ?? null,
               quantity:          i.quantity,
               unitPrice:         i.unitPrice,
@@ -412,6 +437,14 @@ export class PurchaseBillsService {
               retentionISLR: islrCalc?.retainedAmount || 0,
               rateRetISLR: islrCalc?.percentage || 0,
               totalAmount:   data.totalAmount   ?? calculatedTotal,
+              // ─── Desglose fiscal por alícuota (Libro de Compras SENIAT) ───
+              // Prioridad: valor explícito del frontend > calculado desde ítems
+              exemptAmount:    data.exemptAmount    ?? calculatedExempt,
+              taxableAmount16: data.taxableAmount16 ?? calculatedBase16,
+              taxAmount16:     data.taxAmount16     ?? calculatedTax16,
+              taxableAmount8:  data.taxableAmount8  ?? calculatedBase8,
+              taxAmount8:      data.taxAmount8      ?? calculatedTax8,
+              // Campos genéricos (retrocompatibilidad = suma de alícuotas)
               taxableAmount: data.taxableAmount ?? calculatedBase,
               taxAmount:     data.taxAmount     ?? calculatedTax,
               exchangeRate,

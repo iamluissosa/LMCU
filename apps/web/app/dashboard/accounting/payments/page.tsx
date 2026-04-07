@@ -3,7 +3,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { 
   CreditCard, Search, 
-  Plus, FileText, CheckCircle, Calendar, Printer
+  Plus, FileText, CheckCircle, Calendar, Printer,
+  Trash2, Edit
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -40,6 +41,27 @@ export default function PaymentsOutPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [docFormats, setDocFormats] = useState<DocumentFormat>(DOC_DEFAULTS);
+  const [userRole, setUserRole] = useState('');
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+
+  // Cargar perfil de usuario actual
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const myUser = await apiClient.get<any>('/users/me');
+        setUserRole(myUser.roleName || myUser.role || '');
+        setUserPermissions(myUser.permissions || []);
+      } catch (e) {
+        console.error('Error cargando perfil:', e);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  const can = (permission: string) => {
+    if (userRole === 'ADMIN') return true;
+    return userPermissions.includes(permission);
+  };
 
   // Cargar configuración de formatos al montar
   const fetchDocFormats = useCallback(async () => {
@@ -85,6 +107,20 @@ export default function PaymentsOutPage() {
   const handleOpenDetail = (payment: PaymentOut) => {
     setSelectedPayment(payment);
     setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('¿Estás seguro que deseas eliminar este Egreso? Esta acción es irreversible pero quedará registrada en el sistema.')) return;
+    try {
+       await apiClient.delete(`/payments-out/${id}`);
+       toast.success('Egreso eliminado exitosamente');
+       setIsModalOpen(false);
+       setPayments(prev => prev.filter(p => p.id !== id));
+    } catch (err: any) {
+       console.error('Error eliminando egreso', err);
+       toast.error(`Error al eliminar: ${err.message || 'Error desconocido'}`);
+    }
   };
 
   // Función para imprimir
@@ -360,6 +396,25 @@ export default function PaymentsOutPage() {
 
                 <div className="bg-white/5 px-8 py-6 flex justify-end gap-4 border-t border-white/5">
                     <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 text-gray-500 hover:text-white font-black uppercase tracking-widest text-[10px] transition-all">Cancelar</button>
+                    
+                    {/* Botones adicionales solo para Gastos Directos */}
+                    {selectedPayment.isDirectExpense && can('payments.delete') && (
+                        <button 
+                          onClick={(e) => handleDelete(selectedPayment.id, e)}
+                          className="px-6 py-3 bg-red-600/20 hover:bg-red-500 text-red-500 hover:text-white rounded-2xl flex items-center gap-2 font-black uppercase tracking-widest text-[10px] shadow-lg transition-all hover:scale-[1.02]"
+                        >
+                          <Trash2 size={18} /> Eliminar (Soft)
+                        </button>
+                    )}
+                    {selectedPayment.isDirectExpense && can('payments.edit') && (
+                        <Link 
+                          href={`/dashboard/accounting/payments/direct/${selectedPayment.id}`}
+                          className="px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-2xl flex items-center gap-2 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-orange-600/20 transition-all hover:scale-[1.02]"
+                        >
+                          <Edit size={18} /> Editar Gasto
+                        </Link>
+                    )}
+
                     {!selectedPayment.isDirectExpense && (
                       <button 
                           onClick={() => {

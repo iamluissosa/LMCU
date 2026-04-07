@@ -105,6 +105,8 @@ export default function GeneralSettingsPage() {
     { id: 'bills.delete', label: 'Eliminar Pagos de Factura' },
     { id: 'payments.view', label: 'Ver Historial de Pagos' },
     { id: 'payments.create', label: 'Registrar Egresos' },
+    { id: 'payments.edit', label: 'Editar Egresos Directos' },
+    { id: 'payments.delete', label: 'Eliminar Egresos Directos' },
     { id: 'suppliers.view', label: 'Ver Proveedores' },
     { id: 'suppliers.create', label: 'Crear Proveedores' },
     { id: 'suppliers.edit', label: 'Editar Proveedores' },
