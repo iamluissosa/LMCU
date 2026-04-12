@@ -4,7 +4,7 @@ import { apiClient } from '@/lib/api-client';
 import { 
   CreditCard, Search, 
   Plus, FileText, CheckCircle, Calendar, Printer,
-  Trash2, Edit
+  Trash2, Edit, Filter
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -40,6 +40,8 @@ export default function PaymentsOutPage() {
   const [payments, setPayments] = useState<PaymentOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterMethod, setFilterMethod] = useState('');
   const [docFormats, setDocFormats] = useState<DocumentFormat>(DOC_DEFAULTS);
   const [userRole, setUserRole] = useState('');
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
@@ -92,12 +94,29 @@ export default function PaymentsOutPage() {
     fetchPayments();
   }, []);
 
-  // Filtrado simple
-  const filtered = payments.filter(p => 
-    p.paymentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.notes?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filtrado
+  const filtered = payments.filter(p => {
+    // 1. Texto (Búsqueda general)
+    const matchesSearch = p.paymentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // 2. Fecha exacta (Y-M-D)
+    let matchesDate = true;
+    if (filterDate) {
+      // Extraemos la parte "YYYY-MM-DD" que debería coincidir con el input type="date"
+      const pDateStr = typeof p.paymentDate === 'string' ? p.paymentDate.substring(0, 10) : new Date(p.paymentDate).toISOString().substring(0, 10);
+      matchesDate = pDateStr === filterDate;
+    }
+
+    // 3. Método
+    let matchesMethod = true;
+    if (filterMethod) {
+      matchesMethod = p.method === filterMethod;
+    }
+
+    return matchesSearch && matchesDate && matchesMethod;
+  });
 
   // Estados para Modal y Detalle
   const [selectedPayment, setSelectedPayment] = useState<PaymentOut | null>(null);
@@ -155,9 +174,9 @@ export default function PaymentsOutPage() {
       </div>
 
       {/* FILTROS Y BÚSQUEDA */}
-      <div className="bg-[#1A1F2C] p-4 rounded-xl shadow-2xl border border-white/10 flex gap-4 print:hidden">
+      <div className="bg-[#1A1F2C] p-4 rounded-xl shadow-2xl border border-white/10 flex flex-col md:flex-row gap-4 print:hidden">
         <div className="relative flex-1 group">
-          <Search className="absolute left-3 top-3 text-gray-500 group-focus-within:text-blue-400 transition-colors" size={18} />
+          <Search className="absolute left-3 top-3.5 text-gray-500 group-focus-within:text-blue-400 transition-colors" size={18} />
           <input 
             type="text" 
             placeholder="Buscar por N° Egreso, Referencia o Nota..." 
@@ -165,6 +184,41 @@ export default function PaymentsOutPage() {
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
+        </div>
+
+        {/* Filtro Fecha */}
+        <div className="relative w-full md:w-56 group">
+          <Calendar className="absolute left-3 top-3.5 text-gray-500 group-focus-within:text-blue-400 transition-colors pointer-events-none" size={18} />
+          <input 
+            type="date"
+            className="w-full bg-[#0B1120] border border-white/5 pl-10 pr-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/50 text-white text-sm transition-all !cursor-text [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert-[0.6]"
+            value={filterDate}
+            onChange={e => setFilterDate(e.target.value)}
+          />
+        </div>
+
+        {/* Filtro Método */}
+        <div className="relative w-full md:w-64 group">
+          <Filter className="absolute left-3 top-3.5 text-gray-500 group-focus-within:text-blue-400 transition-colors pointer-events-none" size={18} />
+          <select
+            className="w-full bg-[#0B1120] border border-white/5 pl-10 pr-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/50 text-white text-sm transition-all appearance-none cursor-pointer"
+            value={filterMethod}
+            onChange={e => setFilterMethod(e.target.value)}
+          >
+            <option value="">Todos los Métodos</option>
+            <option value="TRANSFER_VES">Transferencia VES</option>
+            <option value="TRANSFER_USD">Transferencia USD</option>
+            <option value="PAGO_MOVIL">Pago Móvil</option>
+            <option value="ZELLE">Zelle</option>
+            <option value="CASH_USD">Efectivo USD</option>
+            <option value="CASH_VES">Efectivo Bs</option>
+          </select>
+          {/* Custom Arrow */}
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M1 1L5 5L9 1" stroke="#6B7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
         </div>
       </div>
 
