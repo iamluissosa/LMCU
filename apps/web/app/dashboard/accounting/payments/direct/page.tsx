@@ -29,6 +29,7 @@ export default function DirectPaymentPage() {
   
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
 
   const [usdRate, setUsdRate] = useState<number>(1);
   const [eurRate, setEurRate] = useState<number>(1);
@@ -40,7 +41,8 @@ export default function DirectPaymentPage() {
     reference: '',
     exchangeRate: 1,
     currencyCode: 'USD', // Base currency for amounts
-    notes: ''
+    notes: '',
+    eventId: ''
   });
 
   const [items, setItems] = useState<ExpenseItem[]>([
@@ -50,14 +52,16 @@ export default function DirectPaymentPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [catRes, dptRes, rateData] = await Promise.all([
+        const [catRes, dptRes, rateData, eventsRes] = await Promise.all([
           apiClient.get<ExpenseCategory[]>('/expense-categories'),
           apiClient.get<Department[]>('/departments'),
-          apiClient.get<{ usd?: { rate: number }; eur?: { rate: number } }>('/exchange-rates/latest-all').catch(() => null)
+          apiClient.get<{ usd?: { rate: number }; eur?: { rate: number } }>('/exchange-rates/latest-all').catch(() => null),
+          apiClient.get<any[]>('/events').catch(() => [])
         ]);
 
         setCategories(Array.isArray(catRes) ? catRes : []);
         setDepartments(Array.isArray(dptRes) ? dptRes : []);
+        setEvents(Array.isArray(eventsRes) ? eventsRes.filter(e => e.status === 'ACTIVE') : []);
 
         if (rateData) {
           const uRate = rateData.usd?.rate ? Number(rateData.usd.rate) : 1;
@@ -126,6 +130,7 @@ export default function DirectPaymentPage() {
         exchangeRate: paymentData.exchangeRate,
         amountPaid: totalAmount, // Se calcula internamente, pero lo mandamos
         notes: paymentData.notes,
+        eventId: paymentData.eventId || undefined,
         
         isDirectExpense: true,
         expenseItems: items.filter(i => i !== undefined).map(i => ({
@@ -233,6 +238,18 @@ export default function DirectPaymentPage() {
                 placeholder="Motivo del pago a registrar en el historial..."
                 value={paymentData.notes} onChange={e => setPaymentData({...paymentData, notes: e.target.value})}
               ></textarea>
+            </div>
+
+            <div className="mt-5 p-4 border border-blue-500/30 bg-blue-500/5 rounded-2xl">
+              <label className="block text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Vincular a Evento / Proyecto (Opcional)</label>
+              <select className="w-full bg-[#0B1120] border border-blue-500/20 rounded-xl px-3 py-2.5 text-xs text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none font-bold"
+                  value={paymentData.eventId} onChange={e => setPaymentData({...paymentData, eventId: e.target.value})}>
+                  <option value="">-- No vincular a un evento --</option>
+                  {events.map((ev) => (
+                    <option key={ev.id} value={ev.id}>{ev.name}</option>
+                  ))}
+              </select>
+              <p className="text-[10px] text-gray-500 mt-2">Calcula la rentabilidad operativa imputando este gasto a un evento activo.</p>
             </div>
           </div>
 

@@ -58,6 +58,10 @@ model Company {
   creditNotes           CreditNote[]
   debitNotes            DebitNote[]
   ivaRetentionsReceived IvaRetentionReceived[]
+
+  // Relaciones de Eventos (nuevo)
+  events                Event[]
+  incomes               Income[]
 }
 
 model CompanySettings {
@@ -110,6 +114,58 @@ model CompanySettings {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// 🎪 MÓDULO DE EVENTOS Y RENTABILIDAD
+// ==========================================
+
+model Event {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  date        DateTime
+  status      String   @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
+  
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  incomes     IncomeEventDetail[]
+  expenses    PaymentOut[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([companyId, date])
+}
+
+model Income {
+  id             String   @id @default(uuid())
+  companyId      String
+  
+  amount         Decimal  @db.Decimal(12, 2)
+  currencyCode   String   @default("USD")
+  exchangeRate   Decimal  @default(1.0000) @db.Decimal(12, 4)
+  
+  paymentDate    DateTime @default(now())
+  clientName     String?
+  description    String?
+  
+  company        Company  @relation(fields: [companyId], references: [id])
+  eventDetails   IncomeEventDetail[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model IncomeEventDetail {
+  id             String   @id @default(uuid())
+  incomeId       String
+  eventId        String
+  
+  amountApplied  Decimal  @db.Decimal(12, 2)
+  
+  income         Income   @relation(fields: [incomeId], references: [id], onDelete: Cascade)
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
 // ==========================================
@@ -614,6 +670,10 @@ model PaymentOut {
   updatedById String?
   updatedBy   User?     @relation("PaymentUpdatedBy", fields: [updatedById], references: [id])
   deletedAt   DateTime?
+
+  // Relación con Evento (Gastos asignados a un evento)
+  eventId     String?
+  event       Event?    @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
   @@index([companyId, paymentDate])
 }

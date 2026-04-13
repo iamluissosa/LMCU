@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Package, Settings, LogOut, 
   Menu, Building2, UserCircle, Truck, ShoppingCart, ClipboardCheck, 
   DollarSign, CreditCard, RefreshCw, FileText, TrendingUp, Receipt, Users,
-  Bell, Sun, Calculator, CircleHelp
+  Bell, Sun, Calculator, CircleHelp, Calendar
 } from 'lucide-react';
 
 interface UserProfile {
@@ -151,6 +151,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     {
       title: 'OPERACIONES',
       items: [
+        { name: 'Eventos', icon: Calendar, path: '/dashboard/events', requiredPermission: 'events.view' },
         { name: 'Clientes', icon: Users, path: '/dashboard/sales/clients', requiredPermission: 'clients.view' },
         { name: 'Inventario', icon: Package, path: '/dashboard/inventory', requiredPermission: 'inventory.view' },
         { name: 'Recepciones', icon: ClipboardCheck, path: '/dashboard/inventory/receptions', requiredPermission: 'receptions.view' },

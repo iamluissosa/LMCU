@@ -64,6 +64,21 @@ export class PaymentsOutController {
     );
   }
 
+  @Patch(':id/link-event')
+  @Permissions('payments.edit')
+  linkEvent(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() data: { eventId: string | null },
+  ) {
+    return this.paymentsOutService.linkEvent(
+      req.user.companyId,
+      req.user.id,
+      id,
+      data.eventId,
+    );
+  }
+
   @Get()
   @Permissions('payments.view')
   findAll(

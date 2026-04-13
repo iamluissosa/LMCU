@@ -24,6 +24,8 @@ import { DocumentFormatsModule } from './modules/document-formats/document-forma
 import { FiscalBooksModule } from './modules/fiscal-books/fiscal-books.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { EventsModule } from './modules/events/events.module';
+import { IncomesModule } from './modules/incomes/incomes.module';
 
 @Module({
   imports: [
@@ -52,6 +54,8 @@ import { ReportsModule } from './modules/reports/reports.module';
     FiscalBooksModule,
     DepartmentsModule,
     ReportsModule,
+    EventsModule,
+    IncomesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

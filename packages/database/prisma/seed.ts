@@ -22,19 +22,19 @@ async function main() {
 
   // --- 1. CONFIGURACIÓN DEL ADMIN ---
   // 👇👇👇 ¡PEGA AQUÍ TU ID DE SUPABASE QUE COPIASTE ANTES! 👇👇👇
-  const ADMIN_UUID = '5570ee7a-9595-490c-8666-e186a404f6df'; 
+  const ADMIN_UUID = '5570ee7a-9595-490c-8666-e186a404f6df';
 
   const email = 'admin@lmcu.com';
-  
-  // Creamos el perfil del usuario
+
+  // Creamos el perfil del usuario inicial sin asignar empresa (se hará más adelante)
   const user = await prisma.user.upsert({
     where: { email },
     update: {},
     create: {
       id: ADMIN_UUID,
       email,
-      fullName: 'Administrador LMCU',
-      avatarUrl: 'https://i.pravatar.cc/150?u=admin',
+      password: 'password123', // Dummy password required by schema
+      name: 'Administrador LMCU',
     },
   });
 
@@ -48,28 +48,31 @@ async function main() {
       name: 'Distribuidora LMCU, C.A.',
       rif: 'J-12345678-9',
       address: 'Valencia, Carabobo',
-      baseCurrency: 'USD',
-      settings: { module_inventory: true, module_invoicing: true }
+      city: 'Valencia',
+      state: 'Carabobo',
+      taxpayerType: 'J',
+      settings: {
+        create: {
+          currency: 'USD',
+          timeZone: 'America/Caracas'
+        }
+      }
     },
   });
 
   console.log(`🏢 Empresa garantizada: ${company.name}`);
 
   // --- 3. VINCULAR USUARIO A EMPRESA ---
-  // Nota: Convertimos Role.OWNER a string explícito por seguridad
-  await prisma.companyMember.upsert({
+  // Ahora actualizamos al usuario para asignarlo a esta empresa y actualizar su role a admin
+
+  await prisma.user.update({
     where: {
-      companyId_userId: {
-        companyId: company.id,
-        userId: user.id,
-      },
+      id: user.id
     },
-    update: {},
-    create: {
+    data: {
       companyId: company.id,
-      userId: user.id,
-      role: 'OWNER', // Hardcoded string para evitar problemas de tipos
-    },
+      roleLegacy: Role.OWNER // Asignarlo como OWNER del default string array. Opcionalmente podrías buscar o crear un rol global.
+    }
   });
 
   console.log('✅ Relación Usuario-Empresa creada.');
@@ -91,7 +94,7 @@ async function main() {
       currentStock: 100,
     },
   });
-  
+
   console.log(`📦 Producto creado: ${product.name}`);
 }
 

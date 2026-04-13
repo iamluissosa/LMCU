@@ -24,6 +24,7 @@ export class PaymentsOutService {
         bills = [], // Array de facturas que estamos pagando
         isDirectExpense,
         expenseItems = [],
+        eventId,
       } = data;
 
       // ✅ Q-01: Generar número de pago usando secuencia segura
@@ -47,6 +48,7 @@ export class PaymentsOutService {
               amountPaid,
               notes,
               isDirectExpense: isDirectExpense || false,
+              ...(eventId ? { eventId } : {}),
             } as any, // Cast por EPERM audit fields
           });
 
@@ -308,6 +310,29 @@ export class PaymentsOutService {
       where: { id },
       data: {
         deletedAt: new Date(),
+        ...(userId ? { updatedById: userId } : {})
+      } as any
+    });
+  }
+
+  // Vincular a un evento (Ruta PATCH /payments-out/:id/link-event)
+  async linkEvent(companyId: string, userId: string, id: string, eventId: string | null) {
+    const existing = await this.prisma.paymentOut.findUnique({
+      where: { id, companyId },
+    });
+
+    if (!existing) {
+      throw new BadRequestException('Egreso no encontrado');
+    }
+
+    if (!existing.isDirectExpense) {
+      throw new BadRequestException('Solo se pueden vincular a eventos los gastos directos (Operacionales).');
+    }
+
+    return await this.prisma.paymentOut.update({
+      where: { id },
+      data: {
+        eventId,
         ...(userId ? { updatedById: userId } : {})
       } as any
     });

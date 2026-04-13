@@ -159,4 +159,8 @@ export class CreatePaymentOutDto {
   @Type(() => PaymentOutExpenseItemDto)
   @IsOptional()
   expenseItems?: PaymentOutExpenseItemDto[];
+
+  @IsString()
+  @IsOptional()
+  eventId?: string;
 }
