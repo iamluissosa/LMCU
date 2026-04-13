@@ -6,25 +6,77 @@ import { UsersService } from '../users/users.service';
 // Permisos implícitos para usuarios ADMIN sin rol personalizado asignado
 const ADMIN_IMPLICIT_PERMISSIONS = [
   'dashboard.view',
+  // Facturación / Compras
   'bills.view',
   'bills.create',
+  'bills.edit',
   'bills.delete',
   'payments.view',
   'payments.create',
+  'payments.edit',
+  'payments.delete',
+  // Ventas
   'sales.view',
+  'sales.create',
+  'sales.edit',
   'sales.invoice',
   'sales.order',
+  'sales.delete',
+  // Clientes
   'clients.view',
   'clients.create',
+  'clients.edit',
+  'clients.delete',
+  // Proveedores
   'suppliers.view',
   'suppliers.create',
+  'suppliers.edit',
+  'suppliers.delete',
+  // Inventario
+  'inventory.view',
+  'inventory.create',
+  'inventory.edit',
+  'inventory.delete',
+  // Recepciones
+  'receptions.view',
+  'receptions.create',
+  // Órdenes de Compra
+  'purchase_orders.view',
+  'purchase_orders.create',
+  'purchase_orders.edit',
+  'purchase_orders.delete',
+  // Productos (legacy)
   'products.view',
   'products.create',
+  // Configuración
   'settings.view',
   'settings.edit',
+  'settings.formats',
+  // Usuarios
   'users.view',
   'users.create',
+  'users.edit',
+  'users.delete',
+  // Empresas
+  'companies.view',
+  'companies.create',
+  'companies.edit',
+  // Reportes
   'reports.view',
+  // Eventos y Rentabilidad
+  'events.view',
+  'events.create',
+  'events.edit',
+  'events.delete',
+  'incomes.view',
+  'incomes.create',
+  'incomes.edit',
+  'incomes.delete',
+  // Widgets Dashboard
+  'widget.inventory.view',
+  'widget.low_stock.view',
+  'widget.sales.view',
+  'widget.finance.view',
 ];
 
 @Injectable()
