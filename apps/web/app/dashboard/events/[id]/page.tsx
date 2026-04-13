@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { ArrowLeft, Clock, CheckCircle, TrendingUp, TrendingDown, DollarSign, Plus, Link as LinkIcon, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, TrendingUp, TrendingDown, DollarSign, Plus, Link as LinkIcon, X, Trash2, Pencil } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -22,8 +22,13 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const [unlinkedExpenses, setUnlinkedExpenses] = useState<any[]>([]);
   const [loadingLink, setLoadingLink] = useState(false);
 
-  // Modal Registrar Ingreso
+  // Ingreso seleccionado (para editar/eliminar)
+  const [selectedIncomeId, setSelectedIncomeId] = useState<string | null>(null);
+  const [deletingIncome, setDeletingIncome] = useState(false);
+
+  // Modal Registrar / Editar Ingreso
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
+  const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
   const [savingIncome, setSavingIncome] = useState(false);
   const [allEvents, setAllEvents] = useState<any[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
@@ -87,6 +92,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   };
 
   const handleOpenIncomeModal = () => {
+    setEditingIncomeId(null);
     setIncomeForm({
       amount: '',
       clientName: '',
@@ -97,6 +103,40 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
     setEventDistributions([{ eventId: eventId, amountApplied: '' }]);
     setIsIncomeModalOpen(true);
     fetchAllEvents();
+  };
+
+  const handleEditIncome = (incomeDetail: any) => {
+    const inc = incomeDetail.income;
+    setEditingIncomeId(inc.id);
+    setIncomeForm({
+      amount: String(Number(inc.amount)),
+      clientName: inc.clientName || '',
+      description: inc.description || '',
+      paymentDate: new Date(inc.paymentDate).toISOString().split('T')[0],
+      currencyCode: inc.currencyCode || 'USD',
+    });
+    // Usar los event details del income completo, o el actual si no hay datos
+    const details = inc.eventDetails && inc.eventDetails.length > 0
+      ? inc.eventDetails.map((d: any) => ({ eventId: d.eventId, amountApplied: String(Number(d.amountApplied)) }))
+      : [{ eventId: eventId, amountApplied: String(Number(incomeDetail.amountApplied)) }];
+    setEventDistributions(details);
+    setIsIncomeModalOpen(true);
+    fetchAllEvents();
+  };
+
+  const handleDeleteIncome = async (incomeId: string) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este ingreso? Esta acción no se puede deshacer.')) return;
+    setDeletingIncome(true);
+    try {
+      await apiClient.delete(`/incomes/${incomeId}`);
+      toast.success('Ingreso eliminado exitosamente');
+      setSelectedIncomeId(null);
+      fetchEvent();
+    } catch (e: any) {
+      toast.error(e.message || 'Error al eliminar el ingreso');
+    } finally {
+      setDeletingIncome(false);
+    }
   };
 
   const addDistributionRow = () => {
@@ -134,7 +174,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
 
     setSavingIncome(true);
     try {
-      await apiClient.post('/incomes', {
+      const payload = {
         amount,
         currencyCode: incomeForm.currencyCode,
         paymentDate: incomeForm.paymentDate,
@@ -144,12 +184,21 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
           eventId: d.eventId,
           amountApplied: Number(d.amountApplied),
         })),
-      });
-      toast.success('Ingreso registrado exitosamente');
+      };
+
+      if (editingIncomeId) {
+        await apiClient.patch(`/incomes/${editingIncomeId}`, payload);
+        toast.success('Ingreso actualizado exitosamente');
+      } else {
+        await apiClient.post('/incomes', payload);
+        toast.success('Ingreso registrado exitosamente');
+      }
       setIsIncomeModalOpen(false);
+      setEditingIncomeId(null);
+      setSelectedIncomeId(null);
       fetchEvent();
     } catch (e: any) {
-      toast.error(e.message || 'Error al registrar ingreso');
+      toast.error(e.message || 'Error al guardar ingreso');
     } finally {
       setSavingIncome(false);
     }
@@ -251,14 +300,40 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
             <div>
                <div className="flex justify-between items-center bg-white/[0.02] p-5 border-b border-white/5">
                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest max-w-md leading-relaxed">
-                   Cobros y pagos recibidos vinculados a este evento.
+                   Cobros y pagos recibidos vinculados a este evento.{selectedIncomeId && <span className="text-emerald-400 ml-2">• 1 seleccionado</span>}
                  </p>
-                 <button
-                   onClick={handleOpenIncomeModal}
-                   className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 active:scale-95 hover:shadow-emerald-500/30"
-                 >
-                   <Plus size={14} /> Registrar Ingreso
-                 </button>
+                 <div className="flex gap-2 items-center">
+                   {selectedIncomeId && (
+                     <>
+                       <button
+                         onClick={() => {
+                           const detail = event.incomes.find((i: any) => i.id === selectedIncomeId);
+                           if (detail) handleEditIncome(detail);
+                         }}
+                         className="bg-[#0B1120] hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 hover:border-blue-500/50 px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95"
+                       >
+                         <Pencil size={13} /> Modificar
+                       </button>
+                       <button
+                         onClick={() => {
+                           const detail = event.incomes.find((i: any) => i.id === selectedIncomeId);
+                           if (detail) handleDeleteIncome(detail.income?.id || detail.incomeId);
+                         }}
+                         disabled={deletingIncome}
+                         className="bg-[#0B1120] hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:border-red-500/50 px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-50"
+                       >
+                         <Trash2 size={13} /> {deletingIncome ? 'Eliminando...' : 'Eliminar'}
+                       </button>
+                       <div className="w-px h-6 bg-white/10 mx-1" />
+                     </>
+                   )}
+                   <button
+                     onClick={handleOpenIncomeModal}
+                     className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 active:scale-95 hover:shadow-emerald-500/30"
+                   >
+                     <Plus size={14} /> Registrar Ingreso
+                   </button>
+                 </div>
                </div>
                
                <table className="w-full text-sm text-left">
@@ -267,7 +342,15 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                  </thead>
                  <tbody className="divide-y divide-white/5">
                    {event.incomes.map((i: any) => (
-                     <tr key={i.id} className="hover:bg-white/5 transition-colors">
+                     <tr 
+                       key={i.id} 
+                       onClick={() => setSelectedIncomeId(selectedIncomeId === i.id ? null : i.id)}
+                       className={`transition-all cursor-pointer ${
+                         selectedIncomeId === i.id 
+                           ? 'bg-emerald-500/10 border-l-2 border-l-emerald-400 ring-1 ring-emerald-500/20' 
+                           : 'hover:bg-white/5 border-l-2 border-l-transparent'
+                       }`}
+                     >
                        <td className="px-6 py-4 font-mono text-gray-400 text-xs">
                          <span className="bg-[#0B1120] border border-white/5 px-2 py-1 rounded-lg">
                            {new Date(i.income?.paymentDate).toLocaleDateString()}
@@ -388,9 +471,9 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
             <div className="px-8 py-6 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
               <h2 className="text-lg font-black text-white uppercase tracking-widest flex items-center gap-3">
                 <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-400"><TrendingUp size={18} /></div>
-                Registrar Ingreso
+                {editingIncomeId ? 'Modificar Ingreso' : 'Registrar Ingreso'}
               </h2>
-              <button onClick={() => setIsIncomeModalOpen(false)} className="bg-white/5 hover:bg-red-500/20 hover:text-red-400 p-2 rounded-xl transition-all"><X size={18}/></button>
+              <button onClick={() => { setIsIncomeModalOpen(false); setEditingIncomeId(null); }} className="bg-white/5 hover:bg-red-500/20 hover:text-red-400 p-2 rounded-xl transition-all"><X size={18}/></button>
             </div>
 
             {/* Body */}
@@ -543,7 +626,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
             {/* Footer */}
             <div className="px-8 py-5 border-t border-white/5 bg-white/[0.01] flex justify-end gap-3">
               <button
-                onClick={() => setIsIncomeModalOpen(false)}
+                onClick={() => { setIsIncomeModalOpen(false); setEditingIncomeId(null); }}
                 className="px-6 py-3 text-gray-500 hover:text-white font-black uppercase tracking-widest text-[10px] transition-all"
               >
                 Cancelar
@@ -556,7 +639,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                 {savingIncome ? (
                   <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Guardando...</>
                 ) : (
-                  <><DollarSign size={16} /> Guardar Ingreso</>
+                  <><DollarSign size={16} /> {editingIncomeId ? 'Actualizar Ingreso' : 'Guardar Ingreso'}</>
                 )}
               </button>
             </div>

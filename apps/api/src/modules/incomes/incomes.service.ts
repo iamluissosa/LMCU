@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -45,5 +45,49 @@ export class IncomesService {
       return income;
     });
   }
-}
 
+  async update(id: string, data: any) {
+    const existing = await this.prisma.income.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Ingreso no encontrado');
+
+    return this.prisma.$transaction(async (tx) => {
+      // Actualizar campos del ingreso
+      const updated = await tx.income.update({
+        where: { id },
+        data: {
+          ...(data.amount !== undefined && { amount: data.amount }),
+          ...(data.currencyCode !== undefined && { currencyCode: data.currencyCode }),
+          ...(data.paymentDate !== undefined && { paymentDate: new Date(data.paymentDate) }),
+          ...(data.clientName !== undefined && { clientName: data.clientName }),
+          ...(data.description !== undefined && { description: data.description }),
+        },
+      });
+
+      // Si se envían eventDetails, reemplazar las distribuciones existentes
+      if (data.eventDetails) {
+        await tx.incomeEventDetail.deleteMany({ where: { incomeId: id } });
+        await tx.incomeEventDetail.createMany({
+          data: data.eventDetails.map((d: any) => ({
+            incomeId: id,
+            eventId: d.eventId,
+            amountApplied: d.amountApplied,
+          })),
+        });
+      }
+
+      return tx.income.findUnique({
+        where: { id },
+        include: { eventDetails: true },
+      });
+    });
+  }
+
+  async remove(id: string) {
+    const existing = await this.prisma.income.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Ingreso no encontrado');
+
+    // IncomeEventDetail tiene onDelete: Cascade, así que se borra automáticamente
+    await this.prisma.income.delete({ where: { id } });
+    return { deleted: true };
+  }
+}

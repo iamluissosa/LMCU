@@ -39,7 +39,7 @@ export class EventsService {
       where,
       include: {
         incomes: {
-          include: { income: true }
+          include: { income: { include: { eventDetails: true } } }
         },
         expenses: {
           include: {

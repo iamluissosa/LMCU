@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Request, UseGuards } from '@nestjs/common';
+import { Controller, Post, Patch, Delete, Body, Param, Request, UseGuards } from '@nestjs/common';
 import { IncomesService } from './incomes.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
@@ -20,5 +20,26 @@ export class IncomesController {
     }
   ) {
     return this.service.create(req.user, body);
+  }
+
+  @Patch(':id')
+  update(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: {
+      amount?: number;
+      currencyCode?: string;
+      paymentDate?: string;
+      clientName?: string;
+      description?: string;
+      eventDetails?: { eventId: string; amountApplied: number }[];
+    }
+  ) {
+    return this.service.update(id, body);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.service.remove(id);
   }
 }
