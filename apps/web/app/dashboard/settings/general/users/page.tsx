@@ -131,6 +131,15 @@ export default function GeneralSettingsPage() {
     { id: 'sales.edit', label: 'Editar Estatus de Ventas' },
     { id: 'sales.invoice', label: 'Emitir Facturas de Venta y Cobros' },
     { id: 'sales.delete', label: 'Anular Documentos de Venta' },
+    // ── EVENTOS Y RENTABILIDAD ────────────────────
+    { id: 'events.view', label: 'Ver Eventos' },
+    { id: 'events.create', label: 'Crear Eventos' },
+    { id: 'events.edit', label: 'Editar Eventos' },
+    { id: 'events.delete', label: 'Eliminar Eventos' },
+    { id: 'incomes.view', label: 'Ver Ingresos por Evento' },
+    { id: 'incomes.create', label: 'Registrar Ingresos' },
+    { id: 'incomes.edit', label: 'Editar Ingresos' },
+    { id: 'incomes.delete', label: 'Eliminar Ingresos' },
     // ── WIDGETS DASHBOARD ──────────────────────────
     { id: 'widget.inventory.view', label: 'Dashboard: Ver Métricas de Inventario' },
     { id: 'widget.low_stock.view', label: 'Dashboard: Ver Stock Crítico' },
