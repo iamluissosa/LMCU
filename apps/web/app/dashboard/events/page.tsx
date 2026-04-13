@@ -281,7 +281,7 @@ export default function EventsPage() {
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {groupedEvents[key].map(ev => (
+                  {groupedEvents[key].map((ev: any) => (
                     <div key={ev.id} className="bg-[#1A1F2C] border border-white/5 p-6 rounded-3xl hover:border-purple-500/40 transition-all hover:bg-white/[0.02] cursor-pointer flex flex-col justify-between min-h-[220px] shadow-lg" onClick={() => router.push(`/dashboard/events/${ev.id}`)}>
                       <div>
                         <div className="flex justify-between items-start mb-6">
