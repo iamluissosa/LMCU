@@ -181,8 +181,8 @@ export default function EventsPage() {
   const sortedGroupKeys = Object.keys(groupedEvents).sort((a, b) => {
     const [mA, yA] = a.split(' ');
     const [mB, yB] = b.split(' ');
-    const dateA = new Date(Number(yA), monthsNames.indexOf(mA));
-    const dateB = new Date(Number(yB), monthsNames.indexOf(mB));
+    const dateA = new Date(Number(yA), monthsNames.indexOf(mA || ''));
+    const dateB = new Date(Number(yB), monthsNames.indexOf(mB || ''));
     return dateB.getTime() - dateA.getTime();
   });
 
