@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -6,6 +6,9 @@ export class IncomesService {
   constructor(private prisma: PrismaService) {}
 
   async create(companyId: string, data: any) {
+    if (!companyId) {
+      throw new BadRequestException('No se puede registrar un ingreso sin empresa asignada.');
+    }
     // data.eventDetails es un array the { eventId: string, amountApplied: number }
     return this.prisma.$transaction(async (tx) => {
       const income = await tx.income.create({

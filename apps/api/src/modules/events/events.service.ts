@@ -5,9 +5,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class EventsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(companyId: string) {
+  async findAll(companyId: string | null) {
+    const where = companyId ? { companyId } : {};
     return this.prisma.event.findMany({
-      where: { companyId },
+      where,
       orderBy: { date: 'desc' },
       include: {
         incomes: true,
@@ -19,6 +20,9 @@ export class EventsService {
   }
 
   async create(companyId: string, data: { name: string; date: string; status?: string }) {
+    if (!companyId) {
+      throw new NotFoundException('No se puede crear un evento sin una empresa asignada. Asigne una empresa al usuario primero.');
+    }
     return this.prisma.event.create({
       data: {
         companyId,
@@ -29,9 +33,10 @@ export class EventsService {
     });
   }
 
-  async findById(id: string, companyId: string) {
+  async findById(id: string, companyId: string | null) {
+    const where = companyId ? { id, companyId } : { id };
     const event = await this.prisma.event.findFirst({
-      where: { id, companyId },
+      where,
       include: {
         incomes: {
           include: { income: true }
@@ -49,7 +54,7 @@ export class EventsService {
     return event;
   }
 
-  async getFinancialSummary(id: string, companyId: string) {
+  async getFinancialSummary(id: string, companyId: string | null) {
     const event = await this.findById(id, companyId);
     
     let totalIncome = 0;
@@ -69,9 +74,10 @@ export class EventsService {
     };
   }
 
-  async getMonthlyReport(companyId: string) {
+  async getMonthlyReport(companyId: string | null) {
+    const where = companyId ? { companyId } : {};
     const events = await this.prisma.event.findMany({
-      where: { companyId },
+      where,
       orderBy: { date: 'asc' },
       include: {
         incomes: { include: { income: true } },
