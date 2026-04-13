@@ -101,4 +101,40 @@ export const apiClient = {
 
   delete: <T>(endpoint: string, headers?: Record<string, string>) => 
     request<T>(endpoint, 'DELETE', undefined, headers),
+
+  /** Upload de archivos usando FormData (para importación Excel, etc.) */
+  upload: async <T>(endpoint: string, formData: FormData): Promise<T> => {
+    let token = cachedAccessToken;
+    if (typeof window === 'undefined' || !isTokenListenerInitialized) {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      token = session?.access_token || null;
+    }
+
+    const res = await fetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        // NO incluir Content-Type: el browser lo agrega con el boundary del multipart
+      },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ message: res.statusText }));
+      throw {
+        statusCode: res.status,
+        message: errorData.message || 'Error desconocido',
+        error: errorData.error || res.statusText,
+        timestamp: new Date().toISOString(),
+        path: endpoint,
+      } as ApiError;
+    }
+
+    const json = await res.json();
+    if (json !== null && typeof json === 'object' && !Array.isArray(json) && 'data' in json) {
+      return (json as ApiResponse<T>).data;
+    }
+    return json as T;
+  },
 };
