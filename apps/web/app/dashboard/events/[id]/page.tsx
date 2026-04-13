@@ -1,12 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { ArrowLeft, Clock, CheckCircle, TrendingUp, TrendingDown, DollarSign, Plus, Link as LinkIcon, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-export default function EventDetailsPage({ params }: { params: { id: string } }) {
+export default function EventDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  // Desempaquetar params usando React.use() (requerido en Next.js 15+)
+  const resolvedParams = use(params);
+  const eventId = resolvedParams.id;
+
   const router = useRouter();
   const [event, setEvent] = useState<any>(null);
   const [summary, setSummary] = useState({ totalIncome: 0, totalExpense: 0, grossProfit: 0 });
@@ -17,9 +21,6 @@ export default function EventDetailsPage({ params }: { params: { id: string } })
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [unlinkedExpenses, setUnlinkedExpenses] = useState<any[]>([]);
   const [loadingLink, setLoadingLink] = useState(false);
-
-  // Use useEffect parameter caching to avoid hook dependency errors
-  const eventId = params.id;
 
   const fetchEvent = async () => {
     setLoading(true);
