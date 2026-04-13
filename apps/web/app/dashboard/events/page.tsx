@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { Calendar, Plus, Search, Eye, TrendingUp, CheckCircle, Clock, Upload, Download, FileSpreadsheet, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Calendar, Plus, Search, Eye, TrendingUp, CheckCircle, Clock, Upload, Download, FileSpreadsheet, X, AlertCircle, CheckCircle2, Filter } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -12,6 +12,9 @@ export default function EventsPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedYear, setSelectedYear] = useState('Todos');
+  const [selectedMonth, setSelectedMonth] = useState('Todos');
+  const [selectedStatus, setSelectedStatus] = useState('Todos');
 
   // Modal para Nuevo Evento
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -150,9 +153,38 @@ export default function EventsPage() {
     setIsDragging(false);
   };
 
-  const filteredEvents = events.filter(ev => 
-    ev.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Array de años disponibles
+  const availableYears = Array.from(new Set(events.map(ev => new Date(ev.date).getFullYear()))).sort((a, b) => b - a);
+  const monthsNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+  const filteredEvents = events.filter(ev => {
+    const date = new Date(ev.date);
+    const matchName = ev.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchYear = selectedYear === 'Todos' || date.getFullYear().toString() === selectedYear;
+    const matchMonth = selectedMonth === 'Todos' || date.getMonth().toString() === selectedMonth;
+    const matchStatus = selectedStatus === 'Todos' || ev.status === selectedStatus;
+    
+    return matchName && matchYear && matchMonth && matchStatus;
+  });
+
+  const groupedEvents = filteredEvents.reduce((acc, ev) => {
+    const date = new Date(ev.date);
+    const year = date.getFullYear();
+    const monthName = monthsNames[date.getMonth()];
+    const key = `${monthName} ${year}`;
+    
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(ev);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  const sortedGroupKeys = Object.keys(groupedEvents).sort((a, b) => {
+    const [mA, yA] = a.split(' ');
+    const [mB, yB] = b.split(' ');
+    const dateA = new Date(Number(yA), monthsNames.indexOf(mA));
+    const dateB = new Date(Number(yB), monthsNames.indexOf(mB));
+    return dateB.getTime() - dateA.getTime();
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -177,44 +209,107 @@ export default function EventsPage() {
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-4 top-3.5 text-gray-400" size={20} />
-        <input 
-          type="text" placeholder="Buscar evento de campo..." 
-          className="w-full pl-12 pr-4 py-3 bg-[#1A1F2C] border border-white/5 text-white placeholder-gray-500 rounded-2xl focus:ring-1 focus:ring-purple-500 outline-none transition-all font-medium text-sm"
-          value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-        />
+      <div className="flex flex-col md:flex-row gap-4">
+        {/* Buscador */}
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-3.5 text-gray-400" size={20} />
+          <input 
+            type="text" placeholder="Buscar evento de campo..." 
+            className="w-full pl-12 pr-4 py-3 bg-[#1A1F2C] border border-white/5 text-white placeholder-gray-500 rounded-2xl focus:ring-1 focus:ring-purple-500 outline-none transition-all font-medium text-sm shadow-sm"
+            value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {/* Contenedor de Filtros */}
+        <div className="flex flex-wrap md:flex-nowrap gap-3 items-center bg-[#1A1F2C] border border-white/5 p-2 rounded-2xl shadow-sm">
+          <div className="flex items-center pl-3 text-purple-400">
+            <Filter size={18} />
+          </div>
+          
+          <select 
+            value={selectedYear} onChange={e => setSelectedYear(e.target.value)}
+            className="bg-[#0B1120] border border-white/10 text-white text-xs font-bold uppercase tracking-widest rounded-xl px-3 py-2.5 focus:ring-1 focus:ring-purple-500 outline-none appearance-none min-w-[90px] cursor-pointer"
+          >
+            <option value="Todos">Año</option>
+            {availableYears.map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+
+          <select 
+            value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+            className="bg-[#0B1120] border border-white/10 text-white text-xs font-bold uppercase tracking-widest rounded-xl px-3 py-2.5 focus:ring-1 focus:ring-purple-500 outline-none appearance-none min-w-[110px] cursor-pointer"
+          >
+            <option value="Todos">Mes</option>
+            {monthsNames.map((month, idx) => (
+              <option key={month} value={idx.toString()}>{month}</option>
+            ))}
+          </select>
+
+          <select 
+            value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)}
+            className="bg-[#0B1120] border border-white/10 text-white text-xs font-bold uppercase tracking-widest rounded-xl px-3 py-2.5 focus:ring-1 focus:ring-purple-500 outline-none appearance-none min-w-[120px] cursor-pointer"
+          >
+            <option value="Todos">Estatus</option>
+            <option value="ACTIVE">En Curso</option>
+            <option value="COMPLETED">Completado</option>
+            <option value="CANCELLED">Cancelado</option>
+          </select>
+        </div>
       </div>
 
-      {/* Grid de Eventos */}
+      {/* Grid de Eventos Agrupados */}
       {loading ? (
         <div className="text-center py-12 text-gray-500 font-mono text-xs uppercase tracking-widest">Cargando eventos...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map(ev => (
-            <div key={ev.id} className="bg-[#1A1F2C] border border-white/5 p-6 rounded-3xl hover:border-purple-500/40 transition-all hover:bg-white/[0.02] cursor-pointer flex flex-col justify-between min-h-[220px] shadow-lg" onClick={() => router.push(`/dashboard/events/${ev.id}`)}>
-              <div>
-                <div className="flex justify-between items-start mb-6">
-                  <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 ${ev.status === 'ACTIVE' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                    {ev.status === 'ACTIVE' ? <Clock size={12} /> : <CheckCircle size={12} />}
-                    {ev.status === 'ACTIVE' ? 'En Curso' : 'Completado'}
-                  </span>
-                  <span className="text-[10px] text-gray-500 font-mono bg-[#0B1120] px-2 py-1 rounded-lg border border-white/5">
-                    {new Date(ev.date).toLocaleDateString()}
+        <div className="space-y-12">
+          {sortedGroupKeys.length === 0 ? (
+            <div className="py-16 text-center bg-[#1A1F2C] border border-white/5 rounded-3xl text-gray-500 font-mono text-xs uppercase tracking-widest">
+              No se encontraron eventos para los filtros aplicados.
+            </div>
+          ) : (
+            sortedGroupKeys.map(key => (
+              <div key={key} className="space-y-6">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-lg font-black text-white uppercase tracking-widest bg-gradient-to-r from-purple-400 to-fuchsia-400 bg-clip-text text-transparent">
+                    {key}
+                  </h2>
+                  <div className="flex-1 h-px bg-gradient-to-r from-white/10 to-transparent" />
+                  <span className="text-[10px] text-gray-500 font-mono font-bold uppercase tracking-widest">
+                    {groupedEvents[key].length} EVENTO{groupedEvents[key].length > 1 ? 'S' : ''}
                   </span>
                 </div>
-                <h3 className="text-lg font-black text-white leading-tight">{ev.name}</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {groupedEvents[key].map(ev => (
+                    <div key={ev.id} className="bg-[#1A1F2C] border border-white/5 p-6 rounded-3xl hover:border-purple-500/40 transition-all hover:bg-white/[0.02] cursor-pointer flex flex-col justify-between min-h-[220px] shadow-lg" onClick={() => router.push(`/dashboard/events/${ev.id}`)}>
+                      <div>
+                        <div className="flex justify-between items-start mb-6">
+                          <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 ${
+                            ev.status === 'ACTIVE' ? 'bg-blue-500/10 text-blue-400' 
+                            : ev.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400' 
+                            : 'bg-red-500/10 text-red-400'
+                          }`}>
+                            {ev.status === 'ACTIVE' ? <Clock size={12} /> : ev.status === 'COMPLETED' ? <CheckCircle size={12} /> : <X size={12} />}
+                            {ev.status === 'ACTIVE' ? 'En Curso' : ev.status === 'COMPLETED' ? 'Completado' : 'Cancelado'}
+                          </span>
+                          <span className="text-[10px] text-gray-500 font-mono bg-[#0B1120] px-2 py-1 rounded-lg border border-white/5">
+                            {new Date(ev.date).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <h3 className="text-lg font-black text-white leading-tight">{ev.name}</h3>
+                      </div>
+                      <div className="mt-8 flex justify-between items-center border-t border-white/5 pt-5">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Ver Finanzas</span>
+                        <span className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 transition-transform group-hover:scale-110">
+                          <Eye size={14} />
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="mt-8 flex justify-between items-center border-t border-white/5 pt-5">
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Ver Finanzas</span>
-                <span className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
-                  <Eye size={14} />
-                </span>
-              </div>
-            </div>
-          ))}
-          {filteredEvents.length === 0 && (
-            <div className="col-span-full py-16 text-center bg-[#1A1F2C] border border-white/5 rounded-3xl text-gray-500 font-mono text-xs uppercase tracking-widest">No existen eventos registrados.</div>
+            ))
           )}
         </div>
       )}
