@@ -505,19 +505,21 @@ export default function PaymentsOutPage() {
       {/* COMPROBANTE DE RETENCIÓN (SOLO IMPRESIÓN) */}
       <div className="hidden print:block font-sans text-black bg-white w-full absolute top-0 left-0 z-[9999] px-4 py-2">
         {selectedPayment && !selectedPayment.isDirectExpense && (() => {
+          const payment = selectedPayment;
+          if (!payment) return null;
           // Calcular periodo (AAAA-MM) y fecha
-          const paymentDateObj = new Date(selectedPayment.paymentDate);
+          const paymentDateObj = new Date(payment.paymentDate);
           const periodStr = `${paymentDateObj.getFullYear()}-${String(paymentDateObj.getMonth() + 1).padStart(2, '0')}`;
           const dateStr = paymentDateObj.toLocaleDateString('es-VE');
 
           // Sacar recibo de retención si existe, o usar Payment Number como ref
           let retentionNumber = '';
-          if (selectedPayment.details && selectedPayment.details.length > 0) {
-            retentionNumber = selectedPayment.details[0]?.purchaseBill?.receiptRetIVA || selectedPayment.paymentNumber;
+          if (payment.details && payment.details.length > 0) {
+            retentionNumber = payment.details[0]?.purchaseBill?.receiptRetIVA || payment.paymentNumber;
           }
 
           // Proveedor (Sujeto retenido) asumiendo que un pago es a un solo proveedor
-          const firstDetail = selectedPayment.details && selectedPayment.details.length > 0 ? selectedPayment.details[0] : null;
+          const firstDetail = payment.details && payment.details.length > 0 ? payment.details[0] : null;
           const supplierName = firstDetail?.purchaseBill?.supplier?.name || 'N/A';
           const supplierRif = firstDetail?.purchaseBill?.supplier?.rif || 'N/A';
           const supplierAddress = firstDetail?.purchaseBill?.supplier?.address || 'NO REGISTRADA';
@@ -533,7 +535,7 @@ export default function PaymentsOutPage() {
           let sumIvaRetenido = 0;
           let sumTotalPagar = 0;
 
-          selectedPayment.details.forEach(d => {
+          payment.details.forEach(d => {
             const tasa = Number(d.purchaseBill.exchangeRate) || 1;
             const totalBs = Number(d.purchaseBill.totalAmount) * tasa;
             const baseBs = Number(d.purchaseBill.taxableAmount) * tasa;
@@ -558,9 +560,9 @@ export default function PaymentsOutPage() {
                 <div className="w-full flex justify-between items-start">
                   {/* Logo izq */}
                   <div className="w-48 flex-shrink-0">
-                    {selectedPayment.company?.logoUrl && (
+                    {payment.company?.logoUrl && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={selectedPayment.company.logoUrl} alt="Logo empresa" className="h-16 object-contain" />
+                      <img src={payment.company.logoUrl} alt="Logo empresa" className="h-16 object-contain" />
                     )}
                   </div>
 
@@ -604,18 +606,18 @@ export default function PaymentsOutPage() {
                 <div className="flex gap-2 w-[calc(100%-12.5rem)]">
                   <div className="border border-black flex-1 text-center flex flex-col justify-center py-1">
                     <span className="text-[8px] font-bold uppercase tracking-tight text-gray-700">NOMBRE O RAZON SOCIAL DEL AGENTE DE RETENCION:</span>
-                    <span className="text-xs font-bold leading-tight">{selectedPayment.company?.name || 'N/A'}</span>
+                    <span className="text-xs font-bold leading-tight">{payment.company?.name || 'N/A'}</span>
                   </div>
                   <div className="border border-black flex-1 text-center flex flex-col justify-center py-1">
                     <span className="text-[8px] font-bold uppercase tracking-tight text-gray-700">REGISTRO DE INFORMACION FISCAL (RIF) DEL AGENTE DE RETENCION:</span>
-                    <span className="text-xs font-bold leading-tight w-full truncate px-1">{selectedPayment.company?.rif || 'N/A'}</span>
+                    <span className="text-xs font-bold leading-tight w-full truncate px-1">{payment.company?.rif || 'N/A'}</span>
                   </div>
                 </div>
 
                 <div className="flex gap-2 w-full mt-2">
                   <div className="w-[calc(100%-12.5rem)] border border-black text-center flex flex-col justify-center py-1">
                     <span className="text-[8px] font-bold uppercase tracking-tight text-gray-700">DIRECCION DEL AGENTE DE RETENCION:</span>
-                    <span className="text-[10px] font-medium leading-tight truncate px-2">{selectedPayment.company?.address || 'N/A'}</span>
+                    <span className="text-[10px] font-medium leading-tight truncate px-2">{payment.company?.address || 'N/A'}</span>
                   </div>
                   <div className="w-48 flex-none border border-black text-center text-[10px] -mt-10 self-start">
                     <div className="border-b border-black font-semibold uppercase tracking-wider bg-gray-50 py-0.5">PERIODO FISCAL</div>
@@ -664,7 +666,7 @@ export default function PaymentsOutPage() {
                     </tr>
                   </thead>
                   <tbody className="text-right">
-                    {selectedPayment.details.map((d: PaymentDetail, index: number) => {
+                    {payment.details.map((d: PaymentDetail, index: number) => {
                       const tasa = Number(d.purchaseBill.exchangeRate) || 1;
                       const totalBs = Number(d.purchaseBill.totalAmount) * tasa;
                       const baseBs = Number(d.purchaseBill.taxableAmount) * tasa;
@@ -725,7 +727,7 @@ export default function PaymentsOutPage() {
                 {/* Firma Izquierda (Vacia / Con Sello del Agente si hay en config) */}
                 <div className="w-[45%] border border-black relative h-28 flex flex-col items-center justify-end pb-1">
                   <p className="text-[10px] font-black mt-2 tracking-widest uppercase">{docFormats.agentSignatureLabel}</p>
-                  <p className="text-[10px] font-bold text-gray-600 truncate">{selectedPayment.company?.name}</p>
+                  <p className="text-[10px] font-bold text-gray-600 truncate">{payment.company?.name}</p>
                   {docFormats.stampUrl && (
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-70 -z-10">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
