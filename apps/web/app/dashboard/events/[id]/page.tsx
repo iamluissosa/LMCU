@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { ArrowLeft, Clock, CheckCircle, TrendingUp, TrendingDown, DollarSign, Plus, Link as LinkIcon, X } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, TrendingUp, TrendingDown, DollarSign, Plus, Link as LinkIcon, X, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -17,10 +17,26 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'INGRESOS' | 'EGRESOS'>('INGRESOS');
 
-  // Modal Vincular
+  // Modal Vincular Gasto
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [unlinkedExpenses, setUnlinkedExpenses] = useState<any[]>([]);
   const [loadingLink, setLoadingLink] = useState(false);
+
+  // Modal Registrar Ingreso
+  const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
+  const [savingIncome, setSavingIncome] = useState(false);
+  const [allEvents, setAllEvents] = useState<any[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [incomeForm, setIncomeForm] = useState({
+    amount: '',
+    clientName: '',
+    description: '',
+    paymentDate: new Date().toISOString().split('T')[0],
+    currencyCode: 'USD',
+  });
+  const [eventDistributions, setEventDistributions] = useState<{ eventId: string; amountApplied: string }[]>([
+    { eventId: '', amountApplied: '' }
+  ]);
 
   const fetchEvent = async () => {
     setLoading(true);
@@ -55,6 +71,88 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const handleOpenLinkModal = () => {
     setIsLinkModalOpen(true);
     fetchUnlinkedExpenses();
+  };
+
+  // ── INGRESO MODAL ───────────────────────────────
+  const fetchAllEvents = async () => {
+    setLoadingEvents(true);
+    try {
+      const res = await apiClient.get<any[]>('/events');
+      setAllEvents(res || []);
+    } catch {
+      toast.error('Error cargando lista de eventos');
+    } finally {
+      setLoadingEvents(false);
+    }
+  };
+
+  const handleOpenIncomeModal = () => {
+    setIncomeForm({
+      amount: '',
+      clientName: '',
+      description: '',
+      paymentDate: new Date().toISOString().split('T')[0],
+      currencyCode: 'USD',
+    });
+    setEventDistributions([{ eventId: eventId, amountApplied: '' }]);
+    setIsIncomeModalOpen(true);
+    fetchAllEvents();
+  };
+
+  const addDistributionRow = () => {
+    setEventDistributions(prev => [...prev, { eventId: '', amountApplied: '' }]);
+  };
+
+  const removeDistributionRow = (index: number) => {
+    setEventDistributions(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateDistribution = (index: number, field: 'eventId' | 'amountApplied', value: string) => {
+    setEventDistributions(prev => prev.map((d, i) => i === index ? { ...d, [field]: value } : d));
+  };
+
+  const totalDistributed = eventDistributions.reduce((sum, d) => sum + (Number(d.amountApplied) || 0), 0);
+
+  const handleCreateIncome = async () => {
+    const amount = Number(incomeForm.amount);
+    if (!amount || amount <= 0) {
+      toast.error('Ingrese un monto total válido');
+      return;
+    }
+
+    const validDetails = eventDistributions.filter(d => d.eventId && Number(d.amountApplied) > 0);
+    if (validDetails.length === 0) {
+      toast.error('Agregue al menos un evento con monto asignado');
+      return;
+    }
+
+    const totalDist = validDetails.reduce((s, d) => s + Number(d.amountApplied), 0);
+    if (Math.abs(totalDist - amount) > 0.01) {
+      toast.error(`El monto distribuido ($${totalDist.toFixed(2)}) no coincide con el total ($${amount.toFixed(2)})`);
+      return;
+    }
+
+    setSavingIncome(true);
+    try {
+      await apiClient.post('/incomes', {
+        amount,
+        currencyCode: incomeForm.currencyCode,
+        paymentDate: incomeForm.paymentDate,
+        clientName: incomeForm.clientName || null,
+        description: incomeForm.description || null,
+        eventDetails: validDetails.map(d => ({
+          eventId: d.eventId,
+          amountApplied: Number(d.amountApplied),
+        })),
+      });
+      toast.success('Ingreso registrado exitosamente');
+      setIsIncomeModalOpen(false);
+      fetchEvent();
+    } catch (e: any) {
+      toast.error(e.message || 'Error al registrar ingreso');
+    } finally {
+      setSavingIncome(false);
+    }
   };
 
   const handleLinkExpense = async (paymentId: string) => {
@@ -151,8 +249,16 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
         <div className="p-0">
           {tab === 'INGRESOS' && (
             <div>
-               <div className="flex justify-end p-5">
-                 {/* TODO: Lógica para modal de ingreso libre (Opcional, el usuario indica que se maneja a nivel global). Para este MVP se oculta el botón si no está pedido. */}
+               <div className="flex justify-between items-center bg-white/[0.02] p-5 border-b border-white/5">
+                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest max-w-md leading-relaxed">
+                   Cobros y pagos recibidos vinculados a este evento.
+                 </p>
+                 <button
+                   onClick={handleOpenIncomeModal}
+                   className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 active:scale-95 hover:shadow-emerald-500/30"
+                 >
+                   <Plus size={14} /> Registrar Ingreso
+                 </button>
                </div>
                
                <table className="w-full text-sm text-left">
@@ -269,6 +375,190 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
             </div>
             <div className="p-4 flex justify-center border-t border-white/5 bg-white/[0.01]">
                 <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">Mostrando {unlinkedExpenses.length} coincidencias</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL REGISTRAR INGRESO */}
+      {isIncomeModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex justify-center items-center z-50 p-4">
+          <div className="bg-[#1A1F2C] border border-white/10 rounded-[2rem] overflow-hidden w-full max-w-2xl shadow-2xl animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-8 py-6 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+              <h2 className="text-lg font-black text-white uppercase tracking-widest flex items-center gap-3">
+                <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-400"><TrendingUp size={18} /></div>
+                Registrar Ingreso
+              </h2>
+              <button onClick={() => setIsIncomeModalOpen(false)} className="bg-white/5 hover:bg-red-500/20 hover:text-red-400 p-2 rounded-xl transition-all"><X size={18}/></button>
+            </div>
+
+            {/* Body */}
+            <div className="p-8 space-y-6 max-h-[65vh] overflow-y-auto custom-scrollbar">
+
+              {/* Monto Total + Moneda */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2 space-y-2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Monto Total del Ingreso *</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-400 font-black text-lg">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={incomeForm.amount}
+                      onChange={e => setIncomeForm(p => ({ ...p, amount: e.target.value }))}
+                      className="w-full bg-[#0B1120] border border-white/5 focus:border-emerald-500/50 pl-10 pr-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/30 text-white text-lg font-black tracking-tighter transition-all placeholder:text-gray-600"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Moneda</label>
+                  <select
+                    value={incomeForm.currencyCode}
+                    onChange={e => setIncomeForm(p => ({ ...p, currencyCode: e.target.value }))}
+                    className="w-full bg-[#0B1120] border border-white/5 focus:border-emerald-500/50 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/30 text-white text-sm font-bold transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="USD">USD</option>
+                    <option value="VES">VES (Bs)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Fecha + Cliente */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Fecha de Pago</label>
+                  <input
+                    type="date"
+                    value={incomeForm.paymentDate}
+                    onChange={e => setIncomeForm(p => ({ ...p, paymentDate: e.target.value }))}
+                    className="w-full bg-[#0B1120] border border-white/5 focus:border-emerald-500/50 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/30 text-white text-sm font-bold transition-all [&::-webkit-calendar-picker-indicator]:invert-[0.6] [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Nombre del Cliente</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Juan Pérez / Empresa XYZ"
+                    value={incomeForm.clientName}
+                    onChange={e => setIncomeForm(p => ({ ...p, clientName: e.target.value }))}
+                    className="w-full bg-[#0B1120] border border-white/5 focus:border-emerald-500/50 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/30 text-white text-sm transition-all placeholder:text-gray-600"
+                  />
+                </div>
+              </div>
+
+              {/* Descripción */}
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Descripción / Detalle</label>
+                <textarea
+                  placeholder="Ej: Pago por servicio de sonido para evento..."
+                  rows={2}
+                  value={incomeForm.description}
+                  onChange={e => setIncomeForm(p => ({ ...p, description: e.target.value }))}
+                  className="w-full bg-[#0B1120] border border-white/5 focus:border-emerald-500/50 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/30 text-white text-sm transition-all placeholder:text-gray-600 resize-none"
+                />
+              </div>
+
+              {/* ── DISTRIBUCIÓN POR EVENTO ── */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Distribución por Evento *</label>
+                  <button
+                    onClick={addDistributionRow}
+                    className="text-[9px] font-black text-emerald-400 uppercase tracking-widest hover:text-emerald-300 transition-colors flex items-center gap-1"
+                  >
+                    <Plus size={12} /> Agregar Evento
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {eventDistributions.map((dist, idx) => (
+                    <div key={idx} className="bg-[#0B1120] border border-white/5 rounded-2xl p-4 flex items-center gap-3 group hover:border-emerald-500/20 transition-colors">
+                      {/* Selector de Evento */}
+                      <div className="flex-1">
+                        <select
+                          value={dist.eventId}
+                          onChange={e => updateDistribution(idx, 'eventId', e.target.value)}
+                          className="w-full bg-transparent border-none outline-none text-white text-sm font-bold appearance-none cursor-pointer focus:ring-0 p-0"
+                        >
+                          <option value="" className="bg-[#0B1120]">Seleccionar evento...</option>
+                          {loadingEvents ? (
+                            <option disabled className="bg-[#0B1120]">Cargando...</option>
+                          ) : (
+                            allEvents.map(ev => (
+                              <option key={ev.id} value={ev.id} className="bg-[#0B1120]">
+                                {ev.name} — {new Date(ev.date).toLocaleDateString()}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Monto aplicado */}
+                      <div className="w-40 relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500/50 text-xs font-bold">$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={dist.amountApplied}
+                          onChange={e => updateDistribution(idx, 'amountApplied', e.target.value)}
+                          className="w-full bg-white/5 border border-white/5 focus:border-emerald-500/40 pl-7 pr-3 py-2 rounded-xl outline-none text-emerald-400 text-sm font-black tracking-tighter transition-all placeholder:text-gray-600"
+                        />
+                      </div>
+
+                      {/* Botón eliminar */}
+                      {eventDistributions.length > 1 && (
+                        <button
+                          onClick={() => removeDistributionRow(idx)}
+                          className="p-2 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Resumen de distribución */}
+                {Number(incomeForm.amount) > 0 && (
+                  <div className={`flex justify-between items-center px-4 py-3 rounded-xl border text-xs font-bold ${
+                    Math.abs(totalDistributed - Number(incomeForm.amount)) < 0.01
+                      ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'
+                      : 'bg-orange-500/5 border-orange-500/20 text-orange-400'
+                  }`}>
+                    <span className="uppercase tracking-widest text-[9px]">Distribuido: ${totalDistributed.toFixed(2)} / ${Number(incomeForm.amount).toFixed(2)}</span>
+                    {Math.abs(totalDistributed - Number(incomeForm.amount)) < 0.01 
+                      ? <CheckCircle size={14} />
+                      : <span className="text-[9px] uppercase tracking-widest">Pendiente: ${(Number(incomeForm.amount) - totalDistributed).toFixed(2)}</span>
+                    }
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-8 py-5 border-t border-white/5 bg-white/[0.01] flex justify-end gap-3">
+              <button
+                onClick={() => setIsIncomeModalOpen(false)}
+                className="px-6 py-3 text-gray-500 hover:text-white font-black uppercase tracking-widest text-[10px] transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateIncome}
+                disabled={savingIncome}
+                className="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 disabled:opacity-50 text-white rounded-2xl flex items-center gap-2 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-emerald-600/20 transition-all hover:scale-[1.02] active:scale-95 disabled:hover:scale-100"
+              >
+                {savingIncome ? (
+                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Guardando...</>
+                ) : (
+                  <><DollarSign size={16} /> Guardar Ingreso</>
+                )}
+              </button>
             </div>
           </div>
         </div>

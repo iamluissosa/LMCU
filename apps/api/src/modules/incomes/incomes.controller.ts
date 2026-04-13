@@ -19,6 +19,6 @@ export class IncomesController {
       eventDetails: { eventId: string; amountApplied: number }[] 
     }
   ) {
-    return this.service.create(req.user.companyId, body);
+    return this.service.create(req.user, body);
   }
 }

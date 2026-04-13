@@ -5,11 +5,25 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class IncomesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(companyId: string, data: any) {
-    if (!companyId) {
-      throw new BadRequestException('No se puede registrar un ingreso sin empresa asignada.');
+  async create(user: any, data: any) {
+    let companyId = user.companyId;
+
+    // Si el usuario es ADMIN global (sin companyId), resolver desde el evento target
+    if (!companyId && data.eventDetails?.length > 0) {
+      const event = await this.prisma.event.findUnique({
+        where: { id: data.eventDetails[0].eventId },
+        select: { companyId: true },
+      });
+      if (event) companyId = event.companyId;
     }
-    // data.eventDetails es un array the { eventId: string, amountApplied: number }
+
+    if (!companyId) {
+      throw new BadRequestException(
+        'No se pudo determinar la empresa. Asegúrese de vincular al menos un evento.',
+      );
+    }
+
+    // data.eventDetails es un array de { eventId: string, amountApplied: number }
     return this.prisma.$transaction(async (tx) => {
       const income = await tx.income.create({
         data: {
@@ -22,13 +36,14 @@ export class IncomesService {
           eventDetails: {
             create: data.eventDetails.map((detail: any) => ({
               eventId: detail.eventId,
-              amountApplied: detail.amountApplied
-            }))
-          }
+              amountApplied: detail.amountApplied,
+            })),
+          },
         },
-        include: { eventDetails: true }
+        include: { eventDetails: true },
       });
       return income;
     });
   }
 }
+
