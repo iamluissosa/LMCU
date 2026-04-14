@@ -147,6 +147,11 @@ export default function GeneralSettingsPage() {
     { id: 'widget.finance.view', label: 'Dashboard: Ver Métricas de Finanzas' },
     // ── REPORTES ──────────────────────────
     { id: 'reports.view', label: 'Ver Módulo de Reportes' },
+    // ── IMPRESIÓN ──────────────────────────
+    { id: 'print.expenses', label: 'Imprimir Comprobantes de Egreso' },
+    { id: 'print.sales', label: 'Imprimir Cotizaciones / Facturas de Venta' },
+    { id: 'print.islr', label: 'Imprimir Retenciones ISLR' },
+    { id: 'print.reports', label: 'Imprimir Reportes Financieros' },
   ];
 
   const handleOpenModal = async (role?: Role) => {
