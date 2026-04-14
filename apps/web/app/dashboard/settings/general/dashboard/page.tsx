@@ -20,6 +20,7 @@ const DASHBOARD_WIDGETS = [
   { id: 'widget.low_stock.view', name: 'Alertas de Stock Bajo', description: 'Listado y cantidad de productos con stock crítico.' },
   { id: 'widget.sales.view', name: 'Módulo de Ventas', description: 'Facturas emitidas y estado de las cotizaciones.' },
   { id: 'widget.finance.view', name: 'Módulo de Finanzas', description: 'Cuentas por cobrar y facturas cobradas en el mes.' },
+  { id: 'widget.events.view', name: 'Módulo de Eventos', description: 'Resumen de eventos activos, ingresos y métricas mensuales.' },
 ];
 
 export default function DashboardSettingsPage() {
