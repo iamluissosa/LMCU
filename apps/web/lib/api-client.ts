@@ -28,11 +28,14 @@ async function request<T>(
 ): Promise<T> {
   let token = cachedAccessToken;
 
-  // Si estamos en el lado del servidor, o no se ha inicializado el token en cliente, debemos buscarlo fresh.
-  if (typeof window === 'undefined' || !isTokenListenerInitialized) {
+  // Si estamos en el lado del servidor, o no hay token en caché, lo buscamos async
+  if (typeof window === 'undefined' || !token) {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       token = session?.access_token || null;
+      if (typeof window !== 'undefined') {
+        cachedAccessToken = token;
+      }
   }
 
   const config: RequestInit = {
@@ -105,10 +108,13 @@ export const apiClient = {
   /** Upload de archivos usando FormData (para importación Excel, etc.) */
   upload: async <T>(endpoint: string, formData: FormData): Promise<T> => {
     let token = cachedAccessToken;
-    if (typeof window === 'undefined' || !isTokenListenerInitialized) {
+    if (typeof window === 'undefined' || !token) {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       token = session?.access_token || null;
+      if (typeof window !== 'undefined') {
+        cachedAccessToken = token;
+      }
     }
 
     const res = await fetch(`${API_URL}${endpoint}`, {
