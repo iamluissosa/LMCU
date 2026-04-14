@@ -26,6 +26,7 @@ export class DashboardService {
       const hasLowStockPerm = userPermissions.includes('widget.low_stock.view');
       const hasSalesPerm = userPermissions.includes('widget.sales.view');
       const hasFinancePerm = userPermissions.includes('widget.finance.view');
+      const hasEventsPerm = userPermissions.includes('widget.events.view') || userPermissions.includes('events.view');
 
       const totalUsers = await this.prisma.user.count({ where: { companyId } });
 
@@ -37,6 +38,14 @@ export class DashboardService {
       let invoicesPaidCount = 0;
       let invoicesIssuedCount = 0;
       const quotesStats = { sent: 0, expired: 0, accepted: 0, rejected: 0 };
+      
+      const eventsStats = {
+        totalCount: 0,
+        activeCount: 0,
+        completedCount: 0,
+        thisMonthCount: 0,
+        activeEventsIncome: 0
+      };
       
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
@@ -50,7 +59,12 @@ export class DashboardService {
         pendingInvoicesResult,
         invoicesPaidCountResult,
         invoicesIssuedCountResult,
-        quotesGroupedResult
+        quotesGroupedResult,
+        eventsTotalResult,
+        eventsActiveResult,
+        eventsCompletedResult,
+        eventsMonthResult,
+        eventsIncomeResult
       ] = await Promise.all([
         (hasInventoryPerm || hasLowStockPerm) ? this.prisma.product.count({ where: { companyId } }) : Promise.resolve(0),
         hasInventoryPerm ? this.prisma.product.findMany({ where: { companyId }, select: { priceBase: true, currentStock: true } }) : Promise.resolve([] as any[]),
@@ -59,7 +73,12 @@ export class DashboardService {
         hasFinancePerm ? this.prisma.salesInvoice.findMany({ where: { companyId, status: { in: ['ISSUED', 'PARTIAL'] as any } }, select: { totalAmount: true, paidAmount: true } }) : Promise.resolve([] as any[]),
         hasFinancePerm ? this.prisma.salesInvoice.count({ where: { companyId, status: 'PAID' as any, updatedAt: { gte: startOfMonth } } }) : Promise.resolve(0),
         hasSalesPerm ? this.prisma.salesInvoice.count({ where: { companyId, status: { not: 'VOID' as any }, issueDate: { gte: startOfMonth } } }) : Promise.resolve(0),
-        hasSalesPerm ? this.prisma.quote.groupBy({ by: ['status'], where: { companyId }, _count: { id: true } }) : Promise.resolve([] as any[])
+        hasSalesPerm ? this.prisma.quote.groupBy({ by: ['status'], where: { companyId }, _count: { id: true } }) : Promise.resolve([] as any[]),
+        hasEventsPerm ? this.prisma.event.count({ where: { companyId } }) : Promise.resolve(0),
+        hasEventsPerm ? this.prisma.event.count({ where: { companyId, status: 'ACTIVE' } }) : Promise.resolve(0),
+        hasEventsPerm ? this.prisma.event.count({ where: { companyId, status: 'COMPLETED' } }) : Promise.resolve(0),
+        hasEventsPerm ? this.prisma.event.count({ where: { companyId, date: { gte: startOfMonth } } }) : Promise.resolve(0),
+        hasEventsPerm ? this.prisma.incomeEventDetail.aggregate({ _sum: { amountApplied: true }, where: { event: { companyId, status: 'ACTIVE' } } }) : Promise.resolve({ _sum: { amountApplied: 0 } })
       ]);
 
       totalProducts = totalProductsResult;
@@ -77,6 +96,12 @@ export class DashboardService {
           if (q.status === 'RECHAZADA') quotesStats.rejected = q._count.id;
       });
 
+      eventsStats.totalCount = eventsTotalResult;
+      eventsStats.activeCount = eventsActiveResult;
+      eventsStats.completedCount = eventsCompletedResult;
+      eventsStats.thisMonthCount = eventsMonthResult;
+      eventsStats.activeEventsIncome = Number(eventsIncomeResult._sum.amountApplied || 0);
+
       return {
         totalProducts,
         totalUsers,
@@ -87,6 +112,7 @@ export class DashboardService {
         invoicesIssuedCount,
         invoicesPaidCount,
         quotesStats,
+        eventsStats,
       };
     } catch (error) {
       console.error('SERVER ERROR IN GET STATS:', error);

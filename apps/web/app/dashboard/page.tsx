@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { createClient } from '@/lib/supabase';
 import {
-  DollarSign, Package, AlertTriangle, Activity, TrendingUp, Briefcase, Receipt, FileText, CheckCircle
+  DollarSign, Package, AlertTriangle, Activity, TrendingUp, Briefcase, Receipt, FileText, CheckCircle, Calendar
 } from 'lucide-react';
 
 const supabase = createClient();
@@ -22,6 +22,7 @@ interface DashboardStats {
   invoicesIssuedCount?: number;
   invoicesPaidCount?: number;
   quotesStats?: { sent: number; expired: number; accepted: number; rejected: number };
+  eventsStats?: { totalCount: number; activeCount: number; completedCount: number; thisMonthCount: number; activeEventsIncome: number; };
 }
 
 export default function DashboardPage() {
@@ -38,7 +39,8 @@ export default function DashboardPage() {
     accountsReceivable: 0,
     invoicesIssuedCount: 0,
     invoicesPaidCount: 0,
-    quotesStats: { sent: 0, expired: 0, accepted: 0, rejected: 0 }
+    quotesStats: { sent: 0, expired: 0, accepted: 0, rejected: 0 },
+    eventsStats: { totalCount: 0, activeCount: 0, completedCount: 0, thisMonthCount: 0, activeEventsIncome: 0 }
   });
 
   const [loading, setLoading] = useState(true);
@@ -104,6 +106,7 @@ export default function DashboardPage() {
   const showLowStock = hasPerm('widget.low_stock.view');
   const showSales = hasPerm('widget.sales.view');
   const showFinance = hasPerm('widget.finance.view');
+  const showEvents = hasPerm('widget.events.view') || hasPerm('events.view');
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -114,6 +117,75 @@ export default function DashboardPage() {
             <p className="text-sm text-gray-400">Vista consolidada de indicadores según tu rol</p>
           </div>
       </div>
+
+      {/* ── MÓDULO DE EVENTOS ── */}
+      {showEvents && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-bold text-gray-300 flex items-center gap-2">
+              <Calendar size={20} className="text-pink-400"/> Eventos y Proyectos
+            </h2>
+            <button onClick={() => window.location.href='/dashboard/events'} className="text-xs bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2">
+              Ver Todos <TrendingUp size={12}/>
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors">
+              <div className="flex justify-between items-start mb-4">
+                <p className="text-sm font-medium text-gray-400">Eventos Activos</p>
+                <div className="bg-pink-500/20 p-2.5 rounded-xl text-pink-400 group-hover:scale-110 transition-transform">
+                  <Activity size={20} />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-3xl font-bold text-white tracking-tight">{stats?.eventsStats?.activeCount || 0}</h3>
+                <p className="text-xs text-pink-400 font-medium mt-2 flex items-center gap-1">
+                   En Ejecución
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors lg:col-span-2">
+              <div className="flex justify-between items-start mb-4">
+                <p className="text-sm font-medium text-gray-400">Ingresos Totales (Eventos Activos)</p>
+                <div className="bg-emerald-500/20 p-2.5 rounded-xl text-emerald-400 group-hover:scale-110 transition-transform">
+                  <DollarSign size={20} />
+                </div>
+              </div>
+              <div className="flex justify-between items-end">
+                <div>
+                  <h3 className="text-4xl font-bold text-white tracking-tight">
+                    ${stats?.eventsStats?.activeEventsIncome?.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}
+                  </h3>
+                  <div className="flex gap-4 mt-3">
+                     <p className="text-xs text-emerald-400 font-medium flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-md">
+                        <CheckCircle size={12}/> {stats?.eventsStats?.completedCount || 0} Históricos
+                     </p>
+                     <p className="text-xs text-blue-400 font-medium flex items-center gap-1 bg-blue-500/10 px-2.5 py-1 rounded-md">
+                        <Calendar size={12}/> {stats?.eventsStats?.totalCount || 0} Totales
+                     </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-[#1A1F2C] p-6 rounded-2xl border border-white/5 shadow-lg relative overflow-hidden group hover:border-white/10 transition-colors">
+              <div className="flex justify-between items-start mb-4">
+                <p className="text-sm font-medium text-gray-400">Eventos del Mes</p>
+                <div className="bg-blue-500/20 p-2.5 rounded-xl text-blue-400 group-hover:scale-110 transition-transform">
+                  <Calendar size={20} />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-3xl font-bold text-white tracking-tight">{stats?.eventsStats?.thisMonthCount || 0}</h3>
+                <p className="text-xs text-blue-400 font-medium mt-2">Registrados este mes</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* ── MÓDULO DE INVENTARIO ── */}
       {(showInventory || showLowStock) && (
