@@ -468,6 +468,14 @@ export default function PaymentsOutPage() {
                   <Edit size={18} /> Editar Gasto
                 </Link>
               )}
+              {selectedPayment.isDirectExpense && (
+                <button
+                  onClick={() => window.open(`/print/expense/${selectedPayment.id}`, '_blank')}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl flex items-center gap-2 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02]"
+                >
+                  <Printer size={18} /> Imprimir Comprobante
+                </button>
+              )}
 
               {!selectedPayment.isDirectExpense && (
                 <button

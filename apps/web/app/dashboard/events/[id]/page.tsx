@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { ArrowLeft, Clock, CheckCircle, TrendingUp, TrendingDown, DollarSign, Plus, Link as LinkIcon, X, Trash2, Pencil } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, TrendingUp, TrendingDown, DollarSign, Plus, Link as LinkIcon, X, Trash2, Pencil, Printer } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -387,11 +387,11 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                
                <table className="w-full text-sm text-left">
                  <thead className="bg-[#0B1120] text-[9px] uppercase text-gray-500 font-black tracking-widest border-b border-white/5">
-                    <tr><th className="px-6 py-4">Ref DB</th><th className="px-6 py-4">Fecha</th><th className="px-6 py-4 w-1/2">Desglose Técnico</th><th className="px-6 py-4 text-right">Gran Total</th></tr>
+                    <tr><th className="px-6 py-4">Ref DB</th><th className="px-6 py-4">Fecha</th><th className="px-6 py-4 w-1/2">Desglose Técnico</th><th className="px-6 py-4 text-right">Gran Total</th><th className="px-4 py-4 text-center w-16"></th></tr>
                  </thead>
                  <tbody className="divide-y divide-white/5">
                    {event.expenses.map((e: any) => (
-                     <tr key={e.id} className="hover:bg-white/5 transition-colors">
+                     <tr key={e.id} className="hover:bg-white/5 transition-colors cursor-pointer group" onClick={() => window.open(`/print/expense/${e.id}`, '_blank')}>
                        <td className="px-6 py-4"><span className="bg-gradient-to-r from-blue-500/10 to-transparent border-l-2 border-blue-500 pl-3 py-1 text-xs font-mono text-blue-400 font-bold">{e.paymentNumber}</span></td>
                        <td className="px-6 py-4 font-mono text-gray-500 text-xs">{new Date(e.paymentDate).toLocaleDateString()}</td>
                        <td className="px-6 py-4 space-y-2">
@@ -409,9 +409,14 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
                          <span className="text-xs text-rose-500/50 mr-1">$</span>
                          {Number(e.amountPaid).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                        </td>
+                       <td className="px-4 py-4 text-center">
+                         <span className="p-2 rounded-xl text-gray-600 group-hover:text-blue-400 group-hover:bg-blue-500/10 transition-all inline-flex" title="Imprimir Comprobante">
+                           <Printer size={16} />
+                         </span>
+                       </td>
                      </tr>
                    ))}
-                   {event.expenses.length === 0 && <tr><td colSpan={4} className="text-center py-16 text-gray-500 font-mono text-xs uppercase tracking-widest bg-white/[0.01]">Sin egresos operativos</td></tr>}
+                   {event.expenses.length === 0 && <tr><td colSpan={5} className="text-center py-16 text-gray-500 font-mono text-xs uppercase tracking-widest bg-white/[0.01]">Sin egresos operativos</td></tr>}
                  </tbody>
                </table>
             </div>

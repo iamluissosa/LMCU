@@ -224,7 +224,26 @@ export class PaymentsOutService {
           }
         },
         supplier: true,
-        details: true,
+        details: {
+          include: {
+            purchaseBill: {
+              include: {
+                supplier: true,
+              }
+            }
+          }
+        },
+        company: {
+          select: {
+            name: true,
+            rif: true,
+            address: true,
+            logoUrl: true,
+          }
+        },
+        event: {
+          select: { id: true, name: true, date: true }
+        },
       }
     });
 
