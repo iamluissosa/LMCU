@@ -90,21 +90,25 @@ export class SuppliersController {
   @Get(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @Permissions('suppliers.view')
-  findOne(@Param('id') id: string) {
-    return this.suppliersService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req) {
+    return this.suppliersService.findOne(id, req.user.companyId);
   }
 
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @Permissions('suppliers.edit')
-  update(@Param('id') id: string, @Body() data: UpdateSupplierDto) {
-    return this.suppliersService.update(id, data);
+  update(
+    @Param('id') id: string,
+    @Body() data: UpdateSupplierDto,
+    @Request() req,
+  ) {
+    return this.suppliersService.update(id, data, req.user.companyId);
   }
 
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @Permissions('suppliers.delete')
-  remove(@Param('id') id: string) {
-    return this.suppliersService.remove(id);
+  remove(@Param('id') id: string, @Request() req) {
+    return this.suppliersService.remove(id, req.user.companyId);
   }
 }

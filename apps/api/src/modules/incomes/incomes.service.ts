@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -30,7 +34,9 @@ export class IncomesService {
           companyId,
           amount: data.amount,
           currencyCode: data.currencyCode || 'USD',
-          paymentDate: data.paymentDate ? new Date(data.paymentDate) : new Date(),
+          paymentDate: data.paymentDate
+            ? new Date(data.paymentDate)
+            : new Date(),
           clientName: data.clientName,
           description: data.description,
           eventDetails: {
@@ -46,9 +52,15 @@ export class IncomesService {
     });
   }
 
-  async update(id: string, data: any) {
-    const existing = await this.prisma.income.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Ingreso no encontrado');
+  async update(id: string, data: any, companyId: string) {
+    const existing = await this.prisma.income.findFirst({
+      where: { id, companyId },
+    });
+    if (!existing) {
+      throw new NotFoundException(
+        'Ingreso no encontrado o no pertenece a tu empresa',
+      );
+    }
 
     return this.prisma.$transaction(async (tx) => {
       // Actualizar campos del ingreso
@@ -56,10 +68,16 @@ export class IncomesService {
         where: { id },
         data: {
           ...(data.amount !== undefined && { amount: data.amount }),
-          ...(data.currencyCode !== undefined && { currencyCode: data.currencyCode }),
-          ...(data.paymentDate !== undefined && { paymentDate: new Date(data.paymentDate) }),
+          ...(data.currencyCode !== undefined && {
+            currencyCode: data.currencyCode,
+          }),
+          ...(data.paymentDate !== undefined && {
+            paymentDate: new Date(data.paymentDate),
+          }),
           ...(data.clientName !== undefined && { clientName: data.clientName }),
-          ...(data.description !== undefined && { description: data.description }),
+          ...(data.description !== undefined && {
+            description: data.description,
+          }),
         },
       });
 
@@ -82,9 +100,15 @@ export class IncomesService {
     });
   }
 
-  async remove(id: string) {
-    const existing = await this.prisma.income.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Ingreso no encontrado');
+  async remove(id: string, companyId: string) {
+    const existing = await this.prisma.income.findFirst({
+      where: { id, companyId },
+    });
+    if (!existing) {
+      throw new NotFoundException(
+        'Ingreso no encontrado o no pertenece a tu empresa',
+      );
+    }
 
     // IncomeEventDetail tiene onDelete: Cascade, así que se borra automáticamente
     await this.prisma.income.delete({ where: { id } });

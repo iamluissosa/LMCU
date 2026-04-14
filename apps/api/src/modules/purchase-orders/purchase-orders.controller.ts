@@ -43,8 +43,8 @@ export class PurchaseOrdersController {
 
   @Get(':id')
   @Permissions('purchase_orders.view')
-  findOne(@Param('id') id: string) {
-    return this.poService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req) {
+    return this.poService.findOne(id, req.user.companyId);
   }
 
   @Patch(':id')
@@ -54,12 +54,12 @@ export class PurchaseOrdersController {
     @Body() data: UpdatePurchaseOrderDto,
     @Request() req,
   ) {
-    return this.poService.update(id, req.user.id, data);
+    return this.poService.update(id, req.user.id, data, req.user.companyId);
   }
 
   @Delete(':id')
   @Permissions('purchase_orders.delete')
   remove(@Param('id') id: string, @Request() req) {
-    return this.poService.remove(req.user.id, id);
+    return this.poService.remove(req.user.id, id, req.user.companyId);
   }
 }

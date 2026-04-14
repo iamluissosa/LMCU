@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { POStatus } from '@repo/database';
 import { PaginationDto } from '../../common/dto/pagination.dto';
@@ -109,31 +114,39 @@ export class PurchaseOrdersService {
     }
   }
 
-  // 3. Detalle (para editar o ver)
-  async findOne(id: string) {
-    return this.prisma.purchaseOrder.findUnique({
-      where: { id },
+  // 3. Detalle (para editar o ver) - con validación de propiedad
+  async findOne(id: string, companyId: string) {
+    const po = await this.prisma.purchaseOrder.findFirst({
+      where: { id, companyId },
       include: {
         supplier: true,
         items: {
           include: { product: true },
         },
+        createdBy: { select: { name: true } },
+        updatedBy: { select: { name: true } },
       },
     });
+    if (!po) {
+      throw new NotFoundException(
+        'Orden de compra no encontrada o no pertenece a tu empresa',
+      );
+    }
+    return po;
   }
 
-  // 4. Actualizar (Cabecera y/o Items)
-  async update(id: string, userId: string, data: any) {
-    // Si queremos actualizar items, lo mejor es hacerlo transaccional o via endpoints dedicados
-    // Aquí soportamos actualizar estado, notas, etc.
-    // Si se envían items, se REEMPLAZAN (modo simple) o se actualizan (complejo).
-    // Para simplificar, si data.items existe, borramos los viejos y creamos nuevos (solo en DRAFT)
-
-    const po = await this.prisma.purchaseOrder.findUnique({
-      where: { id },
+  // 4. Actualizar (Cabecera y/o Items) - con validación de propiedad
+  async update(id: string, userId: string, data: any, companyId: string) {
+    // Validar propiedad primero
+    const po = await this.prisma.purchaseOrder.findFirst({
+      where: { id, companyId },
       include: { items: true },
     });
-    if (!po) throw new BadRequestException('Orden de compra no encontrada');
+    if (!po) {
+      throw new NotFoundException(
+        'Orden de compra no encontrada o no pertenece a tu empresa',
+      );
+    }
 
     if (po.status !== POStatus.OPEN && data.items) {
       throw new BadRequestException(
@@ -147,11 +160,6 @@ export class PurchaseOrdersService {
 
       // 1. Si hay items, reemplazar y calcular nuevo total
       if (data.items && po.status === POStatus.OPEN) {
-        console.log(
-          'Update PO: Recalculando total con items:',
-          data.items.length,
-        );
-
         // Borrar anteriores
         await tx.purchaseOrderItem.deleteMany({
           where: { purchaseOrderId: id },
@@ -175,17 +183,9 @@ export class PurchaseOrdersService {
           });
         }
         newTotal = calculatedTotal;
-        console.log('Update PO: Nuevo Total Calculado:', newTotal);
-      } else {
-        console.log(
-          'Update PO: No se actualizaron items. Status:',
-          po.status,
-          'Items received:',
-          !!data.items,
-        );
       }
 
-      // 2. Actualizar cabecera con el nuevo total si hubo cambio de items
+      // 2. Actualizar cabecera
       const updateData: any = {
         supplierId: data.supplierId,
         notes: data.notes,
@@ -196,29 +196,38 @@ export class PurchaseOrdersService {
 
       if (newTotal !== undefined) {
         updateData.totalAmount = newTotal;
-        console.log(
-          'Update PO: Actualizando cabecera totalAmount a:',
-          newTotal,
-        );
       }
 
-      const updatedPO = await tx.purchaseOrder.update({
+      // 3. Actualizar updatedBy si se proporciona userId
+      if (userId) {
+        updateData.updatedBy = { connect: { id: userId } };
+      }
+
+      const updated = await tx.purchaseOrder.update({
         where: { id },
-        data: {
-          ...updateData,
-          updatedBy: { connect: { id: userId } },
+        data: updateData,
+        include: {
+          items: true,
+          supplier: true,
         },
-        include: { items: true }, // Retornar items actualizados
       });
 
-      return updatedPO;
+      return updated;
     });
   }
 
-  // 5. Eliminar (Solo si está en DRAFT)
-  async remove(userId: string, id: string) {
-    const po = await this.prisma.purchaseOrder.findUnique({ where: { id } });
-    if (po?.status !== POStatus.OPEN)
+  // 5. Eliminar (Solo si está en OPEN) - con validación de propiedad
+  async remove(userId: string, id: string, companyId: string) {
+    const po = await this.prisma.purchaseOrder.findFirst({
+      where: { id, companyId },
+    });
+    if (!po) {
+      throw new NotFoundException(
+        'Orden de compra no encontrada o no pertenece a tu empresa',
+      );
+    }
+
+    if (po.status !== POStatus.OPEN)
       throw new BadRequestException(
         'Solo se pueden eliminar órdenes en estado Abierto (OPEN)',
       );
@@ -229,7 +238,7 @@ export class PurchaseOrdersService {
       data: {
         deletedAt: new Date(),
         updatedBy: { connect: { id: userId } },
-        status: 'CANCELLED', // Opcional: Marcar como CANCELLED o mantener OPEN pero borrado? Mejor CANCELLED
+        status: 'CANCELLED',
       } as any,
     });
   }

@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
@@ -79,16 +83,26 @@ export class SuppliersService {
     }
   }
 
-  // 3. Buscar uno
-  async findOne(id: string): Promise<Supplier | null> {
-    const supplier = await this.prisma.supplier.findUnique({
-      where: { id },
+  // 3. Buscar uno (validando propiedad)
+  async findOne(id: string, companyId: string): Promise<Supplier> {
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id, companyId },
     });
+    if (!supplier) {
+      throw new NotFoundException(
+        'Proveedor no encontrado o no pertenece a tu empresa',
+      );
+    }
     return supplier as unknown as Supplier;
   }
 
-  // 4. Actualizar
-  async update(id: string, data: UpdateSupplierDto): Promise<Supplier> {
+  // 4. Actualizar (validando propiedad)
+  async update(
+    id: string,
+    data: UpdateSupplierDto,
+    companyId: string,
+  ): Promise<Supplier> {
+    await this.findOne(id, companyId);
     const updated = await this.prisma.supplier.update({
       where: { id },
       data: {
@@ -107,8 +121,9 @@ export class SuppliersService {
     return updated as unknown as Supplier;
   }
 
-  // 5. Eliminar
-  async remove(id: string): Promise<Supplier> {
+  // 5. Eliminar (validando propiedad)
+  async remove(id: string, companyId: string): Promise<Supplier> {
+    await this.findOne(id, companyId);
     const deleted = await this.prisma.supplier.delete({
       where: { id },
     });
