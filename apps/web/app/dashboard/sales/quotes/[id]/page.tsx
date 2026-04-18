@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import {
@@ -12,6 +12,7 @@ import {
   ShoppingCart,
   Pencil,
 } from "lucide-react";
+import QuoteFormModal from "@/components/quotes/QuoteFormModal";
 
 interface QuoteDetail {
   id: string;
@@ -21,6 +22,7 @@ interface QuoteDetail {
   issueDate: string;
   expiresAt?: string;
   notes?: string;
+  internalNote?: string;
   subtotal: string | number;
   exemptAmount: string | number;
   taxableAmount: string | number;
@@ -47,6 +49,8 @@ interface QuoteDetail {
   };
   items: {
     id: string;
+    productId?: string;
+    serviceCategoryId?: string;
     quantity: string | number;
     unitPrice: string | number;
     taxRate: string | number;
@@ -97,31 +101,23 @@ export default function QuoteDetailPage() {
   const router = useRouter();
   const [quote, setQuote] = useState<QuoteDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    clientId: "",
-    expiresAt: "",
-    currencyCode: "USD",
-    exchangeRate: 1,
-    notes: "",
-    internalNote: "",
-    items: [] as QuoteDetail["items"],
-  });
+  const [editModalOpen, setEditModalOpen] = useState(false);
+
+  const fetchQuote = useCallback(async () => {
+    try {
+      const data = await apiClient.get<QuoteDetail>(`/quotes/${params.id}`);
+      setQuote(data);
+    } catch (error) {
+      console.error(error);
+      alert("Error al cargar la cotización");
+    } finally {
+      setLoading(false);
+    }
+  }, [params.id]);
 
   useEffect(() => {
-    const fetchQuote = async () => {
-      try {
-        const data = await apiClient.get<QuoteDetail>(`/quotes/${params.id}`);
-        setQuote(data);
-      } catch (error) {
-        console.error(error);
-        alert("Error al cargar la cotización");
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (params.id) fetchQuote();
-  }, [params.id]);
+    fetchQuote();
+  }, [fetchQuote]);
 
   const handlePrint = () => {
     window.print();
@@ -156,38 +152,13 @@ export default function QuoteDetailPage() {
 
   const startEdit = () => {
     if (!quote) return;
-    setFormData({
-      clientId: quote.client?.id || "",
-      expiresAt: quote.expiresAt ? quote.expiresAt.split("T")[0]! : "",
-      currencyCode: quote.currencyCode || "USD",
-      exchangeRate: Number(quote.exchangeRate) || 1,
-      notes: quote.notes || "",
-      internalNote: (quote as any).internalNote || "",
-      items: quote.items,
-    });
-    setIsEditing(true);
+    setEditModalOpen(true);
   };
 
-  const cancelEdit = () => {
-    setIsEditing(false);
-  };
-
-  const saveEdit = async () => {
-    if (!quote) return;
-    try {
-      const data = await apiClient.patch<QuoteDetail>(
-        `/quotes/${quote.id}`,
-        formData,
-      );
-      setQuote(data as QuoteDetail);
-      setIsEditing(false);
-      alert("Cotización actualizada correctamente.");
-    } catch (err: unknown) {
-      alert(
-        `Error al guardar: ${err instanceof Error ? err.message : "No se pudo guardar"}`,
-      );
-    }
-  };
+  const handleEditSaved = useCallback(() => {
+    setEditModalOpen(false);
+    fetchQuote();
+  }, [fetchQuote]);
 
   if (loading)
     return (
@@ -229,7 +200,7 @@ export default function QuoteDetailPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {quote.status === "DRAFT" && !isEditing && (
+          {quote.status === "DRAFT" && !editModalOpen && (
             <button
               onClick={startEdit}
               className="bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 border border-yellow-500/20 px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors"
@@ -278,22 +249,6 @@ export default function QuoteDetailPage() {
           >
             <Printer size={16} /> Imprimir / PDF
           </button>
-          {isEditing && (
-            <>
-              <button
-                onClick={saveEdit}
-                className="bg-green-600 text-white hover:bg-green-500 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors"
-              >
-                <CheckCircle size={16} /> Guardar
-              </button>
-              <button
-                onClick={cancelEdit}
-                className="bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors"
-              >
-                <XCircle size={16} /> Cancelar
-              </button>
-            </>
-          )}
         </div>
       </div>
 
@@ -574,6 +529,36 @@ export default function QuoteDetailPage() {
         }
       `,
         }}
+      />
+
+      {/* ── MODAL EDITAR COTIZACIÓN ─────────────────────────── */}
+      <QuoteFormModal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        onSaved={handleEditSaved}
+        initialData={
+          editModalOpen && quote
+            ? {
+                id: quote.id,
+                clientId: quote.client?.id || "",
+                expiresAt: quote.expiresAt ? quote.expiresAt.split("T")[0] : "",
+                currencyCode: quote.currencyCode || "USD",
+                exchangeRate: Number(quote.exchangeRate) || 1,
+                notes: quote.notes || "",
+                internalNote: quote.internalNote || "",
+                items: quote.items.map((item) => ({
+                  type: item.productId ? "product" : "service",
+                  productId: item.productId || undefined,
+                  serviceCategoryId: item.serviceCategoryId || undefined,
+                  description: item.description || "",
+                  quantity: Number(item.quantity),
+                  unitPrice: Number(item.unitPrice),
+                  taxRate: Number(item.taxRate),
+                  discount: Number(item.discount),
+                })),
+              }
+            : undefined
+        }
       />
     </div>
   );
