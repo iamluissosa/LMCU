@@ -13,7 +13,11 @@ import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { QuotesService } from './quotes.service';
-import { CreateQuoteDto, UpdateQuoteStatusDto } from './dto/quote.dto';
+import {
+  CreateQuoteDto,
+  UpdateQuoteDto,
+  UpdateQuoteStatusDto,
+} from './dto/quote.dto';
 
 @Controller('quotes')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
@@ -42,6 +46,17 @@ export class QuotesController {
   @Permissions('sales.view')
   findOne(@Request() req: any, @Param('id') id: string) {
     return this.service.findOne(req.user.companyId, id);
+  }
+
+  // PATCH /quotes/:id  → Actualizar datos de cotización (solo DRAFT)
+  @Patch(':id')
+  @Permissions('sales.edit')
+  update(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateQuoteDto,
+  ) {
+    return this.service.update(req.user.companyId, id, dto);
   }
 
   // PATCH /quotes/:id/status  → { status: 'SENT' | 'ACCEPTED' | 'REJECTED' ... }

@@ -4,7 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateQuoteDto, UpdateQuoteStatusDto } from './dto/quote.dto';
+import {
+  CreateQuoteDto,
+  UpdateQuoteDto,
+  UpdateQuoteStatusDto,
+} from './dto/quote.dto';
 import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
@@ -22,7 +26,7 @@ export class QuotesService {
       });
       if (!settings) {
         settings = await tx.companySettings.create({
-          data: { 
+          data: {
             companyId,
             fiscalYear: new Date().getFullYear(),
             nextQuoteNumber: 1,
@@ -31,7 +35,8 @@ export class QuotesService {
       }
 
       // Asumimos nextQuoteNumber en settings (añadir si no existe, ver nota abajo)
-      const fiscalYear = (settings as any).fiscalYear ?? new Date().getFullYear();
+      const fiscalYear =
+        (settings as any).fiscalYear ?? new Date().getFullYear();
       const quoteNumber = `COT-${fiscalYear}-${String((settings as any).nextQuoteNumber ?? 1).padStart(4, '0')}`;
 
       // Actualizar correlativo
@@ -162,6 +167,84 @@ export class QuotesService {
     return this.prisma.quote.update({
       where: { id },
       data: { status: dto.status as any },
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // ACTUALIZAR COTIZACIÓN (solo si está en DRAFT)
+  // ------------------------------------------------------------------
+  async update(companyId: string, id: string, dto: UpdateQuoteDto) {
+    const quote = await this.prisma.quote.findFirst({
+      where: { id, companyId },
+    });
+    if (!quote) throw new NotFoundException('Cotización no encontrada.');
+
+    if (quote.status !== 'DRAFT') {
+      throw new BadRequestException(
+        'Solo las cotizaciones en estado BORRADOR pueden ser editadas.',
+      );
+    }
+
+    const updateData: any = {};
+
+    if (dto.clientId) updateData.clientId = dto.clientId;
+    if (dto.expiresAt) updateData.expiresAt = new Date(dto.expiresAt);
+    if (dto.currencyCode) updateData.currencyCode = dto.currencyCode;
+    if (dto.exchangeRate)
+      updateData.exchangeRate = new Decimal(dto.exchangeRate);
+    if (dto.notes !== undefined) updateData.notes = dto.notes;
+    if (dto.internalNote !== undefined)
+      updateData.internalNote = dto.internalNote;
+
+    if (dto.items) {
+      const {
+        subtotal,
+        exemptAmount,
+        taxableAmount,
+        taxAmount,
+        totalAmount,
+        itemsData,
+      } = this.calculateTotals(dto.items);
+
+      return this.prisma.$transaction(async (tx) => {
+        await tx.quoteItem.deleteMany({ where: { quoteId: id } });
+
+        updateData.subtotal = new Decimal(subtotal);
+        updateData.exemptAmount = new Decimal(exemptAmount);
+        updateData.taxableAmount = new Decimal(taxableAmount);
+        updateData.taxAmount = new Decimal(taxAmount);
+        updateData.totalAmount = new Decimal(totalAmount);
+
+        const updatedQuote = await tx.quote.update({
+          where: { id },
+          data: updateData,
+        });
+
+        await tx.quoteItem.createMany({
+          data: itemsData.map((item) => ({
+            ...item,
+            quoteId: id,
+          })),
+        });
+
+        return this.findOne(companyId, id);
+      });
+    }
+
+    return this.prisma.quote.update({
+      where: { id },
+      data: updateData,
+      include: {
+        client: { select: { id: true, name: true, rif: true } },
+        items: {
+          include: {
+            product: {
+              select: { id: true, name: true, code: true, isService: true },
+            },
+            serviceCategory: { select: { id: true, name: true } },
+          },
+        },
+      },
     });
   }
 

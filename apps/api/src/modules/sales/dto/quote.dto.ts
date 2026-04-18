@@ -77,3 +77,35 @@ export class UpdateQuoteStatusDto {
   @IsEnum(['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'CANCELLED'])
   status: string;
 }
+
+export class UpdateQuoteDto {
+  @IsUUID()
+  @IsOptional()
+  clientId?: string;
+
+  @IsDateString()
+  @IsOptional()
+  expiresAt?: string;
+
+  @IsString()
+  @IsOptional()
+  currencyCode?: string;
+
+  @IsNumber()
+  @IsOptional()
+  exchangeRate?: number;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
+
+  @IsString()
+  @IsOptional()
+  internalNote?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QuoteItemDto)
+  @IsOptional()
+  items?: QuoteItemDto[];
+}
