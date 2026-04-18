@@ -39,10 +39,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       } else {
         message = exception.message;
       }
-    } else if (
-      // @ts-expect-error Prisma types might be missing due to generation failure
-      exception instanceof Prisma.PrismaClientKnownRequestError
-    ) {
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       // Manejo de errores de Prisma
 
       const prismaError = exception as any;

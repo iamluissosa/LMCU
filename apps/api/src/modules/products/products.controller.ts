@@ -9,12 +9,15 @@ import {
   UseGuards,
   Request,
   Query,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 
 @Controller('products')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
@@ -22,14 +25,25 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   @Permissions('inventory.create')
-  create(@Body() createProductDto: any, @Request() req) {
+  async create(@Body() createProductDto: any, @Request() req) {
     const companyId =
       req.user.companyId ||
       (req.user.role === 'ADMIN' ? createProductDto.companyId : null);
     if (!companyId)
-      throw new Error('Se requiere ID de empresa para crear un producto');
-    return this.productsService.create(createProductDto, companyId);
+      throw new ForbiddenException(
+        'Se requiere ID de empresa para crear un producto',
+      );
+
+    try {
+      return await this.productsService.create(createProductDto, companyId);
+    } catch (error) {
+      console.error('❌ Error creando producto:', error);
+      throw new BadRequestException(
+        `Error al crear producto: ${error instanceof Error ? error.message : 'Error desconocido'}`,
+      );
+    }
   }
 
   @Get()
