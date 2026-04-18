@@ -7,7 +7,17 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { Prisma } from '@prisma/client';
+
+// Type guard for Prisma errors
+function isPrismaClientKnownRequestError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as Record<string, unknown>).code === 'string' &&
+    ((error as Record<string, unknown>).code as string).startsWith('P')
+  );
+}
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -39,25 +49,27 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       } else {
         message = exception.message;
       }
-    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+    } else if (isPrismaClientKnownRequestError(exception)) {
       // Manejo de errores de Prisma
+      const prismaError = exception as Record<string, unknown>;
+      const prismaCode = prismaError.code as string;
 
-      const prismaError = exception as any;
-
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (prismaError.code === 'P2002') {
+      if (prismaCode === 'P2002') {
         status = HttpStatus.CONFLICT;
         message = 'Unique constraint failed. Recurso duplicado.';
         code = 'DUPLICATE_ENTRY';
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      } else if (prismaError.code === 'P2025') {
+      } else if (prismaCode === 'P2025') {
         status = HttpStatus.NOT_FOUND;
         message = 'Record not found. Recurso no encontrado.';
         code = 'NOT_FOUND';
+      } else if (prismaCode === 'P2003') {
+        status = HttpStatus.CONFLICT;
+        message =
+          'Foreign key constraint failed. No se puede eliminar el recurso porque está relacionado con otros datos.';
+        code = 'FOREIGN_KEY_CONSTRAINT';
       } else {
         // Otros errores de Prisma
         status = HttpStatus.BAD_REQUEST;
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         message = `Database error: ${prismaError.message}`;
         code = 'DB_ERROR';
       }
