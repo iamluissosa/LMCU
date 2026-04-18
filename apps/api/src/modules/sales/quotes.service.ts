@@ -156,6 +156,36 @@ export class QuotesService {
   }
 
   // ------------------------------------------------------------------
+  // DUPLICAR COTIZACIÓN
+  // ------------------------------------------------------------------
+  async duplicate(companyId: string, userId: string, sourceId: string) {
+    // 1. Obtener la cotización original (cualquier estado)
+    const source = await this.findOne(companyId, sourceId);
+
+    // 2. Mapear ítems al formato CreateQuoteDto
+    const items = source.items.map((item) => ({
+      productId: item.productId ?? undefined,
+      serviceCategoryId: item.serviceCategoryId ?? undefined,
+      description: item.description ?? undefined,
+      quantity: Number(item.quantity),
+      unitPrice: Number(item.unitPrice),
+      taxRate: Number(item.taxRate),
+      discount: Number(item.discount),
+      unitOfMeasure: item.unitOfMeasure ?? 'Pza',
+    }));
+
+    // 3. Reutilizar create() → genera correlativo, fecha y estado DRAFT
+    return this.create(companyId, userId, {
+      clientId: source.clientId,
+      currencyCode: source.currencyCode,
+      exchangeRate: Number(source.exchangeRate),
+      notes: source.notes ?? undefined,
+      internalNote: source.internalNote ?? undefined,
+      items,
+    });
+  }
+
+  // ------------------------------------------------------------------
   // ACTUALIZAR ESTADO
   // ------------------------------------------------------------------
   async updateStatus(companyId: string, id: string, dto: UpdateQuoteStatusDto) {

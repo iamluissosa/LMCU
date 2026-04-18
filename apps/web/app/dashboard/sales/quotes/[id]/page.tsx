@@ -11,6 +11,8 @@ import {
   Send,
   ShoppingCart,
   Pencil,
+  Copy,
+  Loader2,
 } from "lucide-react";
 import QuoteFormModal from "@/components/quotes/QuoteFormModal";
 
@@ -100,21 +102,31 @@ const fmt = (n: number | string, cur = "USD") =>
 export default function QuoteDetailPage() {
   const params = useParams();
   const router = useRouter();
+  // useParams() puede devolver string | string[]; normalizamos a string
+  const id = Array.isArray(params.id) ? params.id[0] : (params.id as string);
   const [quote, setQuote] = useState<QuoteDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
 
   const fetchQuote = useCallback(async () => {
+    if (!id) return; // Evitar fetch si el id aún no está disponible
+    setLoading(true);
+    setErrorMsg(null);
     try {
-      const data = await apiClient.get<QuoteDetail>(`/quotes/${params.id}`);
+      const data = await apiClient.get<QuoteDetail>(`/quotes/${id}`);
       setQuote(data);
-    } catch (error) {
-      console.error(error);
-      alert("Error al cargar la cotización");
+    } catch (error: unknown) {
+      console.error("[QuoteDetailPage] Error al cargar:", error);
+      const e = error as { message?: string; statusCode?: number };
+      setErrorMsg(
+        e.message ?? "Error desconocido al cargar la cotización."
+      );
     } finally {
       setLoading(false);
     }
-  }, [params.id]);
+  }, [id]);
 
   useEffect(() => {
     fetchQuote();
@@ -130,9 +142,8 @@ export default function QuoteDetailPage() {
       await apiClient.patch(`/quotes/${quote.id}/status`, { status });
       setQuote({ ...quote, status });
     } catch (err: unknown) {
-      alert(
-        `Error: ${err instanceof Error ? err.message : "No se pudo cambiar el estado"}`,
-      );
+      const e = err as { message?: string };
+      alert(`Error: ${e.message ?? "No se pudo cambiar el estado"}`);
     }
   };
 
@@ -148,6 +159,22 @@ export default function QuoteDetailPage() {
       alert(
         `Error al generar pedido: ${err instanceof Error ? err.message : "Error desconocido"}`,
       );
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!quote) return;
+    setDuplicating(true);
+    try {
+      const newQuote = await apiClient.post<{ id: string }>(
+        `/quotes/${quote.id}/duplicate`,
+        {},
+      );
+      router.push(`/dashboard/sales/quotes/${newQuote.id}`);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      alert(`Error al duplicar: ${error.message ?? "Error desconocido"}`);
+      setDuplicating(false);
     }
   };
 
@@ -167,10 +194,21 @@ export default function QuoteDetailPage() {
         Cargando detalles de cotización...
       </div>
     );
-  if (!quote)
+  if (errorMsg || !quote)
     return (
-      <div className="p-10 text-center text-red-500 font-bold bg-red-500/5 border border-red-500/20 rounded-xl m-10">
-        Cotización no encontrada.
+      <div className="p-10 text-center text-red-500 font-bold bg-red-500/5 border border-red-500/20 rounded-xl m-10 space-y-2">
+        <p>Cotización no encontrada.</p>
+        {errorMsg && (
+          <p className="text-sm text-red-400/70 font-normal">
+            Detalle: {errorMsg}
+          </p>
+        )}
+        <button
+          onClick={() => router.back()}
+          className="mt-4 px-4 py-2 text-sm bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-300 font-medium transition-colors"
+        >
+          ← Volver
+        </button>
       </div>
     );
 
@@ -243,6 +281,15 @@ export default function QuoteDetailPage() {
                 <ShoppingCart size={16} /> Generar Pedido
               </button>
             )}
+
+          <button
+            onClick={handleDuplicate}
+            disabled={duplicating}
+            className="bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 border border-yellow-500/20 px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
+          >
+            {duplicating ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />} 
+            Duplicar
+          </button>
 
           <button
             onClick={handlePrint}

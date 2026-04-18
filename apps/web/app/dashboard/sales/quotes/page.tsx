@@ -9,6 +9,8 @@ import {
   Send,
   Eye,
   ArrowRight,
+  Copy,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -99,6 +101,7 @@ export default function QuotesPage() {
 
   // Modal crear
   const [showModal, setShowModal] = useState(false);
+  const [copyingId, setCopyingId] = useState<string | null>(null);
 
   // ── CARGA ──────────────────────────────────────────────
   const fetchQuotes = useCallback(async () => {
@@ -157,6 +160,23 @@ export default function QuotesPage() {
     } catch (err: unknown) {
       const e = err as { message?: string };
       alert(`Error: ${e.message}`);
+    }
+  };
+
+  // ── DUPLICAR ───────────────────────────────────────────
+  const handleDuplicate = async (quoteId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCopyingId(quoteId);
+    try {
+      const newQuote = await apiClient.post<{ id: string }>(
+        `/quotes/${quoteId}/duplicate`,
+        {},
+      );
+      router.push(`/dashboard/sales/quotes/${newQuote.id}`);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      alert(`Error al duplicar: ${error.message ?? "Error desconocido"}`);
+      setCopyingId(null);
     }
   };
 
@@ -312,6 +332,18 @@ export default function QuotesPage() {
                             <XCircle size={15} />
                           </button>
                         )}
+                        <button
+                          onClick={(e) => handleDuplicate(q.id, e)}
+                          disabled={copyingId === q.id}
+                          title="Duplicar cotización"
+                          className="p-1.5 text-yellow-500 hover:bg-yellow-500/10 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {copyingId === q.id ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : (
+                            <Copy size={15} />
+                          )}
+                        </button>
                         <Link
                           href={`/dashboard/sales/quotes/${q.id}`}
                           title="Ver detalle"

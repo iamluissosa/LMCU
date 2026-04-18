@@ -48,6 +48,13 @@ export class QuotesController {
     return this.service.findOne(req.user.companyId, id);
   }
 
+  // POST /quotes/:id/duplicate  → Copia una cotización existente como nuevo DRAFT
+  @Post(':id/duplicate')
+  @Permissions('sales.create')
+  duplicate(@Request() req: any, @Param('id') id: string) {
+    return this.service.duplicate(req.user.companyId, req.user.id, id);
+  }
+
   // PATCH /quotes/:id  → Actualizar datos de cotización (solo DRAFT)
   @Patch(':id')
   @Permissions('sales.edit')
