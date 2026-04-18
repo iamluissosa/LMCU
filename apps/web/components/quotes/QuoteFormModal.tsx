@@ -168,18 +168,21 @@ export default function QuoteFormModal({
 
   // ── ÍTEMS ─────────────────────────────────────────────
   const addItem = () =>
-    setForm((prev) => [
-      ...prev.items,
-      {
-        type: "product",
-        productId: "",
-        description: "",
-        quantity: 1,
-        unitPrice: 0,
-        taxRate: 16,
-        discount: 0,
-      },
-    ]);
+    setForm((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        {
+          type: "product",
+          productId: "",
+          description: "",
+          quantity: 1,
+          unitPrice: 0,
+          taxRate: 16,
+          discount: 0,
+        },
+      ],
+    }));
 
   const removeItem = (i: number) =>
     setForm((prev) => ({
