@@ -542,7 +542,7 @@ export default function QuoteDetailPage() {
                 id: quote.id,
                 clientId: quote.client?.id || "",
                 expiresAt: quote.expiresAt ? quote.expiresAt.split("T")[0] : "",
-                currencyCode: quote.currencyCode || "USD",
+                currencyCode: (quote.currencyCode as "USD" | "VES") || "USD",
                 exchangeRate: Number(quote.exchangeRate) || 1,
                 notes: quote.notes || "",
                 internalNote: quote.internalNote || "",
