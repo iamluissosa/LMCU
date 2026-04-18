@@ -291,9 +291,9 @@ export class QuotesService {
       }
 
       return {
-        productId: i.productId ?? null,
-        serviceCategoryId: (i as any).serviceCategoryId ?? null,
-        description: i.description ?? null,
+        productId: i.productId || null,
+        serviceCategoryId: (i as any).serviceCategoryId || null,
+        description: i.description || null,
         quantity: new Decimal(i.quantity),
         unitPrice: new Decimal(i.unitPrice),
         taxRate: new Decimal(rate),

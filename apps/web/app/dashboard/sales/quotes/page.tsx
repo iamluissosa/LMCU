@@ -147,10 +147,20 @@ export default function QuotesPage() {
     setSaving(true);
     try {
       const parsedItems = items.map((i: QuoteItem) => {
-        const { type, ...rest } = i;
-        const cleanedItem: Record<string, string | number | undefined | null> = { ...rest };
-        if (type === 'product' && i.productId) cleanedItem.productId = i.productId;
-        if (type === 'service' && i.serviceCategoryId) cleanedItem.serviceCategoryId = i.serviceCategoryId;
+        // Construir objeto limpio sin IDs vacíos que Prisma rechazaría como UUID inválido
+        const cleanedItem: Record<string, string | number | undefined | null> = {
+          description: i.description || null,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          taxRate: i.taxRate,
+          discount: i.discount,
+        };
+        if (i.type === 'product' && i.productId) {
+          cleanedItem.productId = i.productId;
+        }
+        if (i.type === 'service' && i.serviceCategoryId) {
+          cleanedItem.serviceCategoryId = i.serviceCategoryId;
+        }
         return cleanedItem;
       });
       
@@ -173,9 +183,11 @@ export default function QuotesPage() {
       setForm({ clientId: '', currencyCode: 'USD', exchangeRate: 1, expiresAt: '', notes: '', internalNote: '' });
       fetchQuotes();
     } catch (err: unknown) {
-      console.error('Error al guardar cotización - Raw error:', err);
-      const e = err as { message?: string };
-      toast.error(`Error: ${e.message ?? 'No se pudo guardar la cotización'}`);
+      console.error('Error al guardar cotización:', err);
+      const e = err as { message?: string | string[]; error?: string; statusCode?: number };
+      // El backend puede devolver message como string o array de validaciones
+      const msg = Array.isArray(e.message) ? e.message.join(', ') : e.message;
+      toast.error(msg || 'No se pudo guardar la cotización. Revisa los datos e intenta de nuevo.');
     } finally { setSaving(false); }
   };
 
