@@ -161,6 +161,19 @@ export class SalesOrdersService {
           select: { id: true, invoiceNumber: true, status: true },
         },
         quotesLinked: { select: { id: true, quoteNumber: true } },
+        company: {
+          select: {
+            name: true,
+            rif: true,
+            address: true,
+            phone: true,
+            email: true,
+            logoUrl: true,
+            settings: {
+              select: { invoicePrefix: true },
+            },
+          },
+        },
       },
     });
     if (!order) throw new NotFoundException('Pedido no encontrado.');
