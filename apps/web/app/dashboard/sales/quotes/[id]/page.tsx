@@ -29,6 +29,7 @@ interface QuoteDetail {
   currencyCode: string;
   exchangeRate: string | number;
   client: {
+    id: string;
     name: string;
     rif?: string;
     address?: string;
@@ -157,7 +158,7 @@ export default function QuoteDetailPage() {
     if (!quote) return;
     setFormData({
       clientId: quote.client?.id || "",
-      expiresAt: quote.expiresAt ? quote.expiresAt.split("T")[0] : "",
+      expiresAt: quote.expiresAt ? quote.expiresAt.split("T")[0]! : "",
       currencyCode: quote.currencyCode || "USD",
       exchangeRate: Number(quote.exchangeRate) || 1,
       notes: quote.notes || "",
@@ -174,8 +175,11 @@ export default function QuoteDetailPage() {
   const saveEdit = async () => {
     if (!quote) return;
     try {
-      const data = await apiClient.patch(`/quotes/${quote.id}`, formData);
-      setQuote(data);
+      const data = await apiClient.patch<QuoteDetail>(
+        `/quotes/${quote.id}`,
+        formData,
+      );
+      setQuote(data as QuoteDetail);
       setIsEditing(false);
       alert("Cotización actualizada correctamente.");
     } catch (err: unknown) {
