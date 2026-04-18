@@ -31,6 +31,7 @@ interface QuoteItem {
   unitPrice: number;
   taxRate: number;
   discount: number;
+  unitOfMeasure: string;
 }
 
 interface QuoteFormData {
@@ -89,6 +90,7 @@ export default function QuoteFormModal({
         unitPrice: 0,
         taxRate: 16,
         discount: 0,
+        unitOfMeasure: "Pza",
       },
     ],
   });
@@ -157,6 +159,7 @@ export default function QuoteFormModal({
               unitPrice: 0,
               taxRate: 16,
               discount: 0,
+              unitOfMeasure: "Pza",
             },
           ],
         });
@@ -180,6 +183,7 @@ export default function QuoteFormModal({
           unitPrice: 0,
           taxRate: 16,
           discount: 0,
+          unitOfMeasure: "Pza",
         },
       ],
     }));
@@ -293,7 +297,7 @@ export default function QuoteFormModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1A1F2C] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto border border-white/10">
+      <div className="bg-[#1A1F2C] rounded-2xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-y-auto border border-white/10">
         {/* Modal Header */}
         <div className="sticky top-0 bg-[#1A1F2C]/80 backdrop-blur-md border-b border-white/10 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -410,9 +414,10 @@ export default function QuoteFormModal({
                 <thead className="bg-white/5 text-[10px] text-gray-400 uppercase font-bold border-b border-white/10">
                   <tr>
                     <th className="px-3 py-2 text-left w-24">Tipo</th>
-                    <th className="px-3 py-2 text-left w-[35%]">Ítem</th>
+                    <th className="px-3 py-2 text-left w-[28%]">Ítem</th>
                     <th className="px-3 py-2 text-left">Descripción</th>
-                    <th className="px-3 py-2 text-right w-16">Cant.</th>
+                    <th className="px-3 py-2 text-center w-20">UdM</th>
+                    <th className="px-3 py-2 text-right w-20">Cant.</th>
                     <th className="px-3 py-2 text-right w-24">Precio</th>
                     <th className="px-3 py-2 text-right w-16">IVA %</th>
                     <th className="px-3 py-2 text-right w-16">Desc %</th>
@@ -496,25 +501,58 @@ export default function QuoteFormModal({
                           }
                         />
                       </td>
+                      {/* ── UNIDAD DE MEDIDA ── */}
+                      <td className="px-2 py-2">
+                        <select
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-1.5 py-1.5 text-[11px] text-white focus:ring-1 focus:ring-blue-500 outline-none appearance-none text-center"
+                          value={item.unitOfMeasure}
+                          onChange={(e) =>
+                            updateItem(i, "unitOfMeasure", e.target.value)
+                          }
+                        >
+                          <option value="Pza">Pza — Pieza</option>
+                          <option value="Und">Und — Unidad</option>
+                          <option value="KG">KG — Kilogramo</option>
+                          <option value="G">G — Gramo</option>
+                          <option value="L">L — Litro</option>
+                          <option value="ML">ML — Mililitro</option>
+                          <option value="M">M — Metro</option>
+                          <option value="M2">M² — Metro Cuadrado</option>
+                          <option value="M3">M³ — Metro Cúbico</option>
+                          <option value="CM">CM — Centímetro</option>
+                          <option value="HR">HR — Hora</option>
+                          <option value="DIA">Día</option>
+                          <option value="MES">Mes</option>
+                          <option value="CAJA">Caja</option>
+                          <option value="PAQ">Paquete</option>
+                          <option value="PAR">Par</option>
+                          <option value="DOC">Docena</option>
+                          <option value="SERV">Servicio</option>
+                        </select>
+                      </td>
+                      {/* ── CANTIDAD — sin flechas, selección automática al focus ── */}
                       <td className="px-2 py-2">
                         <input
                           type="number"
                           min="0.01"
                           step="0.01"
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-right text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-right text-white focus:ring-1 focus:ring-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:hidden [&::-webkit-inner-spin-button]:hidden"
                           value={item.quantity}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) =>
                             updateItem(i, "quantity", Number(e.target.value))
                           }
                         />
                       </td>
+                      {/* ── PRECIO — sin flechas, selección automática al focus ── */}
                       <td className="px-2 py-2">
                         <input
                           type="number"
                           min="0"
                           step="0.01"
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-right text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-right text-white focus:ring-1 focus:ring-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:hidden [&::-webkit-inner-spin-button]:hidden"
                           value={item.unitPrice}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) =>
                             updateItem(i, "unitPrice", Number(e.target.value))
                           }
@@ -539,8 +577,9 @@ export default function QuoteFormModal({
                           min="0"
                           max="100"
                           step="0.5"
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-right text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-right text-white focus:ring-1 focus:ring-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:hidden [&::-webkit-inner-spin-button]:hidden"
                           value={item.discount}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) =>
                             updateItem(i, "discount", Number(e.target.value))
                           }

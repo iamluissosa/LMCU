@@ -918,7 +918,8 @@ model QuoteItem {
   serviceCategoryId String?
   serviceCategory   ServiceCategory? @relation(fields: [serviceCategoryId], references: [id])
 
-  description String? // Descripción personalizada (opcional — override del product.name)
+  description   String? // Descripción personalizada (opcional — override del product.name)
+  unitOfMeasure String? @default("Pza") // Unidad de medida: Pza, KG, ML, L, M, M2, HR, etc.
 
   quantity  Decimal @db.Decimal(12, 2)
   unitPrice Decimal @db.Decimal(12, 2) // Precio negociado para esta cotización

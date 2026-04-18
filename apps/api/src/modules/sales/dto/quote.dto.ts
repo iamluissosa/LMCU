@@ -41,6 +41,10 @@ export class QuoteItemDto {
   @IsNumber()
   @IsOptional()
   discount?: number; // % descuento por línea
+
+  @IsString()
+  @IsOptional()
+  unitOfMeasure?: string; // Unidad de medida: Pza, KG, ML, L, M, HR, etc.
 }
 
 export class CreateQuoteDto {

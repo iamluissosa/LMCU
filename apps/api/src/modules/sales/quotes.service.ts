@@ -377,6 +377,7 @@ export class QuotesService {
         productId: i.productId || null,
         serviceCategoryId: (i as any).serviceCategoryId || null,
         description: i.description || null,
+        unitOfMeasure: i.unitOfMeasure ?? 'Pza',
         quantity: new Decimal(i.quantity),
         unitPrice: new Decimal(i.unitPrice),
         taxRate: new Decimal(rate),

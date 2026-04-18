@@ -57,6 +57,7 @@ interface QuoteDetail {
     discount: string | number;
     totalLine: string | number;
     description?: string;
+    unitOfMeasure?: string;
     product?: { name: string; code: string; isService: boolean };
     serviceCategory?: { name: string };
   }[];
@@ -555,6 +556,7 @@ export default function QuoteDetailPage() {
                   unitPrice: Number(item.unitPrice),
                   taxRate: Number(item.taxRate),
                   discount: Number(item.discount),
+                  unitOfMeasure: item.unitOfMeasure || "Pza",
                 })),
               }
             : undefined
