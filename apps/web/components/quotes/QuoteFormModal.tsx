@@ -98,7 +98,7 @@ export default function QuoteFormModal({
 
   // ── CARGA DE CATÁLOGOS ─────────────────────────────────
   const loadCatalogs = useCallback(async () => {
-    const [c, p, s] = await Promise.all([
+    const [c, p, s, sales] = await Promise.all([
       apiClient
         .get<{ items: Client[] }>("/clients?limit=200")
         .catch(() => ({ items: [] })),
