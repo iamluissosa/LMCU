@@ -9,10 +9,14 @@ import {
   RegisterPaymentInDto,
 } from './dto/sales-invoice.dto';
 import { Decimal } from '@prisma/client/runtime/library';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class SalesInvoicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   // ------------------------------------------------------------------
   // CREAR FACTURA DE VENTA (desde Pedido o directa)
@@ -92,6 +96,18 @@ export class SalesInvoicesService {
           ? new Date(Date.now() + client.paymentTerms * 86400000)
           : null;
 
+      // 5.5 Inherit salesperson from order if not provided
+      let finalSalespersonId = dto.salespersonId;
+      if (!finalSalespersonId && dto.salesOrderId) {
+        const orderInfo = await tx.salesOrder.findUnique({
+          where: { id: dto.salesOrderId },
+          select: { salespersonId: true },
+        });
+        if (orderInfo?.salespersonId) {
+          finalSalespersonId = orderInfo.salespersonId;
+        }
+      }
+
       // 6. Crear factura
       const invoice = await tx.salesInvoice.create({
         data: {
@@ -131,6 +147,7 @@ export class SalesInvoicesService {
           // ── Metadatos ─────────────────────────────────
           inBook: dto.inBook ?? true,
           notes: dto.notes,
+          salespersonId: finalSalespersonId,
           status: 'ISSUED',
           createdById: userId,
           items: { create: itemsData },
@@ -301,6 +318,14 @@ export class SalesInvoicesService {
             status: newStatus as any,
           },
         });
+        
+        this.eventEmitter.emit('payment.registered', {
+          paymentId: payment.id,
+          invoiceId: detail.salesInvoiceId,
+          companyId,
+          amountApplied: detail.amountApplied,
+          paymentDate: payment.paymentDate,
+        });
       }
 
       return payment;
@@ -333,7 +358,7 @@ export class SalesInvoicesService {
     }
 
     const now = new Date();
-    return this.prisma.salesInvoice.update({
+    const result = await this.prisma.salesInvoice.update({
       where: { id },
       data: {
         status: 'VOID' as any,
@@ -359,6 +384,14 @@ export class SalesInvoicesService {
         client: { select: { id: true, name: true, rif: true } },
       },
     });
+
+    this.eventEmitter.emit('invoice.voided', {
+      invoiceId: id,
+      companyId,
+      voidDate: now,
+    });
+
+    return result;
   }
 
   async getOverdue(companyId: string) {

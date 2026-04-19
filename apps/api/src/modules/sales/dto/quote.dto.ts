@@ -71,6 +71,10 @@ export class CreateQuoteDto {
   @IsOptional()
   internalNote?: string;
 
+  @IsString()
+  @IsOptional()
+  salespersonId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => QuoteItemDto)
@@ -106,6 +110,10 @@ export class UpdateQuoteDto {
   @IsString()
   @IsOptional()
   internalNote?: string;
+
+  @IsString()
+  @IsOptional()
+  salespersonId?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

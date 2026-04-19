@@ -39,6 +39,7 @@ interface QuoteFormData {
   expiresAt: string;
   currencyCode: "USD" | "VES";
   exchangeRate: number;
+  salespersonId?: string;
   notes: string;
   internalNote: string;
   items: QuoteItem[];
@@ -66,9 +67,8 @@ export default function QuoteFormModal({
 }: QuoteFormModalProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>(
-    [],
-  );
+  const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>([]);
+  const [salespersons, setSalespersons] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [currentBcvRate, setCurrentBcvRate] = useState<number>(1);
 
@@ -79,6 +79,7 @@ export default function QuoteFormModal({
     expiresAt: "",
     currencyCode: "USD",
     exchangeRate: 1,
+    salespersonId: "",
     notes: "",
     internalNote: "",
     items: [
@@ -105,12 +106,14 @@ export default function QuoteFormModal({
         .get<{ items: Product[] }>("/products?limit=500")
         .catch(() => ({ items: [] })),
       apiClient.get<ServiceCategory[]>("/service-categories").catch(() => []),
+      apiClient.get<any[]>("/users/salespersons").catch(() => []),
     ]);
     const clientsRes = c as { items?: Client[] };
     const productsRes = p as { items?: Product[] };
     setClients(clientsRes.items ?? (Array.isArray(c) ? c : []));
     setProducts(productsRes.items ?? (Array.isArray(p) ? p : []));
     setServiceCategories(Array.isArray(s) ? s : []);
+    setSalespersons(Array.isArray(sales) ? sales : []);
   }, []);
 
   // ── INICIALIZAR AL ABRIR MODAL ────────────────────────
@@ -138,6 +141,7 @@ export default function QuoteFormModal({
           expiresAt: initialData.expiresAt || "",
           currencyCode: initialData.currencyCode || "USD",
           exchangeRate: initialData.exchangeRate || rate,
+          salespersonId: initialData.salespersonId || "",
           notes: initialData.notes || "",
           internalNote: initialData.internalNote || "",
           items: initialData.items || [],
@@ -148,6 +152,7 @@ export default function QuoteFormModal({
           expiresAt: "",
           currencyCode: "USD",
           exchangeRate: rate,
+          salespersonId: "",
           notes: "",
           internalNote: "",
           items: [
@@ -262,6 +267,7 @@ export default function QuoteFormModal({
         items: cleanedItems,
       };
 
+      if (form.salespersonId) dataToSend.salespersonId = form.salespersonId;
       if (form.expiresAt) dataToSend.expiresAt = form.expiresAt;
       if (form.notes) dataToSend.notes = form.notes;
       if (form.internalNote) dataToSend.internalNote = form.internalNote;
@@ -329,6 +335,24 @@ export default function QuoteFormModal({
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} {c.rif ? `(${c.rif})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1.5">
+                Vendedor / Asesor
+              </label>
+              <select
+                className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
+                value={form.salespersonId || ""}
+                onChange={(e) => setForm({ ...form, salespersonId: e.target.value })}
+              >
+                <option value="">-- Sin Asignar --</option>
+                {salespersons.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
                   </option>
                 ))}
               </select>

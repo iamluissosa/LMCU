@@ -43,11 +43,12 @@ function InvoiceNewContent() {
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>([]);
+  const [salespersons, setSalespersons] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
   const [invoiceForm, setInvoiceForm] = useState({
     clientId: '', salesOrderId: orderId || '', controlNumber: '',
-    currencyCode: 'USD', exchangeRate: 1,
+    currencyCode: 'USD', exchangeRate: 1, salespersonId: '',
     dueDate: '', notes: '',
   });
   
@@ -58,14 +59,16 @@ function InvoiceNewContent() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, p, s] = await Promise.all([
+      const [c, p, s, sales] = await Promise.all([
         apiClient.get<{ items: Client[] }>('/clients?limit=200').catch(() => ({ items: [] })),
         apiClient.get<{ items: Product[] }>('/products?limit=500').catch(() => ({ items: [] })),
         apiClient.get<ServiceCategory[]>('/service-categories').catch(() => []),
+        apiClient.get<any[]>("/users/salespersons").catch(() => []),
       ]);
       setClients(c.items ?? []);
       setProducts(p.items ?? []);
       setServiceCategories(s ?? []);
+      setSalespersons(sales ?? []);
 
       if (orderId) {
         // Pre-cargar datos del pedido
@@ -149,6 +152,8 @@ function InvoiceNewContent() {
         retISLRRate: selectedClient ? Number(selectedClient.islrRate) : 0,
       };
 
+      if (!dataToSend.salespersonId) delete dataToSend.salespersonId;
+
       if (!dataToSend.dueDate) delete dataToSend.dueDate;
       if (!dataToSend.notes) delete dataToSend.notes;
       if (!dataToSend.poNumber) delete dataToSend.poNumber;
@@ -204,6 +209,18 @@ function InvoiceNewContent() {
             {selectedClient && Number(selectedClient.islrRate) > 0 && (
               <p className="text-[10px] font-bold text-orange-400 mt-1 uppercase tracking-tight">⚠️ Retención ISLR: {selectedClient.islrRate}%</p>
             )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Vendedor / Asesor</label>
+            <select className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-teal-500/50 outline-none appearance-none cursor-pointer"
+              value={invoiceForm.salespersonId} onChange={e => setInvoiceForm(f => ({ ...f, salespersonId: e.target.value }))}>
+              <option value="" className="bg-[#1A1F2C]">-- Sin Asignar / Heredar --</option>
+              {salespersons.map((s) => (
+                <option key={s.id} value={s.id} className="bg-[#1A1F2C]">
+                  {s.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">N° de Control (Fact. Física)</label>

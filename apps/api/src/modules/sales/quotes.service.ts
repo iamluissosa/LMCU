@@ -72,6 +72,7 @@ export class QuotesService {
           totalAmount: new Decimal(totalAmount),
           notes: dto.notes,
           internalNote: dto.internalNote,
+          salespersonId: dto.salespersonId,
           createdById: userId,
           items: {
             create: itemsData,
@@ -181,6 +182,7 @@ export class QuotesService {
       exchangeRate: Number(source.exchangeRate),
       notes: source.notes ?? undefined,
       internalNote: source.internalNote ?? undefined,
+      salespersonId: source.salespersonId ?? undefined,
       items,
     });
   }
@@ -353,6 +355,7 @@ export class QuotesService {
           taxAmount: quote.taxAmount,
           totalAmount: quote.totalAmount,
           notes: quote.notes,
+          salespersonId: quote.salespersonId,
           createdById: userId,
           items: {
             create: quote.items.map((i) => ({

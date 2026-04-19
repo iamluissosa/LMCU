@@ -144,6 +144,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             { name: 'Cotizaciones', icon: FileText, path: '/dashboard/sales/quotes', requiredPermission: 'sales.view' },
             { name: 'Pedidos de Venta', icon: ShoppingCart, path: '/dashboard/sales/orders', requiredPermission: 'sales.view' },
             { name: 'Facturas de Venta', icon: Receipt, path: '/dashboard/sales/invoices', requiredPermission: 'sales.view' },
+            { name: 'Comisiones', icon: DollarSign, path: '/dashboard/sales/commissions', requiredPermission: 'sales.view' },
           ]
         }
       ]

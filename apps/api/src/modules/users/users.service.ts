@@ -34,6 +34,15 @@ export class UsersService {
     });
   }
 
+  // 2.5 Listar Vendedores
+  async findSalespersons(companyId: string) {
+    return this.prisma.user.findMany({
+      where: { companyId, isSalesperson: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   // 3. Buscar uno (Validando companyId)
   async findOne(id: string, companyId: string) {
     const user = await this.prisma.user.findFirst({

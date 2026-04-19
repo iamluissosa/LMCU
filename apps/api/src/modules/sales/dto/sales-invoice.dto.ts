@@ -101,6 +101,10 @@ export class CreateSalesInvoiceDto {
   @IsOptional()
   inBook?: boolean;
 
+  @IsString()
+  @IsOptional()
+  salespersonId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SalesInvoiceItemDto)

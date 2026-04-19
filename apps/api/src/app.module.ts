@@ -26,9 +26,12 @@ import { DepartmentsModule } from './modules/departments/departments.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { EventsModule } from './modules/events/events.module';
 import { IncomesModule } from './modules/incomes/incomes.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { CommissionsModule } from './modules/commissions/commissions.module';
 
 @Module({
   imports: [
+    EventEmitterModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -56,6 +59,7 @@ import { IncomesModule } from './modules/incomes/incomes.module';
     ReportsModule,
     EventsModule,
     IncomesModule,
+    CommissionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

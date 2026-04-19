@@ -76,6 +76,10 @@ export class CreateSalesOrderDto {
   @IsOptional()
   internalNote?: string;
 
+  @IsString()
+  @IsOptional()
+  salespersonId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SalesOrderItemDto)

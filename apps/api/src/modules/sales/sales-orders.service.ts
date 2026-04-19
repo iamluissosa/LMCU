@@ -93,6 +93,7 @@ export class SalesOrdersService {
           totalAmount: new Decimal(totalAmount),
           notes: dto.notes,
           internalNote: dto.internalNote,
+          salespersonId: dto.salespersonId,
           createdById: userId,
           items: { create: itemsData },
         },

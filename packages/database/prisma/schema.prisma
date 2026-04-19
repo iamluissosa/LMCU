@@ -34,8 +34,8 @@ model Company {
   roles       Role[]
   users       User[]
   products    Product[]
-  clients  Client[]
-  invoices Invoice[]
+  clients     Client[]
+  invoices    Invoice[]
 
   // Relaciones de Compras y Tesorería
   suppliers         Supplier[]
@@ -60,8 +60,12 @@ model Company {
   ivaRetentionsReceived IvaRetentionReceived[]
 
   // Relaciones de Eventos (nuevo)
-  events                Event[]
-  incomes               Income[]
+  events  Event[]
+  incomes Income[]
+
+  // Comisiones
+  commissionRules   CommissionRule[]
+  commissionLedgers CommissionLedger[]
 }
 
 model CompanySettings {
@@ -121,51 +125,51 @@ model CompanySettings {
 // ==========================================
 
 model Event {
-  id          String   @id @default(uuid())
-  companyId   String
-  name        String
-  date        DateTime
-  status      String   @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
-  
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
-  incomes     IncomeEventDetail[]
-  expenses    PaymentOut[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  date      DateTime
+  status    String   @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  incomes  IncomeEventDetail[]
+  expenses PaymentOut[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([companyId, date])
 }
 
 model Income {
-  id             String   @id @default(uuid())
-  companyId      String
-  
-  amount         Decimal  @db.Decimal(12, 2)
-  currencyCode   String   @default("USD")
-  exchangeRate   Decimal  @default(1.0000) @db.Decimal(12, 4)
-  
-  paymentDate    DateTime @default(now())
-  clientName     String?
-  description    String?
-  
-  company        Company  @relation(fields: [companyId], references: [id])
-  eventDetails   IncomeEventDetail[]
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id        String @id @default(uuid())
+  companyId String
+
+  amount       Decimal @db.Decimal(12, 2)
+  currencyCode String  @default("USD")
+  exchangeRate Decimal @default(1.0000) @db.Decimal(12, 4)
+
+  paymentDate DateTime @default(now())
+  clientName  String?
+  description String?
+
+  company      Company             @relation(fields: [companyId], references: [id])
+  eventDetails IncomeEventDetail[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model IncomeEventDetail {
-  id             String   @id @default(uuid())
-  incomeId       String
-  eventId        String
-  
-  amountApplied  Decimal  @db.Decimal(12, 2)
-  
-  income         Income   @relation(fields: [incomeId], references: [id], onDelete: Cascade)
-  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  incomeId String
+  eventId  String
+
+  amountApplied Decimal @db.Decimal(12, 2)
+
+  income Income @relation(fields: [incomeId], references: [id], onDelete: Cascade)
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
 // ==========================================
@@ -173,19 +177,19 @@ model IncomeEventDetail {
 // ==========================================
 
 model Department {
-  id          String   @id @default(uuid())
+  id          String  @id @default(uuid())
   companyId   String
   code        String
   name        String
   description String?
-  isActive    Boolean  @default(true)
+  isActive    Boolean @default(true)
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  billItems   PurchaseBillItem[]
+  company         Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  billItems       PurchaseBillItem[]
   paymentOutItems PaymentOutExpenseItem[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -196,23 +200,24 @@ model Department {
 // ==========================================
 
 model DocumentFormat {
-  id        String   @id @default(uuid())
-  companyId String
+  id           String @id @default(uuid())
+  companyId    String
   documentType String // 'RET_IVA', 'RET_ISLR', 'INVOICE', 'DELIVERY_NOTE', 'CREDIT_NOTE', 'DEBIT_NOTE'
 
   // Campos comunes
   headerText String? // Providencias, Autorizaciones
   footerText String? // Notas a pie de página, providencias
   legalText  String? // Leyendas normativas obligatorias
-  
+
   // Nomenclatura de firmas
   agentSignatureLabel   String? // ej. "Firma del agente"
   subjectSignatureLabel String? // ej. "Beneficiario"
-  
+
   // Archivos adjuntos
   stampUrl String? // URL del logo, sello o firma escaneada
 
-  company   Company @relation(fields: [companyId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+
   @@unique([companyId, documentType])
 }
 
@@ -267,6 +272,13 @@ model User {
   createdSOs      SalesOrder[]    @relation("SOCreatedBy")
   createdSIs      SalesInvoice[]  @relation("SICreatedBy")
   createdPIs      PaymentIn[]     @relation("PICreatedBy")
+
+  // Comisiones
+  isSalesperson         Boolean            @default(false)
+  salesQuotes           Quote[]            @relation("SalespersonQuotes")
+  salesOrdersAssigned   SalesOrder[]       @relation("SalespersonSOs")
+  salesInvoicesAssigned SalesInvoice[]     @relation("SalespersonSIs")
+  ledgersAssigned       CommissionLedger[]
 }
 
 // ==========================================
@@ -342,10 +354,10 @@ model Product {
 
 // 1. PROVEEDORES
 enum PersonType {
-  PNR   // Persona Natural Residente
-  PNNR  // Persona Natural No Residente
-  PJD   // Persona Jurídica Domiciliada
-  PJND  // Persona Jurídica No Domiciliada
+  PNR // Persona Natural Residente
+  PNNR // Persona Natural No Residente
+  PJD // Persona Jurídica Domiciliada
+  PJND // Persona Jurídica No Domiciliada
 }
 
 model Supplier {
@@ -359,9 +371,9 @@ model Supplier {
   address     String?
   contactName String? // Nuevo campo tras refactor T-01
 
-  retentionISLR Decimal @default(0) @db.Decimal(5, 2)
-  paymentTerms  Int     @default(0)
-  currencyPref  String  @default("MULTI") // 'USD', 'VES', 'MULTI'
+  retentionISLR Decimal     @default(0) @db.Decimal(5, 2)
+  paymentTerms  Int         @default(0)
+  currencyPref  String      @default("MULTI") // 'USD', 'VES', 'MULTI'
   personType    PersonType? // Tipo de persona para efectos de ISLR
 
   company        Company         @relation(fields: [companyId], references: [id])
@@ -493,15 +505,15 @@ model PurchaseBill {
   exchangeRate Decimal @db.Decimal(12, 4)
 
   // Desglose Fiscal (Venezuela)
-  exemptAmount  Decimal @default(0) @db.Decimal(12, 2) // Exento
+  exemptAmount Decimal @default(0) @db.Decimal(12, 2) // Exento
 
   // Alícuota General 16%
   taxableAmount16 Decimal @default(0) @db.Decimal(12, 2)
   taxAmount16     Decimal @default(0) @db.Decimal(12, 2)
 
   // Alícuota Reducida 8%
-  taxableAmount8  Decimal @default(0) @db.Decimal(12, 2)
-  taxAmount8      Decimal @default(0) @db.Decimal(12, 2)
+  taxableAmount8 Decimal @default(0) @db.Decimal(12, 2)
+  taxAmount8     Decimal @default(0) @db.Decimal(12, 2)
 
   // Campos de retrocompatibilidad
   taxableAmount Decimal @default(0) @db.Decimal(12, 2) // = sum(taxableAmountXX)
@@ -592,7 +604,7 @@ model PurchaseBillItem {
 
   // DESCUENTO POR LÍNEA
   // discountType: 'PERCENT' | 'FIXED_USD' | 'FIXED_VES'
-  discountType   String?  // Tipo de descuento
+  discountType   String? // Tipo de descuento
   discountValue  Decimal? @db.Decimal(12, 2) // Valor tal como lo ingresó el usuario
   discountAmount Decimal  @default(0) @db.Decimal(12, 2) // Equivalente en USD (calculado)
 
@@ -611,8 +623,8 @@ model ExpenseCategory {
   islrConceptId String?
   islrConcept   IslrConcept? @relation(fields: [islrConceptId], references: [id])
 
-  company   Company            @relation(fields: [companyId], references: [id])
-  billItems PurchaseBillItem[]
+  company         Company                 @relation(fields: [companyId], references: [id])
+  billItems       PurchaseBillItem[]
   paymentOutItems PaymentOutExpenseItem[]
 
   createdAt DateTime @default(now())
@@ -656,7 +668,7 @@ model PaymentOut {
   details PaymentOutDetail[]
 
   // Detalle de gastos directos (sin factura)
-  isDirectExpense Boolean @default(false)
+  isDirectExpense Boolean                 @default(false)
   expenseItems    PaymentOutExpenseItem[]
 
   createdAt DateTime @default(now())
@@ -672,8 +684,8 @@ model PaymentOut {
   deletedAt   DateTime?
 
   // Relación con Evento (Gastos asignados a un evento)
-  eventId     String?
-  event       Event?    @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  eventId String?
+  event   Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
   @@index([companyId, paymentDate])
 }
@@ -690,18 +702,18 @@ model PaymentOutDetail {
 }
 
 model PaymentOutExpenseItem {
-  id                String @id @default(uuid())
-  paymentOutId      String
-  paymentOut        PaymentOut @relation(fields: [paymentOutId], references: [id], onDelete: Cascade)
-  
+  id           String     @id @default(uuid())
+  paymentOutId String
+  paymentOut   PaymentOut @relation(fields: [paymentOutId], references: [id], onDelete: Cascade)
+
   expenseCategoryId String?
   expenseCategory   ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id])
-  
-  departmentId      String?
-  department        Department? @relation(fields: [departmentId], references: [id])
-  
-  description       String
-  amount            Decimal @db.Decimal(12, 2)
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  description String
+  amount      Decimal @db.Decimal(12, 2)
 }
 
 // ==========================================
@@ -892,13 +904,15 @@ model Quote {
   items   QuoteItem[]
 
   // Auditoría
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  createdById String?
-  createdBy   User?     @relation("QuoteCreatedBy", fields: [createdById], references: [id])
-  deletedAt   DateTime?
-  user        User?     @relation(fields: [userId], references: [id])
-  userId      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  createdById   String?
+  createdBy     User?     @relation("QuoteCreatedBy", fields: [createdById], references: [id])
+  deletedAt     DateTime?
+  user          User?     @relation(fields: [userId], references: [id])
+  userId        String?
+  salespersonId String?
+  salesperson   User?     @relation("SalespersonQuotes", fields: [salespersonId], references: [id])
 
   @@unique([companyId, quoteNumber])
   @@index([companyId, status])
@@ -981,13 +995,15 @@ model SalesOrder {
   quotesLinked  Quote[] // Cotizaciones que originaron este pedido
 
   // Auditoría
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  createdById String?
-  createdBy   User?     @relation("SOCreatedBy", fields: [createdById], references: [id])
-  deletedAt   DateTime?
-  user        User?     @relation(fields: [userId], references: [id])
-  userId      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  createdById   String?
+  createdBy     User?     @relation("SOCreatedBy", fields: [createdById], references: [id])
+  deletedAt     DateTime?
+  user          User?     @relation(fields: [userId], references: [id])
+  userId        String?
+  salespersonId String?
+  salesperson   User?     @relation("SalespersonSOs", fields: [salespersonId], references: [id])
 
   @@unique([companyId, orderNumber])
   @@index([companyId, status])
@@ -1050,15 +1066,15 @@ model SalesInvoice {
   exchangeRate Decimal @default(1.0000) @db.Decimal(12, 4) // Tasa BCV al momento de facturar
 
   // ==== DESGLOSE FISCAL VENEZOLANO (Libro de Ventas) ====
-  exemptAmount  Decimal @default(0) @db.Decimal(12, 2) // Base Exenta (Ítems sin IVA)
+  exemptAmount Decimal @default(0) @db.Decimal(12, 2) // Base Exenta (Ítems sin IVA)
 
   // Alícuota General 16%
   taxableAmount16 Decimal @default(0) @db.Decimal(12, 2) // Base Imponible IVA 16%
   taxAmount16     Decimal @default(0) @db.Decimal(12, 2) // IVA cobrado al 16%
 
   // Alícuota Reducida 8%
-  taxableAmount8  Decimal @default(0) @db.Decimal(12, 2) // Base Imponible IVA 8%
-  taxAmount8      Decimal @default(0) @db.Decimal(12, 2) // IVA cobrado al 8%
+  taxableAmount8 Decimal @default(0) @db.Decimal(12, 2) // Base Imponible IVA 8%
+  taxAmount8     Decimal @default(0) @db.Decimal(12, 2) // IVA cobrado al 8%
 
   // Alícuota Adicional 31%
   taxableAmount31 Decimal @default(0) @db.Decimal(12, 2) // Base Imponible IVA 31%
@@ -1067,7 +1083,7 @@ model SalesInvoice {
   // Campos de retrocompatibilidad (mantienen la suma de todas las alícuotas)
   taxableAmount Decimal @default(0) @db.Decimal(12, 2) // = sum(taxableAmountXX) — mantiene compatibilidad
   taxRate       Decimal @default(16.00) @db.Decimal(5, 2) // Alícuota principal aplicada
-  taxAmount     Decimal @default(0) @db.Decimal(12, 2)   // = sum(taxAmountXX)    — mantiene compatibilidad
+  taxAmount     Decimal @default(0) @db.Decimal(12, 2) // = sum(taxAmountXX)    — mantiene compatibilidad
   subtotal      Decimal @default(0) @db.Decimal(12, 2) // Suma líneas antes de impuestos
   totalAmount   Decimal @default(0) @db.Decimal(12, 2) // Total de la factura
 
@@ -1102,7 +1118,7 @@ model SalesInvoice {
 
   // ==== TRAZABILIDAD DE ANULACIÓN (SENIAT exige mostrar registro con montos en 0) ====
   voidedAt   DateTime? // Timestamp de anulación
-  voidReason String?   // Motivo legal de anulación
+  voidReason String? // Motivo legal de anulación
 
   inBook Boolean @default(true) // ¿Va al Libro de Ventas SENIAT?
   notes  String?
@@ -1113,24 +1129,26 @@ model SalesInvoice {
   payments PaymentInDetail[] // Todos los cobros parciales asociados
 
   // Relaciones con documentos que afectan esta factura
-  creditNotes             CreditNote[]           @relation("CreditNoteAffectedSI")
-  debitNotes              DebitNote[]            @relation("DebitNoteAffectedSI")
-  ivaRetentionsReceived   IvaRetentionReceived[]
+  creditNotes           CreditNote[]           @relation("CreditNoteAffectedSI")
+  debitNotes            DebitNote[]            @relation("DebitNoteAffectedSI")
+  ivaRetentionsReceived IvaRetentionReceived[]
 
   // Auditoría
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  createdById String?
-  createdBy   User?     @relation("SICreatedBy", fields: [createdById], references: [id])
-  deletedAt   DateTime?
-  user        User?     @relation(fields: [userId], references: [id])
-  userId      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  createdById   String?
+  createdBy     User?     @relation("SICreatedBy", fields: [createdById], references: [id])
+  deletedAt     DateTime?
+  user          User?     @relation(fields: [userId], references: [id])
+  userId        String?
+  salespersonId String?
+  salesperson   User?     @relation("SalespersonSIs", fields: [salespersonId], references: [id])
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, status])
   @@index([companyId, issueDate])
   @@index([clientId, status])
-  @@index([companyId, dueDate])         // Para job de facturas vencidas
+  @@index([companyId, dueDate]) // Para job de facturas vencidas
   @@index([companyId, fiscalYear, fiscalMonth]) // Para consultas del Libro de Ventas
 }
 
@@ -1213,16 +1231,16 @@ model PaymentInDetail {
 // ==========================================
 
 model IslrConcept {
-  id          String          @id @default(uuid())
-  code        String          @unique // Ej. "058", "027"
-  description String
-  isActive    Boolean         @default(true)
-  rates       IslrRate[]
-  retentions  IslrRetention[]
+  id                String            @id @default(uuid())
+  code              String            @unique // Ej. "058", "027"
+  description       String
+  isActive          Boolean           @default(true)
+  rates             IslrRate[]
+  retentions        IslrRetention[]
   expenseCategories ExpenseCategory[]
-  
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model IslrRate {
@@ -1233,7 +1251,7 @@ model IslrRate {
   percentage     Decimal     @db.Decimal(5, 2)
   sustraendoFact Decimal     @db.Decimal(12, 4)
   minBaseUt      Decimal     @db.Decimal(12, 4)
-  
+
   @@unique([conceptId, personType])
 }
 
@@ -1242,32 +1260,32 @@ model FiscalParameter {
   name          String   @unique // Ej. "UNIDAD_TRIBUTARIA"
   value         Decimal  @db.Decimal(12, 4)
   effectiveDate DateTime @default(now())
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model IslrRetention {
-  id              String      @id @default(uuid())
-  supplierId      String
-  supplier        Supplier    @relation(fields: [supplierId], references: [id])
-  conceptId       String
-  concept         IslrConcept @relation(fields: [conceptId], references: [id])
-  controlNumber   String      @unique // Numero correlativo del comprobante
-  retentionDate   DateTime    @default(now())
-  
-  totalInvoice    Decimal     @db.Decimal(12, 2)
-  taxableBase     Decimal     @db.Decimal(12, 2)
-  percentage      Decimal     @db.Decimal(5, 2)
-  sustraendo      Decimal     @db.Decimal(12, 2)
-  retainedAmount  Decimal     @db.Decimal(12, 2)
-  
-  companyId       String
-  company         Company     @relation(fields: [companyId], references: [id])
+  id            String      @id @default(uuid())
+  supplierId    String
+  supplier      Supplier    @relation(fields: [supplierId], references: [id])
+  conceptId     String
+  concept       IslrConcept @relation(fields: [conceptId], references: [id])
+  controlNumber String      @unique // Numero correlativo del comprobante
+  retentionDate DateTime    @default(now())
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+  totalInvoice   Decimal @db.Decimal(12, 2)
+  taxableBase    Decimal @db.Decimal(12, 2)
+  percentage     Decimal @db.Decimal(5, 2)
+  sustraendo     Decimal @db.Decimal(12, 2)
+  retainedAmount Decimal @db.Decimal(12, 2)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([companyId, retentionDate])
 }
 
@@ -1292,11 +1310,11 @@ model CreditNote {
   clientId   String?
   supplierId String?
 
-  noteNumber    String  // N° Nota de Crédito (correlativo CompanySettings)
+  noteNumber    String // N° Nota de Crédito (correlativo CompanySettings)
   controlNumber String? // N° Control SENIAT (comprobante fiscal)
 
   issueDate   DateTime @default(now())
-  fiscalMonth Int      // Período en que se EMITE (para el libro)
+  fiscalMonth Int // Período en que se EMITE (para el libro)
   fiscalYear  Int
 
   // === Documento Afectado ===
@@ -1311,12 +1329,12 @@ model CreditNote {
   // === Extemporaneidad ===
   // Si true: la NC se emite hoy pero afecta un período fiscal ya cerrado
   isExtemporaneous    Boolean @default(false)
-  affectedFiscalMonth Int?    // Mes del período afectado (referencia solo documental)
-  affectedFiscalYear  Int?    // Año del período afectado
+  affectedFiscalMonth Int? // Mes del período afectado (referencia solo documental)
+  affectedFiscalYear  Int? // Año del período afectado
 
   // === Montos (en moneda del documento) ===
-  currencyCode    String  @default("USD")
-  exchangeRate    Decimal @db.Decimal(12, 4)
+  currencyCode String  @default("USD")
+  exchangeRate Decimal @db.Decimal(12, 4)
 
   exemptAmount    Decimal @default(0) @db.Decimal(12, 2) // Monto exento
   taxableAmount16 Decimal @default(0) @db.Decimal(12, 2) // Base al 16%
@@ -1346,11 +1364,11 @@ model CreditNote {
 // Nota de Débito — aumenta la deuda del cliente (ventas)
 // Ej.: ajuste de precio, gastos no cobrados inicialmente
 model DebitNote {
-  id        String @id @default(uuid())
+  id        String  @id @default(uuid())
   companyId String
   clientId  String?
 
-  noteNumber    String  // N° Nota de Débito (correlativo)
+  noteNumber    String // N° Nota de Débito (correlativo)
   controlNumber String? // N° Control SENIAT
 
   issueDate   DateTime @default(now())
@@ -1362,8 +1380,8 @@ model DebitNote {
   affectedSalesInvoice   SalesInvoice? @relation("DebitNoteAffectedSI", fields: [affectedSalesInvoiceId], references: [id])
 
   // Montos
-  currencyCode    String  @default("USD")
-  exchangeRate    Decimal @db.Decimal(12, 4)
+  currencyCode String  @default("USD")
+  exchangeRate Decimal @db.Decimal(12, 4)
 
   exemptAmount    Decimal @default(0) @db.Decimal(12, 2)
   taxableAmount16 Decimal @default(0) @db.Decimal(12, 2)
@@ -1408,7 +1426,7 @@ model IvaRetentionReceived {
 
   retainedAmount Decimal @db.Decimal(12, 2) // Monto IVA retenido
   taxableBase    Decimal @db.Decimal(12, 2) // Base sobre la que se aplicó
-  percentage     Decimal @db.Decimal(5, 2)  // 75 o 100 (% sobre el IVA)
+  percentage     Decimal @db.Decimal(5, 2) // 75 o 100 (% sobre el IVA)
 
   company      Company      @relation(fields: [companyId], references: [id])
   salesInvoice SalesInvoice @relation(fields: [salesInvoiceId], references: [id])
@@ -1420,3 +1438,90 @@ model IvaRetentionReceived {
   @@index([salesInvoiceId])
 }
 
+// ==========================================
+// 💰 MÓDULO DE COMISIONES DE VENDEDORES
+// ==========================================
+
+enum CommissionType {
+  PERCENT_ON_TOTAL // % sobre el total de la factura
+  PERCENT_ON_MARGIN // % sobre el margen (precio venta - costo promedio)
+  FIXED_PER_PRODUCT // Monto fijo por cada producto vendido
+}
+
+enum CommissionLedgerType {
+  EARNED // Comisión ganada (entrada positiva)
+  CLAWBACK // Reverso por devolución/anulación (entrada negativa)
+  ADJUSTMENT // Ajuste manual autorizado
+}
+
+model CommissionRule {
+  id        String @id @default(uuid())
+  companyId String
+
+  name        String // "Comisión Estándar 5%", "Comisión Premium"
+  type        CommissionType @default(PERCENT_ON_TOTAL)
+  rate        Decimal        @db.Decimal(8, 4) // 5.0000 = 5%
+  fixedAmount Decimal?       @db.Decimal(12, 2) // Solo para FIXED_PER_PRODUCT
+
+  // Alcance: ¿regla global del tenant, por vendedor, o por producto?
+  salespersonId String? // null = aplica a todos los vendedores
+  productId     String? // null = aplica a todos los productos
+
+  isActive Boolean @default(true)
+  priority Int     @default(0) // Regla más específica gana
+
+  // Vigencia temporal (la tasa congelada al momento del pago)
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime? // null = vigente indefinidamente
+
+  company       Company            @relation(fields: [companyId], references: [id])
+  ledgerEntries CommissionLedger[]
+
+  createdAt DateTime @default(now())
+  // SIN updatedAt: si cambia la regla, se desactiva la vieja y se crea una nueva
+
+  @@index([companyId, isActive])
+  @@index([companyId, salespersonId])
+  @@index([companyId, productId])
+}
+
+model CommissionLedger {
+  id        String @id @default(uuid())
+  companyId String
+
+  salespersonId String // FK → User (el vendedor)
+  ruleId        String // FK → CommissionRule (snapshot de la regla aplicada)
+
+  // Documento origen
+  salesInvoiceId String // Factura que generó la comisión
+  paymentInId    String? // Cobro específico que disparó el cálculo
+  creditNoteId   String? // Solo para CLAWBACK
+
+  type CommissionLedgerType @default(EARNED)
+
+  // Snapshot del cálculo (inmutable)
+  baseAmount Decimal @db.Decimal(12, 2) // Monto base usado para el cálculo
+  rate       Decimal @db.Decimal(8, 4) // Tasa vigente al momento del cálculo
+  amount     Decimal @db.Decimal(12, 2) // Comisión calculada (positiva o negativa)
+
+  currencyCode String  @default("USD")
+  exchangeRate Decimal @default(1.0000) @db.Decimal(12, 4)
+
+  description String? // "Cobro COB-2026-0045 → Factura FACT-V-0012"
+
+  // Período fiscal (para reportes/liquidación)
+  fiscalMonth Int
+  fiscalYear  Int
+
+  company     Company        @relation(fields: [companyId], references: [id])
+  salesperson User           @relation(fields: [salespersonId], references: [id])
+  rule        CommissionRule @relation(fields: [ruleId], references: [id])
+
+  // INMUTABLE: Solo createdAt, nunca updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([companyId, salespersonId, fiscalYear, fiscalMonth])
+  @@index([companyId, salesInvoiceId])
+  @@index([companyId, fiscalYear, fiscalMonth])
+  @@index([salespersonId, createdAt])
+}

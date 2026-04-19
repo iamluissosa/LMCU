@@ -270,6 +270,13 @@ export class UsersController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @Get('salespersons')
+  @Permissions('sales.view') // Permiso razonable para ver equipo de ventas
+  getSalespersons(@Request() req: any) {
+    return this.usersService.findSalespersons(req.user.companyId);
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @Get(':id')
   @Permissions('users.view')
   findOne(@Param('id') id: string, @Request() req) {
