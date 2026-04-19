@@ -17,6 +17,8 @@ export class UsersService {
         name: data.name,
         roleLegacy: data.roleLegacy || data.role || 'USER',
         companyId: data.companyId,
+        roleId: data.roleId || null,
+        isSalesperson: data.isSalesperson || false,
       },
     });
   }

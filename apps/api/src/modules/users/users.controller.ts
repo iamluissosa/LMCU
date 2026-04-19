@@ -223,6 +223,7 @@ export class UsersController {
         roleLegacy: body.roleLegacy || 'USER',
         roleId: body.roleId || null,
         companyId: body.companyId || req.user.companyId || null,
+        isSalesperson: body.isSalesperson || false,
       });
     } catch (e: any) {
       if (e.code === 'P2002') {

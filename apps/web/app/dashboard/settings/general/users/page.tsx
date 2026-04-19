@@ -25,6 +25,7 @@ interface User {
   roleLegacy?: string;
   companyId?: string;
   isActive?: boolean;
+  isSalesperson?: boolean;
   role?: Role;
   company?: Company;
   [key: string]: unknown;
@@ -465,6 +466,7 @@ interface EditingUser {
     roleLegacy: string;
     roleId: string;
     companyId: string;
+    isSalesperson: boolean;
 }
 
 function UsersListTab() {
@@ -507,7 +509,8 @@ function UsersListTab() {
             name: '',
             roleLegacy: 'USER',
             roleId: '',
-            companyId: ''
+            companyId: '',
+            isSalesperson: false
         });
         setIsUserModalOpen(true);
     };
@@ -519,7 +522,8 @@ function UsersListTab() {
             email: user.email,
             roleLegacy: user.roleLegacy || 'USER',
             roleId: user.roleId || '',
-            companyId: user.companyId || ''
+            companyId: user.companyId || '',
+            isSalesperson: user.isSalesperson || false
         });
         setIsUserModalOpen(true);
     };
@@ -547,7 +551,8 @@ function UsersListTab() {
                     name: editingUser.name,
                     roleLegacy: editingUser.roleLegacy,
                     roleId: editingUser.roleId || null,
-                    companyId: editingUser.companyId || null
+                    companyId: editingUser.companyId || null,
+                    isSalesperson: editingUser.isSalesperson
                 });
             } else {
                 // CREATE (User + Auth)
@@ -557,7 +562,8 @@ function UsersListTab() {
                     name: editingUser.name,
                     roleLegacy: editingUser.roleLegacy,
                     roleId: editingUser.roleId || null,
-                    companyId: editingUser.companyId || null
+                    companyId: editingUser.companyId || null,
+                    isSalesperson: editingUser.isSalesperson
                 });
             }
             setIsUserModalOpen(false);
@@ -595,11 +601,12 @@ function UsersListTab() {
                       <th className="px-5 py-4">Empresa</th>
                       <th className="px-5 py-4">Rol (Legacy)</th>
                       <th className="px-5 py-4">Rol (Custom)</th>
+                      <th className="px-5 py-4 text-center">Vendedor</th>
                       <th className="px-5 py-4 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {users.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-gray-500">No hay usuarios.</td></tr> : 
+                    {users.length === 0 ? <tr><td colSpan={7} className="p-8 text-center text-gray-500">No hay usuarios.</td></tr> : 
                     users.map((u: User) => (
                       <tr key={u.id} className="hover:bg-white/5 transition-colors">
                         <td className="px-5 py-4 font-bold text-gray-200 cursor-pointer hover:text-blue-400" onClick={() => handleEditUser(u)}>
@@ -618,6 +625,13 @@ function UsersListTab() {
                                     {u.role.name}
                                  </span>
                             ) : <span className="text-gray-600 text-xs">-</span>}
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                            {u.isSalesperson ? (
+                                <span className="bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full text-xs border border-emerald-500/20 font-bold">Sí</span>
+                            ) : (
+                                <span className="text-gray-600 text-xs">—</span>
+                            )}
                         </td>
                         <td className="px-5 py-4 text-right">
                             <button onClick={() => handleEditUser(u)} className="text-blue-400 hover:text-blue-300 font-medium mr-4 transition-colors">Editar</button>
@@ -710,6 +724,29 @@ function UsersListTab() {
                                         ))}
                                     </select>
                                 </div>
+                            </div>
+
+                            {/* Toggle Vendedor */}
+                            <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3.5">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-200">¿Es Vendedor?</p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">Al activar, este usuario aparecerá como opción de vendedor en Cotizaciones y Facturas.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={editingUser.isSalesperson}
+                                    onClick={() => setEditingUser({...editingUser, isSalesperson: !editingUser.isSalesperson})}
+                                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-[#1A1F2C] ${
+                                        editingUser.isSalesperson ? 'bg-emerald-500' : 'bg-white/20'
+                                    }`}
+                                >
+                                    <span
+                                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                            editingUser.isSalesperson ? 'translate-x-5' : 'translate-x-0'
+                                        }`}
+                                    />
+                                </button>
                             </div>
 
                             <div className="flex justify-end gap-3 pt-6 border-t border-white/5">
