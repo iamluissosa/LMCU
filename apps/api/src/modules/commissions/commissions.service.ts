@@ -180,7 +180,7 @@ export class CommissionsService {
           companyId,
           salespersonId: data.salespersonId,
           ruleId: rule.id,  // Hack necesario por restricción on schema
-          salesInvoiceId: 'N/A', // Mismo hack
+          salesInvoiceId: null, // Change from 'N/A' to null
           type: CommissionLedgerType.ADJUSTMENT,
           baseAmount: 0,
           rate: 0,

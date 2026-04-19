@@ -278,6 +278,7 @@ model User {
   salesQuotes           Quote[]            @relation("SalespersonQuotes")
   salesOrdersAssigned   SalesOrder[]       @relation("SalespersonSOs")
   salesInvoicesAssigned SalesInvoice[]     @relation("SalespersonSIs")
+  commissionRules       CommissionRule[]
   ledgersAssigned       CommissionLedger[]
 }
 
@@ -339,6 +340,7 @@ model Product {
   quoteItems        QuoteItem[]
   salesOrderItems   SalesOrderItem[]
   salesInvoiceItems SalesInvoiceItem[]
+  commissionRules   CommissionRule[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1132,6 +1134,7 @@ model SalesInvoice {
   creditNotes           CreditNote[]           @relation("CreditNoteAffectedSI")
   debitNotes            DebitNote[]            @relation("DebitNoteAffectedSI")
   ivaRetentionsReceived IvaRetentionReceived[]
+  commissionLedgers     CommissionLedger[]
 
   // Auditoría
   createdAt     DateTime  @default(now())
@@ -1465,7 +1468,9 @@ model CommissionRule {
 
   // Alcance: ¿regla global del tenant, por vendedor, o por producto?
   salespersonId String? // null = aplica a todos los vendedores
+  salesperson   User?   @relation(fields: [salespersonId], references: [id])
   productId     String? // null = aplica a todos los productos
+  product       Product? @relation(fields: [productId], references: [id])
 
   isActive Boolean @default(true)
   priority Int     @default(0) // Regla más específica gana
@@ -1493,7 +1498,8 @@ model CommissionLedger {
   ruleId        String // FK → CommissionRule (snapshot de la regla aplicada)
 
   // Documento origen
-  salesInvoiceId String // Factura que generó la comisión
+  salesInvoiceId String? // Factura que generó la comisión
+  salesInvoice   SalesInvoice? @relation(fields: [salesInvoiceId], references: [id])
   paymentInId    String? // Cobro específico que disparó el cálculo
   creditNoteId   String? // Solo para CLAWBACK
 
