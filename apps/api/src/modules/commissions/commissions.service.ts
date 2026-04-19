@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCommissionRuleDto } from './dto/commission.dto';
-import { CommissionLedgerType } from '@prisma/client';
+import { CommissionLedgerType } from '@repo/database';
 
 @Injectable()
 export class CommissionsService {

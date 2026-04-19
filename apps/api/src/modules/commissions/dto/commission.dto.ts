@@ -1,5 +1,5 @@
 import { IsString, IsNumber, IsOptional, IsBoolean, IsEnum } from 'class-validator';
-import { CommissionType } from '@prisma/client';
+import { CommissionType } from '@repo/database';
 
 export class CreateCommissionRuleDto {
   @IsString()

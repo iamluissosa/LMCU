@@ -339,7 +339,6 @@ export default function QuoteFormModal({
                 ))}
               </select>
             </div>
-            </div>
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1.5">
                 Vendedor / Asesor

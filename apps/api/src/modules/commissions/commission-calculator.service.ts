@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CommissionLedgerType } from '@prisma/client';
+import { CommissionLedgerType } from '@repo/database';
 
 @Injectable()
 export class CommissionCalculatorService {
