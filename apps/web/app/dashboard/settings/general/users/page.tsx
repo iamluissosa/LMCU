@@ -540,6 +540,24 @@ function UsersListTab() {
         }
     };
 
+    const handleResetPassword = async (userId: string, userName: string) => {
+        const newPassword = prompt(`Nueva contraseña para ${userName} (mínimo 6 caracteres):`);
+        if (!newPassword) return;
+        if (newPassword.length < 6) {
+            alert('La contraseña debe tener al menos 6 caracteres');
+            return;
+        }
+
+        try {
+            await apiClient.patch(`/users/${userId}/reset-password`, { password: newPassword });
+            alert(`✅ Contraseña actualizada correctamente para ${userName}`);
+        } catch (error: unknown) {
+            console.error(error);
+            const msg = error instanceof Error ? error.message : 'Error al resetear contraseña';
+            alert(`Error: ${msg}`);
+        }
+    };
+
     const handleSaveUser = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUser) return;
@@ -634,7 +652,8 @@ function UsersListTab() {
                             )}
                         </td>
                         <td className="px-5 py-4 text-right">
-                            <button onClick={() => handleEditUser(u)} className="text-blue-400 hover:text-blue-300 font-medium mr-4 transition-colors">Editar</button>
+                            <button onClick={() => handleEditUser(u)} className="text-blue-400 hover:text-blue-300 font-medium mr-3 transition-colors">Editar</button>
+                            <button onClick={() => handleResetPassword(u.id, u.name || u.email)} className="text-amber-400 hover:text-amber-300 font-medium mr-3 transition-colors">Clave</button>
                             <button onClick={() => handleDeleteUser(u.id)} className="text-red-400 hover:text-red-300 font-medium transition-colors">Eliminar</button>
                         </td>
                       </tr>

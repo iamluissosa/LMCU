@@ -58,24 +58,34 @@ export class UsersController {
 
     if (authError) {
       // Si ya existe, permitimos continuar para intentar crearlo en BD local si falta
-      // Error msg usually: "A user with this email address has already been registered"
       if (
         authError.message.includes('already been registered') ||
         authError.status === 422
       ) {
-        // Recuperar ID de usuario existente
         const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
-        // Nota: listUsers no filtra por email nativamente directo, hay que buscar.
-        // En producción esto no es eficiente, pero para ERP interno funciona.
         const existing = listData.users.find(
           (u: any) => u.email === body.email,
         );
-        if (existing) userId = existing.id;
-        else
+        if (existing) {
+          userId = existing.id;
+
+          // 🔑 Sincronizar contraseña en Supabase Auth para que el login funcione
+          const passwordToSet = body.password || '12345678';
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+            userId,
+            { password: passwordToSet, email_confirm: true },
+          );
+          if (updateError) {
+            console.error('⚠️ Error actualizando password en Supabase Auth:', updateError.message);
+          } else {
+            console.log(`✅ Password sincronizado en Supabase Auth para ${body.email}`);
+          }
+        } else {
           throw new HttpException(
             'El usuario existe en Auth pero no se pudo recuperar su ID',
             HttpStatus.CONFLICT,
           );
+        }
       } else {
         console.error('Error Supabase:', authError);
         throw new HttpException(authError.message, HttpStatus.BAD_REQUEST);
@@ -192,7 +202,7 @@ export class UsersController {
     let userId = authUser?.user?.id;
 
     if (authError) {
-      // Si ya existe, intentamos recuperar ID
+      // Si ya existe, intentamos recuperar ID y sincronizar contraseña
       if (
         authError.message.includes('already been registered') ||
         authError.status === 422
@@ -201,12 +211,26 @@ export class UsersController {
         const existing = listData.users.find(
           (u: any) => u.email === body.email,
         );
-        if (existing) userId = existing.id;
-        else
+        if (existing) {
+          userId = existing.id;
+
+          // 🔑 Sincronizar contraseña en Supabase Auth para que el login funcione
+          const passwordToSet = body.password || '12345678';
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+            userId,
+            { password: passwordToSet, email_confirm: true },
+          );
+          if (updateError) {
+            console.error('⚠️ Error actualizando password en Supabase Auth:', updateError.message);
+          } else {
+            console.log(`✅ Password sincronizado en Supabase Auth para ${body.email}`);
+          }
+        } else {
           throw new HttpException(
             'El usuario existe en Auth pero no se pudo recuperar su ID',
             HttpStatus.CONFLICT,
           );
+        }
       } else {
         console.error('Error Supabase:', authError);
         throw new HttpException(authError.message, HttpStatus.BAD_REQUEST);
@@ -282,6 +306,50 @@ export class UsersController {
   @Permissions('users.view')
   findOne(@Param('id') id: string, @Request() req) {
     return this.usersService.findOne(id, req.user.companyId);
+  }
+
+  // 🔑 Endpoint para resetear contraseña (sincroniza Supabase Auth + BD local)
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @Patch(':id/reset-password')
+  @Permissions('users.edit')
+  async resetPassword(
+    @Param('id') id: string,
+    @Body() body: { password: string },
+    @Request() req: any,
+  ) {
+    if (!body.password || body.password.length < 6) {
+      throw new HttpException(
+        'La contraseña debe tener al menos 6 caracteres',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // 1. Actualizar en BD local
+    await this.usersService.update(id, { password: body.password }, req.user.companyId);
+
+    // 2. Actualizar en Supabase Auth
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (supabaseUrl && supabaseServiceKey) {
+      const { createClient } = require('@supabase/supabase-js');
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(
+        id,
+        { password: body.password },
+      );
+
+      if (error) {
+        console.error('⚠️ Error actualizando password en Supabase:', error.message);
+        throw new HttpException(
+          'Contraseña actualizada localmente pero falló la sincronización con Supabase Auth: ' + error.message,
+          HttpStatus.PARTIAL_CONTENT,
+        );
+      }
+    }
+
+    return { message: 'Contraseña actualizada correctamente en ambos sistemas' };
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
