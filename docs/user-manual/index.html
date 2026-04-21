@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual de Usuario | LMCU ERP</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Ionicons for icons (lightweight) -->
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <button id="menu-toggle">
+        <ion-icon name="menu-outline" size="large"></ion-icon>
+    </button>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="logo-container">
+            <h1>LMCU <span>DOCS</span></h1>
+        </div>
+        
+        <nav>
+            <ul>
+                <li><a href="#introduccion" class="active">Introducción</a></li>
+                
+                <li class="nav-group">Administración</li>
+                <li><a href="#configuracion">Configuración Inicial</a></li>
+                <li><a href="#usuarios">Usuarios y Roles</a></li>
+                
+                <li class="nav-group">Catálogos</li>
+                <li><a href="#clientes">Clientes</a></li>
+                <li><a href="#proveedores">Proveedores</a></li>
+                <li><a href="#productos">Productos y Servicios</a></li>
+                
+                <li class="nav-group">Operaciones</li>
+                <li><a href="#ventas">Ciclo de Ventas</a></li>
+                <li><a href="#comisiones">Comisiones</a></li>
+                <li><a href="#compras">Ciclo de Compras</a></li>
+                
+                <li class="nav-group">Logística y Almacén</li>
+                <li><a href="#inventario">Inventario y Stock</a></li>
+                
+                <li class="nav-group">Finanzas</li>
+                <li><a href="#tesoreria">Tesorería y Pagos</a></li>
+                <li><a href="#fiscal">Gestión Fiscal</a></li>
+                
+                <li class="nav-group">Otros</li>
+                <li><a href="#reportes">Reportes y Auditoría</a></li>
+            </ul>
+        </nav>
+    </aside>
+
+    <main class="content">
+        <!-- 1. INTRODUCCIÓN -->
+        <section id="introduccion">
+            <h1>Bienvenida al ERP LMCU</h1>
+            <p>Este manual ha sido diseñado para guiarte en el uso eficiente de LMCU, un sistema de gestión empresarial integral optimizado para la escalabilidad y el control operativo.</p>
+            
+            <div class="alert alert-note">
+                <div>
+                    <span class="alert-title">Soporte Técnico</span>
+                    <p>Si encuentras algún problema no contemplado en esta guía, contacta al administrador de sistemas de tu empresa.</p>
+                </div>
+            </div>
+
+            <h2>Interfaz de Usuario</h2>
+            <p>La interfaz de LMCU está diseñada para ser intuitiva y productiva:</p>
+            <ol>
+                <li><strong>Barra Lateral:</strong> Agrupa los módulos principales del negocio.</li>
+                <li><strong>Dashboard:</strong> Vista rápida de indicadores clave (KPIs).</li>
+                <li><strong>Modales de Acción:</strong> Ventanas emergentes para creación rápida de registros.</li>
+            </ol>
+
+            <div class="image-placeholder">
+                <ion-icon name="image-outline"></ion-icon>
+                <span>Captura de Pantalla: Dashboard de LMCU</span>
+            </div>
+        </section>
+
+        <!-- 2. CONFIGURACIÓN INICIAL -->
+        <section id="configuracion">
+            <h2>Configuración Inicial</h2>
+            <p>Antes de comenzar a operar, es fundamental parametrizar los datos de la empresa para que los documentos fiscales se generen correctamente.</p>
+
+            <h3>Configuración de Empresa (Settings)</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Parámetro</th>
+                            <th>Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>RIF / NIT</td>
+                            <td>Identificación fiscal obligatoria para facturación.</td>
+                        </tr>
+                        <tr>
+                            <td>Prefijos de Documentos</td>
+                            <td>Define cómo inician tus documentos (ej. COT-, FACT-, OC-).</td>
+                        </tr>
+                        <tr>
+                            <td>Tasa de Cambio</td>
+                            <td>Valor del BCV o paralelo utilizado para la conversión multimoneda.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="alert alert-warning">
+                <div>
+                    <span class="alert-title">Importante</span>
+                    <p>Cualquier cambio en la tasa de cambio afectará los nuevos documentos generados a partir de ese momento.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. USUARIOS Y ROLES -->
+        <section id="usuarios">
+            <h2>Usuarios y Roles</h2>
+            <p>LMCU utiliza un sistema de control de acceso basado en roles (RBAC) con permisos granulares definidos en formato JSON.</p>
+
+            <h3>Gestión de Usuarios</h3>
+            <p>Pasos para crear un usuario:</p>
+            <ol>
+                <li>Dirígete a <strong>Configuración > Usuarios</strong>.</li>
+                <li>Haz clic en "Nuevo Usuario".</li>
+                <li>Completa el nombre, correo y asigna un <strong>Rol</strong> predefinido.</li>
+                <li>Si es un vendedor, marca la casilla <strong>"Es Vendedor"</strong> para habilitar su tablero de comisiones.</li>
+            </ol>
+
+            <div class="image-placeholder">
+                <ion-icon name="image-outline"></ion-icon>
+                <span>Formulario de Creación de Usuario</span>
+            </div>
+        </section>
+
+        <!-- 4. CLIENTES -->
+        <section id="clientes">
+            <h2>Gestión de Clientes</h2>
+            <p>El maestro de clientes almacena la información necesaria para el ciclo de ventas y la gestión de cobranzas.</p>
+
+            <h3>Campos Clave</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Campo</th>
+                            <th>Función</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Tipo de Contribuyente</td>
+                            <td>Determina si el cliente es Agente de Retención de IVA.</td>
+                        </tr>
+                        <tr>
+                            <td>Límite de Crédito</td>
+                            <td>Monto máximo en USD que el cliente puede adeudar.</td>
+                        </tr>
+                        <tr>
+                            <td>Días de Crédito</td>
+                            <td>Plazo permitido para el pago de facturas.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 5. PROVEEDORES -->
+        <section id="proveedores">
+            <h2>Gestión de Proveedores</h2>
+            <p>Crucial para el módulo de compras y el cálculo automático de retenciones de ISLR según la normativa local.</p>
+
+            <div class="alert alert-note">
+                <div>
+                    <span class="alert-title">Retenciones de ISLR</span>
+                    <p>Asegúrate de seleccionar correctamente el <strong>Tipo de Persona</strong> (PNR, PJND, etc.) para que el sistema aplique el % de retención según el Decreto 1808.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. PRODUCTOS Y SERVICIOS -->
+        <section id="productos">
+            <h2>Productos y Servicios</h2>
+            <p>LMCU distingue entre bienes físicos que afectan el stock y servicios profesionales.</p>
+
+            <h3>Diferenciación de Ítems</h3>
+            <ul>
+                <li><strong>Producto Físico:</strong> Requiere control de stock. Cada venta rebaja la existencia disponible.</li>
+                <li><strong>Servicio (isService):</strong> No afecta el inventario. Ideal para mano de obra o consultoría.</li>
+            </ul>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Campo</th>
+                            <th>Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Costo Promedio</td>
+                            <td>Calculado automáticamente con cada recepción de mercancía.</td>
+                        </tr>
+                        <tr>
+                            <td>Precio Base</td>
+                            <td>Precio oficial de venta en USD.</td>
+                        </tr>
+                        <tr>
+                            <td>Unidad de Medida</td>
+                            <td>Ej. Unidad, Caja, Metro, Hora.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 7. VENTAS -->
+        <section id="ventas">
+            <h2>Ciclo de Ventas</h2>
+            <p>El flujo estándar de ventas en LMCU asegura la trazabilidad desde el primer contacto hasta el cobro.</p>
+
+            <h3>Flujo Operativo</h3>
+            <ol>
+                <li><strong>Cotización (Quote):</strong> Documento informativo para el cliente.</li>
+                <li><strong>Orden de Venta (Sales Order):</strong> Reserva de compromiso. Valida stock si no es un servicio.</li>
+                <li><strong>Factura de Venta:</strong> Genera el compromiso legal y la cuenta por cobrar.</li>
+            </ol>
+
+            <div class="alert alert-warning">
+                <div>
+                    <span class="alert-title">Validación de Stock</span>
+                    <p>El sistema impedirá facturar productos físicos sin stock suficiente, a menos que el usuario tenga permisos de "Facturación en Negativo".</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 8. COMISIONES -->
+        <section id="comisiones">
+            <h2>Tablero de Comisiones</h2>
+            <p>Permite rastrear el desempeño de los vendedores y calcular sus pagos basados en reglas predefinidas por producto o volumen.</p>
+
+            <div class="image-placeholder">
+                <ion-icon name="image-outline"></ion-icon>
+                <span>Vista del Tablero de Comisiones</span>
+            </div>
+        </section>
+
+        <!-- 9. COMPRAS -->
+        <section id="compras">
+            <h2>Ciclo de Compras</h2>
+            <p>Controla el abastecimiento y las cuentas por pagar de la empresa.</p>
+
+            <h3>Recepción de Mercancía (Goods Receipt)</h3>
+            <p>Este es el paso que <strong>actualiza el inventario físico</strong>. Al recibir una Orden de Compra, el stock aumenta automáticamente.</p>
+
+            <h3>Facturas de Compra</h3>
+            <p>Registro de la obligación financiera. El sistema calculará automáticamente:</p>
+            <ul>
+                <li>Retención de IVA (75% o 100% según proveedor).</li>
+                <li>Retención de ISLR (basada en el concepto de gasto).</li>
+                <li>IGTF (si el pago es en efectivo divisa).</li>
+            </ul>
+        </section>
+
+        <!-- 10. INVENTARIO -->
+        <section id="inventario">
+            <h2>Inventario y Almacén</h2>
+            <p>Proporciona visibilidad en tiempo real de los activos de la empresa.</p>
+            
+            <h3>Kárdex de Producto</h3>
+            <p>Consulta el historial detallado de cada ítem, viendo quién, cuándo y por qué se movió la mercancía.</p>
+        </section>
+
+        <!-- 11. TESORERÍA -->
+        <section id="tesoreria">
+            <h2>Tesorería y Pagos</h2>
+            <p>Gestión del flujo de caja (Cash Flow) de la empresa.</p>
+
+            <h3>Métodos de Pago Soportados</h3>
+            <ul>
+                <li>Zelle / Transferencia Internacional.</li>
+                <li>Pago Móvil / Transferencia VES.</li>
+                <li>Efectivo (USD / VES) - Cálculo automático de IGTF.</li>
+            </ul>
+        </section>
+
+        <!-- 12. GESTIÓN FISCAL -->
+        <section id="fiscal">
+            <h2>Gestión Fiscal</h2>
+            <p>Módulo especializado para el cumplimiento de las normativas del SENIAT.</p>
+
+            <h3>Libros Fiscales</h3>
+            <p>Generación automática en formato Excel/PDF de:</p>
+            <ul>
+                <li>Libro de Compras.</li>
+                <li>Libro de Ventas.</li>
+                <li>Resumen de Retenciones de IVA e ISLR.</li>
+            </ul>
+        </section>
+
+        <!-- 13. REPORTES -->
+        <section id="reportes">
+            <h2>Reportes y Auditoría</h2>
+            <p>Información estratégica para la toma de decisiones.</p>
+
+            <h3>Log de Eventos</h3>
+            <p>LMCU registra cada inicio de sesión, creación, edición o anulación de documentos, incluyendo la dirección IP y el usuario responsable.</p>
+        </section>
+
+    </main>
+
+    <script src="main.js"></script>
+</body>
+</html>
