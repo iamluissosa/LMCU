@@ -54,30 +54,34 @@ if ! command -v pnpm &> /dev/null; then
 fi
 echo -e "${GREEN}  ✓ pnpm: $(pnpm -v)${NC}"
 
+# JAVA_HOME (detectar antes de verificar java en PATH)
+if [ -z "${JAVA_HOME:-}" ]; then
+  if [ -x "/usr/libexec/java_home" ]; then
+    export JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null || /usr/libexec/java_home -v 21 2>/dev/null || /usr/libexec/java_home 2>/dev/null || true)
+  fi
+  # Homebrew en macOS ARM
+  if [ -z "${JAVA_HOME:-}" ] && [ -d "/opt/homebrew/opt/openjdk@17" ]; then
+    export JAVA_HOME="/opt/homebrew/opt/openjdk@17"
+  fi
+fi
+
+# Agregar JAVA_HOME/bin al PATH si existe
+if [ -n "${JAVA_HOME:-}" ] && [ -d "$JAVA_HOME/bin" ]; then
+  export PATH="$JAVA_HOME/bin:$PATH"
+fi
+
 # Java
 if ! command -v java &> /dev/null; then
-  echo -e "${RED}✗ Java no está instalado${NC}"
+  echo -e "${RED}✗ Java no está instalado o no está en el PATH${NC}"
+  echo -e "${YELLOW}  Instala con: brew install openjdk@17${NC}"
   exit 1
 fi
 JAVA_VER=$(java -version 2>&1 | head -1)
 echo -e "${GREEN}  ✓ Java: $JAVA_VER${NC}"
-
-# JAVA_HOME
-if [ -z "${JAVA_HOME:-}" ]; then
-  # Intentar auto-detectar en macOS
-  if [ -x "/usr/libexec/java_home" ]; then
-    export JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null || /usr/libexec/java_home -v 21 2>/dev/null || /usr/libexec/java_home 2>/dev/null)
-  fi
-fi
-if [ -z "${JAVA_HOME:-}" ]; then
-  echo -e "${RED}✗ JAVA_HOME no está configurado${NC}"
-  exit 1
-fi
 echo -e "${GREEN}  ✓ JAVA_HOME: $JAVA_HOME${NC}"
 
 # Android SDK
 if [ -z "${ANDROID_HOME:-}" ] && [ -z "${ANDROID_SDK_ROOT:-}" ]; then
-  # Auto-detectar ubicación estándar en macOS
   if [ -d "$HOME/Library/Android/sdk" ]; then
     export ANDROID_HOME="$HOME/Library/Android/sdk"
   fi
@@ -155,7 +159,7 @@ cd "$MOBILE_DIR"
 BUILD_LOG="$MOBILE_DIR/build_log_latest.txt"
 
 # Ejecutar el build
-npx -y -p eas-cli eas build \
+npx eas build \
   --platform android \
   --profile production \
   --local \

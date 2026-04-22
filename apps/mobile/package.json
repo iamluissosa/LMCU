@@ -47,6 +47,7 @@
     "@babel/core": "^7.25.2",
     "@repo/typescript-config": "workspace:^",
     "@types/react": "~19.1.17",
+    "eas-cli": "^18.7.0",
     "typescript": "~5.9.2"
   },
   "private": true
