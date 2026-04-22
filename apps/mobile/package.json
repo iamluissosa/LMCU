@@ -10,6 +10,7 @@
     "build:android": "eas build --platform android --profile preview",
     "build:ios": "eas build --platform ios --profile preview",
     "build:android:production": "eas build --platform android --profile production",
+    "build:android:local": "bash scripts/build-apk-local.sh",
     "eas:login": "eas login",
     "prebuild": "expo prebuild",
     "lint": "eslint . --ext .ts,.tsx",
@@ -46,7 +47,6 @@
     "@babel/core": "^7.25.2",
     "@repo/typescript-config": "workspace:^",
     "@types/react": "~19.1.17",
-    "eas-cli": "^18.7.0",
     "typescript": "~5.9.2"
   },
   "private": true

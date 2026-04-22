@@ -2,6 +2,11 @@ import * as SecureStore from 'expo-secure-store';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 
+// Log de diagnóstico para verificar la URL del API (solo visible en dev)
+if (__DEV__) {
+  console.log('[ApiClient] Base URL:', API_BASE_URL);
+}
+
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'lmcu_access_token',
   REFRESH_TOKEN: 'lmcu_refresh_token',
@@ -100,19 +105,38 @@ class ApiClient {
     return (json.data ?? json) as T;
   }
 
+  /**
+   * Envuelve fetch() para capturar errores de red (ej: "Network request failed")
+   * y convertirlos en un ApiClientError con información útil para debugging.
+   */
+  private async safeFetch(url: string, init: RequestInit): Promise<Response> {
+    try {
+      return await fetch(url, init);
+    } catch (error) {
+      // "Network request failed" — sin conexión, CORS bloqueado, o servidor caído
+      const message =
+        error instanceof Error ? error.message : 'Error de red desconocido';
+      throw new ApiClientError(
+        `No se pudo conectar al servidor (${message}). Verifica tu conexión a internet.`,
+        0,
+        'NETWORK_ERROR',
+      );
+    }
+  }
+
   async get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
     const url = new URL(`${this.baseUrl}${path}`);
     if (params) {
       Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
     }
     const headers = await this.getAuthHeaders();
-    const response = await fetch(url.toString(), { method: 'GET', headers });
+    const response = await this.safeFetch(url.toString(), { method: 'GET', headers });
     return this.handleResponse<T>(response);
   }
 
   async post<T, B = unknown>(path: string, body: B): Promise<T> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const response = await this.safeFetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -122,7 +146,7 @@ class ApiClient {
 
   async patch<T, B = unknown>(path: string, body: B): Promise<T> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const response = await this.safeFetch(`${this.baseUrl}${path}`, {
       method: 'PATCH',
       headers,
       body: JSON.stringify(body),
@@ -132,7 +156,7 @@ class ApiClient {
 
   async delete<T>(path: string): Promise<T> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const response = await this.safeFetch(`${this.baseUrl}${path}`, {
       method: 'DELETE',
       headers,
     });
@@ -161,6 +185,11 @@ export class ApiClientError extends Error {
 
   get isNotFound(): boolean {
     return this.statusCode === 404;
+  }
+
+  /** Error de red (sin conexión, CORS, servidor caído) */
+  get isNetworkError(): boolean {
+    return this.statusCode === 0 && this.errorCode === 'NETWORK_ERROR';
   }
 }
 

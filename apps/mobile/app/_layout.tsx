@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PaperProvider } from 'react-native-paper';
 import { useColorScheme } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/auth.store';
 import { DarkTheme, LightTheme } from '@/theme';
 
@@ -39,16 +40,18 @@ export default function RootLayout() {
   const paperTheme = colorScheme === 'dark' ? DarkTheme : LightTheme;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <PaperProvider theme={paperTheme}>
-        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-        <Stack screenOptions={{ headerShown: false }}>
-          {/* Grupo de rutas de autenticación */}
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          {/* Grupo de rutas protegidas de la app */}
-          <Stack.Screen name="(app)" options={{ headerShown: false }} />
-        </Stack>
-      </PaperProvider>
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <PaperProvider theme={paperTheme}>
+          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+          <Stack screenOptions={{ headerShown: false }}>
+            {/* Grupo de rutas de autenticación */}
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            {/* Grupo de rutas protegidas de la app */}
+            <Stack.Screen name="(app)" options={{ headerShown: false }} />
+          </Stack>
+        </PaperProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

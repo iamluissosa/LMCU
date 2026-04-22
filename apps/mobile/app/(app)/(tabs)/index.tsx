@@ -1,5 +1,6 @@
 import { ScrollView, View, StyleSheet, RefreshControl } from 'react-native';
 import { Text, useTheme, Surface, ActivityIndicator } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/auth.store';
 import { useDashboardMetrics } from '@/hooks/useDashboard';
 import { spacing, borderRadius, semanticColors } from '@/theme';
@@ -92,6 +93,7 @@ function MetricCard({ title, value, subtitle, trend, icon, accentColor }: Metric
 
 export default function DashboardScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { data, isLoading, isError, refetch, isRefetching } = useDashboardMetrics();
 
@@ -133,7 +135,7 @@ export default function DashboardScreen() {
   return (
     <ScrollView
       style={{ backgroundColor: theme.colors.background }}
-      contentContainerStyle={[styles.container, { paddingBottom: spacing.xxl }]}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xxl }]}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
@@ -277,7 +279,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     padding: spacing.md,
-    paddingTop: spacing.xl,
+    // paddingTop se asigna dinámicamente con insets.top + spacing.md
   },
   centered: {
     flex: 1,

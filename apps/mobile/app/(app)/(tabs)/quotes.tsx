@@ -9,6 +9,7 @@ import {
   Searchbar,
   Badge,
 } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuotes, type QuoteStatus, type QuoteListItem } from '@/hooks/useQuotes';
 import { spacing, borderRadius, semanticColors } from '@/theme';
@@ -108,6 +109,7 @@ const STATUS_FILTERS: Array<{ label: string; value: QuoteStatus | 'ALL' }> = [
 
 export default function QuotesScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<QuoteStatus | 'ALL'>('ALL');
 
@@ -125,7 +127,7 @@ export default function QuotesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Estadísticas rápidas */}
-      <View style={[styles.statsBar, { backgroundColor: theme.colors.primary }]}>
+      <View style={[styles.statsBar, { backgroundColor: theme.colors.primary, paddingTop: insets.top + spacing.md }]}>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{data?.total ?? 0}</Text>
           <Text style={styles.statLabel}>Total</Text>

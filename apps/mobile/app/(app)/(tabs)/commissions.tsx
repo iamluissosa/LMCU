@@ -9,6 +9,7 @@ import {
   Searchbar,
   Divider,
 } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCommissions, type CommissionStatus, type Commission } from '@/hooks/useCommissions';
 import { useAuthStore } from '@/store/auth.store';
 import { spacing, borderRadius, semanticColors } from '@/theme';
@@ -90,6 +91,7 @@ const STATUS_FILTERS: Array<{ label: string; value: CommissionStatus | 'ALL' }> 
 
 export default function CommissionsScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<CommissionStatus | 'ALL'>('ALL');
@@ -112,7 +114,7 @@ export default function CommissionsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header con resumen */}
-      <View style={[styles.summaryBar, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.outline }]}>
+      <View style={[styles.summaryBar, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.outline, paddingTop: insets.top + spacing.md }]}>
         <View style={styles.summaryItem}>
           <Text style={[styles.summaryValue, { color: theme.colors.onSurface }]}>
             {formatCurrency(data?.totalEarned ?? 0)}

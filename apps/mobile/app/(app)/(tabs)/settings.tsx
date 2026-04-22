@@ -1,5 +1,6 @@
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Text, useTheme, Surface, List, Switch, Divider, Avatar, Button } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/auth.store';
 import { useLogout } from '@/hooks/useAuth';
 import { spacing, borderRadius } from '@/theme';
@@ -9,6 +10,7 @@ import { useColorScheme } from 'react-native';
 
 export default function SettingsScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { mutate: logout, isPending: isLoggingOut } = useLogout();
   const colorScheme = useColorScheme();
@@ -37,7 +39,7 @@ export default function SettingsScreen() {
     >
       {/* Perfil del usuario */}
       <Surface
-        style={[styles.profileCard, { backgroundColor: theme.colors.primary }]}
+        style={[styles.profileCard, { backgroundColor: theme.colors.primary, paddingTop: insets.top + spacing.xl }]}
         elevation={0}
       >
         <Avatar.Text

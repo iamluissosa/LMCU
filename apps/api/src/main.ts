@@ -24,9 +24,28 @@ async function bootstrap() {
   // Interceptor Global de Transformación
   app.useGlobalInterceptors(new TransformInterceptor());
 
+  // CORS dinámico: permite el frontend web + apps móviles nativas (sin header Origin)
   app.enableCors({
-    origin:
-      process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : true,
+    origin: (origin, callback) => {
+      // En desarrollo, aceptar cualquier origen
+      if (process.env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      }
+      // Orígenes permitidos: CORS_ALLOWED_ORIGINS (comma-separated) o FRONTEND_URL como fallback
+      const allowedOrigins = (
+        process.env.CORS_ALLOWED_ORIGINS ||
+        process.env.FRONTEND_URL ||
+        ''
+      )
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean);
+      // Apps nativas (React Native) envían requests sin header Origin → permitir
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      callback(new Error('Not allowed by CORS'));
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
