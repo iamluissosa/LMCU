@@ -5,8 +5,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
-      "filter": ["!@erp/mobile"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]
