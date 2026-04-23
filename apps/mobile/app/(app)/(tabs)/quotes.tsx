@@ -26,8 +26,10 @@ const STATUS_CONFIG: Record<QuoteStatus, { label: string; color: string }> = {
   DRAFT: { label: 'Borrador', color: semanticColors.pending },
   SENT: { label: 'Enviada', color: '#3b82f6' },
   APPROVED: { label: 'Aprobada', color: semanticColors.approved },
+  ACCEPTED: { label: 'Aceptada', color: semanticColors.approved },
   REJECTED: { label: 'Rechazada', color: semanticColors.expense },
   EXPIRED: { label: 'Expirada', color: semanticColors.warning },
+  CANCELLED: { label: 'Cancelada', color: semanticColors.expense },
 };
 
 // ─────────────────────────────────────────────
@@ -37,8 +39,18 @@ const STATUS_CONFIG: Record<QuoteStatus, { label: string; color: string }> = {
 function QuoteItem({ item }: { item: QuoteListItem }) {
   const theme = useTheme();
   const router = useRouter();
-  const config = STATUS_CONFIG[item.status];
-  const isExpiringSoon = new Date(item.validUntil) < new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  
+  // Extraemos y normalizamos el estatus para evitar crasheos por undefined
+  const rawStatus = item.status?.toUpperCase() as QuoteStatus;
+  const config = STATUS_CONFIG[rawStatus] || STATUS_CONFIG['DRAFT'];
+  
+  // Validamos fechas para evitar excepciones de date-fns
+  const validUntilDate = new Date(item.validUntil);
+  const isValidUntil = !isNaN(validUntilDate.getTime());
+  const isExpiringSoon = isValidUntil && validUntilDate < new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  
+  const createdAtDate = new Date(item.createdAt);
+  const isValidCreatedAt = !isNaN(createdAtDate.getTime());
 
   return (
     <Pressable
@@ -77,7 +89,7 @@ function QuoteItem({ item }: { item: QuoteListItem }) {
                 </Text>
               </View>
               <Text style={[styles.date, { color: theme.colors.onSurfaceVariant }]}>
-                {format(new Date(item.createdAt), 'dd MMM', { locale: es })}
+                {isValidCreatedAt ? format(createdAtDate, 'dd MMM', { locale: es }) : 'N/A'}
               </Text>
             </View>
           </View>
@@ -117,12 +129,13 @@ export default function QuotesScreen() {
     status: activeFilter !== 'ALL' ? activeFilter : undefined,
   });
 
-  const filteredItems = (data?.items ?? []).filter((q) =>
-    searchQuery
-      ? q.reference.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        q.clientName.toLowerCase().includes(searchQuery.toLowerCase())
-      : true,
-  );
+  const filteredItems = (data?.items ?? []).filter((q) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    const ref = q.reference?.toLowerCase() || '';
+    const client = q.clientName?.toLowerCase() || '';
+    return ref.includes(query) || client.includes(query);
+  });
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>

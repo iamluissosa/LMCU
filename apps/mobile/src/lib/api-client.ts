@@ -124,10 +124,14 @@ class ApiClient {
     }
   }
 
-  async get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
+  async get<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
     const url = new URL(`${this.baseUrl}${path}`);
     if (params) {
-      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) {
+          url.searchParams.set(k, String(v));
+        }
+      });
     }
     const headers = await this.getAuthHeaders();
     const response = await this.safeFetch(url.toString(), { method: 'GET', headers });

@@ -20,6 +20,12 @@
       "package": "com.lmcu.erp",
       "edgeToEdgeEnabled": true
     },
+    "updates": {
+      "url": "https://u.expo.dev/a049fbff-7970-4937-b0ab-4a7c1027bdf6"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "web": {
       "bundler": "metro",
       "output": "static",
