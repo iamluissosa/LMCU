@@ -175,6 +175,12 @@ export default function DirectPurchasePage() {
   const calcLineTotal = (item: ExpenseItem) => calcBase(item) + calcTax(item);
 
   // Totales globales
+  const calcTotalTaxableBase = () => items
+    .filter(i => Number(i.taxRate) > 0)
+    .reduce((acc, i) => acc + calcBase(i), 0);
+  const calcTotalExempt = () => items
+    .filter(i => Number(i.taxRate) === 0)
+    .reduce((acc, i) => acc + calcBase(i), 0);
   const calcTotalBase    = () => items.reduce((acc, i) => acc + calcBase(i), 0);
   const calcTotalTax     = () => items.reduce((acc, i) => acc + calcTax(i), 0);
   const calcTotalDiscount= () => items.reduce((acc, i) => acc + calcDiscount(i), 0);
@@ -245,7 +251,8 @@ export default function DirectPurchasePage() {
         exchangeRate:  invoiceData.exchangeRate,
         currencyCode:  invoiceData.currencyCode,
         // Totales calculados post-descuento
-        taxableAmount: calcTotalBase(),
+        taxableAmount: calcTotalTaxableBase(),
+        exemptAmount:  calcTotalExempt(),
         taxAmount:     calcTotalTax(),
         totalAmount:   calcTotal(),
         items: items.map(i => ({
@@ -590,11 +597,23 @@ export default function DirectPurchasePage() {
                 </div>
               )}
 
+              {/* Monto exento (solo si hay ítems exentos) */}
+              {calcTotalExempt() > 0 && (
+                <div className="flex justify-between items-center px-4 py-3 bg-gray-500/5 rounded-xl border border-white/5">
+                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                    Exento / No Gravado
+                  </span>
+                  <span className="font-mono font-black text-gray-400">
+                    {invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{calcTotalExempt().toFixed(2)}
+                  </span>
+                </div>
+              )}
+
               {/* Base + IVA */}
               <div className="flex justify-between items-center bg-white/5 p-4 rounded-xl border border-white/5">
                 <div className="space-y-1">
                   <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Base Imponible</p>
-                  <p className="font-mono font-black text-xl text-white">{invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{calcTotalBase().toFixed(2)}</p>
+                  <p className="font-mono font-black text-xl text-white">{invoiceData.currencyCode === 'VES' ? 'Bs.' : '$'}{calcTotalTaxableBase().toFixed(2)}</p>
                 </div>
                 <div className="text-right space-y-1">
                   <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">IVA Estimado</p>
