@@ -273,6 +273,7 @@ export default function LoginPage() {
 
         </form>
 
+        {/* Opción de registro de empresa ocultada temporalmente
         <div className="mt-8 text-center border-t border-white/10 pt-6">
             <button onClick={() => setIsRegister(!isRegister)} className="text-sm font-medium text-gray-400 hover:text-white transition-colors group flex items-center justify-center gap-2 mx-auto">
                 {isRegister ? '¿Ya tienes una cuenta?' : '¿Plataforma nueva?'}
@@ -281,6 +282,7 @@ export default function LoginPage() {
                 </span>
             </button>
         </div>
+        */}
       </div>
       
     </div>
