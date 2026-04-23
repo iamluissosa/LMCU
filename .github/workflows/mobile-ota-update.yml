@@ -34,6 +34,7 @@ jobs:
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
+          packager: pnpm
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: 🚀 Publish Update
